@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { ElButton } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
+import { Bold, Italic, Underline, Strikethrough, Link, Eraser } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
 import type { ProEditorContext } from 'tiptap-vue-pro-core'
 
@@ -89,12 +90,12 @@ onBeforeUnmount(() => {
     class="tvp-bubble"
     :class="{ 'is-visible': isVisible }"
   >
-    <ElButton text :type="ctx.isActive('bold') ? 'primary' : 'default'" @click="ctx.commands.bold()">B</ElButton>
-    <ElButton text :type="ctx.isActive('italic') ? 'primary' : 'default'" @click="ctx.commands.italic()"><i>I</i></ElButton>
-    <ElButton text :type="ctx.isActive('underline') ? 'primary' : 'default'" @click="ctx.commands.underline()"><u>U</u></ElButton>
-    <ElButton text :type="ctx.isActive('strike') ? 'primary' : 'default'" @click="ctx.commands.strike()"><s>S</s></ElButton>
-    <ElButton text @click="openQuickLink">🔗</ElButton>
-    <ElButton text @click="ctx.commands.clearFormat()">⌫</ElButton>
+    <ElButton text :type="ctx.isActive('bold') ? 'primary' : 'default'" @click="ctx.commands.bold()"><Bold :size="16" /></ElButton>
+    <ElButton text :type="ctx.isActive('italic') ? 'primary' : 'default'" @click="ctx.commands.italic()"><Italic :size="16" /></ElButton>
+    <ElButton text :type="ctx.isActive('underline') ? 'primary' : 'default'" @click="ctx.commands.underline()"><Underline :size="16" /></ElButton>
+    <ElButton text :type="ctx.isActive('strike') ? 'primary' : 'default'" @click="ctx.commands.strike()"><Strikethrough :size="16" /></ElButton>
+    <ElButton text @click="openQuickLink"><Link :size="16" /></ElButton>
+    <ElButton text @click="ctx.commands.clearFormat()"><Eraser :size="16" /></ElButton>
 
     <!-- 快速链接输入 -->
     <teleport to="body">
