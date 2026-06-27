@@ -92,6 +92,10 @@ export interface ProEditorCommands {
   insertTable: (rows?: number, cols?: number) => void
   hr: () => void
   clearNodes: () => void
+  /** 设置文字颜色;color 为空字符串则清除颜色 */
+  setColor: (color: string) => void
+  /** 切换背景高亮;color 为空则清除高亮 */
+  toggleHighlight: (color: string) => void
 }
 
 // 局部类型引入,避免污染对外导出

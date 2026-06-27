@@ -162,6 +162,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       cmd()?.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run(),
     hr: () => cmd()?.chain().focus().setHorizontalRule().run(),
     clearNodes: () => cmd()?.chain().focus().clearNodes().run(),
+    setColor: (color) =>
+      cmd()?.chain().focus().setColor(color).run(),
+    toggleHighlight: (color) =>
+      cmd()?.chain().focus().toggleHighlight({ color }).run(),
   }
 
   // ---- isActive ----

@@ -64,6 +64,34 @@ function onHeading(level: number) {
   ctx.value.commands.toggleHeading(level as 0 | 1 | 2 | 3 | 4 | 5 | 6)
 }
 
+// ---- 颜色选择器 ----
+// 预设色板:覆盖常见用色,空字符串 = 清除
+const PRESET_COLORS = [
+  '#000000', '#333333', '#666666', '#999999',
+  '#e0398b', '#db4437', '#f57c00', '#fbc02d',
+  '#0f9d58', '#1e88e5', '#673ab7', '#00897b',
+]
+const PRESET_HIGHLIGHTS = [
+  '#fff3b0', '#ffd6a5', '#caffbf', '#a0c4ff',
+  '#bdb2ff', '#ffc6ff', '#fdffb6', '#9bf6ff',
+]
+
+// 当前文字色(从选区的 textStyle mark 读取)
+const currentColor = computed(
+  () => (ctx.value.editor.value?.getAttributes('textStyle') as { color?: string })?.color ?? '',
+)
+// 当前高亮色
+const currentHighlight = computed(
+  () => (ctx.value.editor.value?.getAttributes('highlight') as { color?: string })?.color ?? '',
+)
+
+function selectColor(color: string) {
+  ctx.value.commands.setColor(color)
+}
+function selectHighlight(color: string) {
+  ctx.value.commands.toggleHighlight(color)
+}
+
 // 链接弹窗(简化版:用 prompt,MVP 阶段够用,后续可换 ElDialog)
 const linkDialogVisible = ref(false)
 const linkUrl = ref('')
@@ -134,6 +162,55 @@ function confirmLink() {
         @click="ctx.commands.strike()"
       ><s>S</s></ElButton>
     </ElTooltip>
+
+    <!-- 文字颜色 -->
+    <ElDropdown trigger="click">
+      <ElButton text>
+        <span class="tvp-color-icon" :style="{ color: currentColor || 'inherit' }">A</span>
+        <span class="tvp-color-bar" :style="{ background: currentColor || '#909399' }" />
+      </ElButton>
+      <template #dropdown>
+        <div class="tvp-color-panel">
+          <div
+            class="tvp-color-swatch"
+            :class="{ 'is-active': currentColor === '' }"
+            @click="selectColor('')"
+          >默认</div>
+          <div
+            v-for="c in PRESET_COLORS"
+            :key="c"
+            class="tvp-color-swatch"
+            :class="{ 'is-active': currentColor === c }"
+            :style="{ background: c }"
+            @click="selectColor(c)"
+          />
+        </div>
+      </template>
+    </ElDropdown>
+
+    <!-- 背景高亮 -->
+    <ElDropdown trigger="click">
+      <ElButton text>
+        <span class="tvp-color-icon" :style="{ background: currentHighlight || 'transparent' }">H</span>
+      </ElButton>
+      <template #dropdown>
+        <div class="tvp-color-panel">
+          <div
+            class="tvp-color-swatch"
+            :class="{ 'is-active': currentHighlight === '' }"
+            @click="selectHighlight('')"
+          >无</div>
+          <div
+            v-for="c in PRESET_HIGHLIGHTS"
+            :key="c"
+            class="tvp-color-swatch"
+            :class="{ 'is-active': currentHighlight === c }"
+            :style="{ background: c }"
+            @click="selectHighlight(c)"
+          />
+        </div>
+      </template>
+    </ElDropdown>
 
     <span class="tvp-divider" />
 
@@ -290,6 +367,51 @@ function confirmLink() {
   margin-top: 6px;
   font-size: 12px;
   color: var(--el-text-color-secondary, #909399);
+}
+
+/* 颜色选择器 */
+.tvp-color-icon {
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 文字色按钮下方的色条 */
+.tvp-color-bar {
+  display: block;
+  width: 16px;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 1px;
+}
+
+.tvp-color-panel {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 8px;
+  width: 180px;
+}
+
+.tvp-color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  font-size: 12px;
+  line-height: 24px;
+  text-align: center;
+  color: var(--el-text-color-secondary, #909399);
+  transition: transform 0.1s;
+}
+
+.tvp-color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.tvp-color-swatch.is-active {
+  outline: 2px solid var(--el-color-primary, #409eff);
+  outline-offset: 1px;
 }
 
 .tvp-divider {
