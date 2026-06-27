@@ -6,6 +6,7 @@ import { TableKit } from '@tiptap/extension-table'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
+import { TextAlign } from '@tiptap/extension-text-align'
 import type { Extensions } from '@tiptap/core'
 
 export type { Extensions } from '@tiptap/core'
@@ -65,5 +66,7 @@ export function createDefaultExtensions(placeholder?: string): Extensions {
     Color,
     // 背景高亮:multicolor 允许多种颜色共存
     Highlight.configure({ multicolor: true }),
+    // 文本对齐:作用于段落和标题
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
   ]
 }

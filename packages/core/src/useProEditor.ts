@@ -166,6 +166,11 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       cmd()?.chain().focus().setColor(color).run(),
     toggleHighlight: (color) =>
       cmd()?.chain().focus().toggleHighlight({ color }).run(),
+    align: (align) =>
+      cmd()?.chain().focus().setTextAlign(align).run(),
+    underline: () => cmd()?.chain().focus().toggleUnderline().run(),
+    clearFormat: () =>
+      cmd()?.chain().focus().clearNodes().unsetAllMarks().run(),
   }
 
   // ---- isActive ----

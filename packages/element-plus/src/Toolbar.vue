@@ -92,6 +92,23 @@ function selectHighlight(color: string) {
   ctx.value.commands.toggleHighlight(color)
 }
 
+// ---- 文本对齐 ----
+const ALIGN_ICONS: Record<string, string> = {
+  left: '⬅',
+  center: '⬌',
+  right: '➡',
+  justify: '⬍',
+}
+const alignIcon = computed(() => {
+  for (const a of ['center', 'right', 'justify'] as const) {
+    if (ctx.value.isActive({ textAlign: a })) return ALIGN_ICONS[a]
+  }
+  return ALIGN_ICONS.left
+})
+function onAlign(align: string) {
+  ctx.value.commands.align(align as 'left' | 'center' | 'right' | 'justify')
+}
+
 // 链接弹窗(简化版:用 prompt,MVP 阶段够用,后续可换 ElDialog)
 const linkDialogVisible = ref(false)
 const linkUrl = ref('')
@@ -162,6 +179,13 @@ function confirmLink() {
         @click="ctx.commands.strike()"
       ><s>S</s></ElButton>
     </ElTooltip>
+    <ElTooltip content="下划线" placement="bottom" :show-after="300">
+      <ElButton
+        text
+        :type="ctx.isActive('underline') ? 'primary' : 'default'"
+        @click="ctx.commands.underline()"
+      ><u>U</u></ElButton>
+    </ElTooltip>
 
     <!-- 文字颜色 -->
     <ElDropdown trigger="click">
@@ -209,6 +233,21 @@ function confirmLink() {
             @click="selectHighlight(c)"
           />
         </div>
+      </template>
+    </ElDropdown>
+
+    <!-- 文本对齐 -->
+    <ElDropdown trigger="click" @command="onAlign">
+      <ElButton text>
+        {{ alignIcon }}
+      </ElButton>
+      <template #dropdown>
+        <ElDropdownMenu>
+          <ElDropdownItem command="left">左对齐 ⬅</ElDropdownItem>
+          <ElDropdownItem command="center">居中 ⬌</ElDropdownItem>
+          <ElDropdownItem command="right">右对齐 ➡</ElDropdownItem>
+          <ElDropdownItem command="justify">两端对齐 ⬍</ElDropdownItem>
+        </ElDropdownMenu>
       </template>
     </ElDropdown>
 
@@ -296,6 +335,11 @@ function confirmLink() {
           </div>
         </template>
       </ElDropdown>
+    </ElTooltip>
+
+    <!-- 清除格式 -->
+    <ElTooltip content="清除格式" placement="bottom" :show-after="300">
+      <ElButton text @click="ctx.commands.clearFormat()">⌫</ElButton>
     </ElTooltip>
 
     <!-- 链接弹窗(MVP 简化版,后续换 ElDialog 组件) -->

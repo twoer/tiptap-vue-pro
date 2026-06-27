@@ -96,6 +96,12 @@ export interface ProEditorCommands {
   setColor: (color: string) => void
   /** 切换背景高亮;color 为空则清除高亮 */
   toggleHighlight: (color: string) => void
+  /** 设置文本对齐 */
+  align: (align: 'left' | 'center' | 'right' | 'justify') => void
+  /** 下划线(StarterKit 自带 underline 扩展) */
+  underline: () => void
+  /** 清除所有格式(节点类型 + marks) */
+  clearFormat: () => void
 }
 
 // 局部类型引入,避免污染对外导出
