@@ -7,6 +7,7 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
 import { TextAlign } from '@tiptap/extension-text-align'
+import { TaskList, TaskItem } from '@tiptap/extension-list'
 import type { Extensions } from '@tiptap/core'
 
 export type { Extensions } from '@tiptap/core'
@@ -28,10 +29,8 @@ export type { Extensions } from '@tiptap/core'
  *   4. TableKit —— 表格(Table/Row/Cell/Header 一站式,v3 合并包)
  *   5. TextStyle + Color —— 文字颜色(Color 依赖 TextStyle 提供的 mark)
  *   6. Highlight —— 文字背景高亮(multicolor 支持多色)
- *
- * 暂未纳入(第二阶段):
- *   - TaskList: v3 需要显式配 @tiptap/extension-list 的 taskItem 模式,
- *     接入有细节坑,留待后续单独处理,避免污染 Core 的干净构建。
+ *   7. TaskList + TaskItem —— 任务列表(checkbox),来自 @tiptap/extension-list
+ *      (v3 中 TaskList/TaskItem 都在 extension-list,不是独立的 task-list 包)
  *
  * StarterKit 的 Link 默认新窗口打开、autolink,满足大多数 CMS 场景。
  * 返回类型用 v3 的 Extensions(同时接受 Extension 和 Node),因为 Image 是 Node。
@@ -68,5 +67,8 @@ export function createDefaultExtensions(placeholder?: string): Extensions {
     Highlight.configure({ multicolor: true }),
     // 文本对齐:作用于段落和标题
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    // 任务列表:TaskList 需要 TaskItem 提供 checkbox 行为
+    TaskList,
+    TaskItem.configure({ nested: true }),
   ]
 }

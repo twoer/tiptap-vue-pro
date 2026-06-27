@@ -189,6 +189,34 @@ const wordCount = computed(() => ctx.wordCount.value)
   padding-left: 1.5em;
 }
 
+/* 任务列表 */
+.tvp-content .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tvp-content .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.tvp-content .ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  user-select: none;
+  margin-top: 4px;
+}
+
+.tvp-content .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.tvp-content .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--el-text-color-placeholder, #a8abb2);
+  text-decoration: line-through;
+}
+
 .tvp-content .ProseMirror blockquote {
   padding-left: 1em;
   margin: 0.5em 0;

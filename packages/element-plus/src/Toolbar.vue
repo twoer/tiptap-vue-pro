@@ -268,6 +268,13 @@ function confirmLink() {
         @click="ctx.commands.orderedList()"
       >1. ☰</ElButton>
     </ElTooltip>
+    <ElTooltip content="任务列表" placement="bottom" :show-after="300">
+      <ElButton
+        text
+        :type="ctx.isActive('taskList') ? 'primary' : 'default'"
+        @click="ctx.commands.taskList()"
+      >☑ ☰</ElButton>
+    </ElTooltip>
     <ElTooltip content="引用" placement="bottom" :show-after="300">
       <ElButton
         text
