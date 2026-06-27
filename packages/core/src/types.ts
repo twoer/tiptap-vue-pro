@@ -1,4 +1,5 @@
-import type { Editor, Extensions } from '@tiptap/core'
+import type { Editor } from '@tiptap/vue-3'
+import type { Extensions } from '@tiptap/core'
 
 /**
  * 扩展数组类型,v3 用 Extensions(同时接受 Extension 和 Node)。

@@ -121,7 +121,7 @@ const wordCount = computed(() => ctx.wordCount.value)
 
 <template>
   <div class="tvp-editor" :class="{ 'tvp-editor--readonly': readonly }">
-    <Toolbar v-if="!readonly" :ctx="toolbarCtx" />
+    <Toolbar v-if="!readonly" :ctx="toolbarCtx" :upload-image="props.uploadImage" />
 
     <div
       class="tvp-content-wrap"

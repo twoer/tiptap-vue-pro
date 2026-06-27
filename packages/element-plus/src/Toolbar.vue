@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElButton, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import type { ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
 
 /**
  * 工具栏。消费 Core 返回的 isActive / commands,
@@ -17,9 +17,39 @@ import type { ProEditorContext } from 'tiptap-vue-pro-core'
  */
 const props = defineProps<{
   ctx: ProEditorContext
+  /** 图片上传函数。传入则显示「上传图片」按钮 */
+  uploadImage?: UploadImage
 }>()
 
 const ctx = computed(() => props.ctx)
+
+// 隐藏的图片选择 input
+const imageInput = ref<HTMLInputElement | null>(null)
+function triggerImageUpload() {
+  imageInput.value?.click()
+}
+function onImageSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file) {
+    ctx.value.commands.uploadAndInsertImage(file)
+  }
+  // 清空 value,允许重复选同一文件
+  input.value = ''
+}
+
+// ---- 表格网格选择器 ----
+const TABLE_MAX_ROWS = 8
+const TABLE_MAX_COLS = 10
+const tableHover = ref({ rows: 1, cols: 1 })
+function resetTableHover() {
+  tableHover.value = { rows: 1, cols: 1 }
+}
+// ElDropdown 的 @command 占位:网格点击走 cell 的 @click,这里不做 command 路由
+function onTableInsert(_cmd?: unknown) {
+  void _cmd
+  ctx.value.commands.insertTable(tableHover.value.rows, tableHover.value.cols)
+}
 
 // 当前标题级别(用于 dropdown 显示)
 const headingLabel = computed(() => {
@@ -54,11 +84,11 @@ function confirmLink() {
 <template>
   <div class="tvp-toolbar">
     <!-- 撤销/重做 -->
-    <ElTooltip content="撤销" placement="bottom">
-      <ElButton :icon="'←'" text @click="ctx.commands.undo()" :disabled="false" />
+    <ElTooltip content="撤销" placement="bottom" :show-after="300">
+      <ElButton text @click="ctx.commands.undo()">↶</ElButton>
     </ElTooltip>
-    <ElTooltip content="重做" placement="bottom">
-      <ElButton :icon="'→'" text @click="ctx.commands.redo()" />
+    <ElTooltip content="重做" placement="bottom" :show-after="300">
+      <ElButton text @click="ctx.commands.redo()">↷</ElButton>
     </ElTooltip>
 
     <span class="tvp-divider" />
@@ -83,21 +113,21 @@ function confirmLink() {
     <span class="tvp-divider" />
 
     <!-- 格式化 -->
-    <ElTooltip content="加粗" placement="bottom">
+    <ElTooltip content="加粗" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('bold') ? 'primary' : 'default'"
         @click="ctx.commands.bold()"
       >B</ElButton>
     </ElTooltip>
-    <ElTooltip content="斜体" placement="bottom">
+    <ElTooltip content="斜体" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('italic') ? 'primary' : 'default'"
         @click="ctx.commands.italic()"
       ><i>I</i></ElButton>
     </ElTooltip>
-    <ElTooltip content="删除线" placement="bottom">
+    <ElTooltip content="删除线" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('strike') ? 'primary' : 'default'"
@@ -108,42 +138,42 @@ function confirmLink() {
     <span class="tvp-divider" />
 
     <!-- 列表 -->
-    <ElTooltip content="无序列表" placement="bottom">
+    <ElTooltip content="无序列表" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('bulletList') ? 'primary' : 'default'"
         @click="ctx.commands.bulletList()"
       >• ☰</ElButton>
     </ElTooltip>
-    <ElTooltip content="有序列表" placement="bottom">
+    <ElTooltip content="有序列表" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('orderedList') ? 'primary' : 'default'"
         @click="ctx.commands.orderedList()"
       >1. ☰</ElButton>
     </ElTooltip>
-    <ElTooltip content="引用" placement="bottom">
+    <ElTooltip content="引用" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('blockquote') ? 'primary' : 'default'"
         @click="ctx.commands.blockquote()"
       >❝</ElButton>
     </ElTooltip>
-    <ElTooltip content="代码块" placement="bottom">
+    <ElTooltip content="代码块" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
         @click="ctx.commands.codeBlock()"
       >&lt;/&gt;</ElButton>
     </ElTooltip>
-    <ElTooltip content="分割线" placement="bottom">
+    <ElTooltip content="分割线" placement="bottom" :show-after="300">
       <ElButton text @click="ctx.commands.hr()">―</ElButton>
     </ElTooltip>
 
     <span class="tvp-divider" />
 
     <!-- 链接 -->
-    <ElTooltip content="链接" placement="bottom">
+    <ElTooltip content="链接" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('link') ? 'primary' : 'default'"
@@ -151,9 +181,44 @@ function confirmLink() {
       >🔗</ElButton>
     </ElTooltip>
 
-    <!-- 表格 -->
-    <ElTooltip content="插入表格" placement="bottom">
-      <ElButton text @click="ctx.commands.insertTable()">▦</ElButton>
+    <!-- 图片上传 -->
+    <ElTooltip v-if="uploadImage" content="上传图片" placement="bottom" :show-after="300">
+      <ElButton text @click="triggerImageUpload">🖼</ElButton>
+    </ElTooltip>
+    <input
+      ref="imageInput"
+      type="file"
+      accept="image/*"
+      class="tvp-image-input"
+      @change="onImageSelected"
+    />
+
+    <!-- 表格(网格选择器) -->
+    <ElTooltip content="插入表格" placement="bottom" :show-after="300">
+      <ElDropdown trigger="click" @command="onTableInsert">
+        <ElButton text>▦</ElButton>
+        <template #dropdown>
+          <div class="tvp-table-grid" @mouseleave="resetTableHover">
+            <div
+              v-for="r in TABLE_MAX_ROWS"
+              :key="r"
+              class="tvp-table-grid__row"
+            >
+              <div
+                v-for="c in TABLE_MAX_COLS"
+                :key="c"
+                class="tvp-table-grid__cell"
+                :class="{ 'is-active': r <= tableHover.rows && c <= tableHover.cols }"
+                @mouseenter="tableHover.rows = r; tableHover.cols = c"
+                @click="onTableInsert()"
+              />
+            </div>
+            <div class="tvp-table-grid__label">
+              {{ tableHover.rows }} × {{ tableHover.cols }}
+            </div>
+          </div>
+        </template>
+      </ElDropdown>
     </ElTooltip>
 
     <!-- 链接弹窗(MVP 简化版,后续换 ElDialog 组件) -->
@@ -187,6 +252,44 @@ function confirmLink() {
   padding: 6px 8px;
   border-bottom: 1px solid var(--el-border-color-light, #e4e7ed);
   background: var(--el-fill-color-blank, #fff);
+}
+
+/* 隐藏的图片选择 input */
+.tvp-image-input {
+  display: none;
+}
+
+/* 表格网格选择器 */
+.tvp-table-grid {
+  padding: 8px;
+  user-select: none;
+}
+
+.tvp-table-grid__row {
+  display: flex;
+}
+
+.tvp-table-grid__cell {
+  width: 18px;
+  height: 18px;
+  margin: 1px;
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  border-radius: 2px;
+  cursor: pointer;
+  background: var(--el-fill-color-blank, #fff);
+  transition: background 0.1s;
+}
+
+.tvp-table-grid__cell.is-active {
+  background: var(--el-color-primary, #409eff);
+  border-color: var(--el-color-primary, #409eff);
+}
+
+.tvp-table-grid__label {
+  text-align: center;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
 }
 
 .tvp-divider {
