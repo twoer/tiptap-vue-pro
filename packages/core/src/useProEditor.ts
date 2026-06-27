@@ -171,6 +171,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     underline: () => cmd()?.chain().focus().toggleUnderline().run(),
     clearFormat: () =>
       cmd()?.chain().focus().clearNodes().unsetAllMarks().run(),
+    taskList: () => cmd()?.chain().focus().toggleTaskList().run(),
   }
 
   // ---- isActive ----

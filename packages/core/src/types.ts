@@ -102,6 +102,8 @@ export interface ProEditorCommands {
   underline: () => void
   /** 清除所有格式(节点类型 + marks) */
   clearFormat: () => void
+  /** 任务列表(toggle) */
+  taskList: () => void
 }
 
 // 局部类型引入,避免污染对外导出

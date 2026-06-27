@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ElButton, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
+import { ElButton, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElDialog, ElInput } from 'element-plus'
+import {
+  Undo2, Redo2, ChevronDown,
+  Bold, Italic, Strikethrough, Underline,
+  Baseline, Highlighter,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  List, ListOrdered, ListChecks,
+  Quote, Code, Minus,
+  Link, ImagePlus, Table,
+  Eraser,
+} from 'lucide-vue-next'
 import type { ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
 
 /**
@@ -93,11 +103,12 @@ function selectHighlight(color: string) {
 }
 
 // ---- 文本对齐 ----
-const ALIGN_ICONS: Record<string, string> = {
-  left: '⬅',
-  center: '⬌',
-  right: '➡',
-  justify: '⬍',
+import { markRaw } from 'vue'
+const ALIGN_ICONS = {
+  left: markRaw(AlignLeft),
+  center: markRaw(AlignCenter),
+  right: markRaw(AlignRight),
+  justify: markRaw(AlignJustify),
 }
 const alignIcon = computed(() => {
   for (const a of ['center', 'right', 'justify'] as const) {
@@ -130,10 +141,10 @@ function confirmLink() {
   <div class="tvp-toolbar">
     <!-- 撤销/重做 -->
     <ElTooltip content="撤销" placement="bottom" :show-after="300">
-      <ElButton text @click="ctx.commands.undo()">↶</ElButton>
+      <ElButton text @click="ctx.commands.undo()"><Undo2 :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="重做" placement="bottom" :show-after="300">
-      <ElButton text @click="ctx.commands.redo()">↷</ElButton>
+      <ElButton text @click="ctx.commands.redo()"><Redo2 :size="16" /></ElButton>
     </ElTooltip>
 
     <span class="tvp-divider" />
@@ -142,7 +153,7 @@ function confirmLink() {
     <ElDropdown trigger="click" @command="onHeading">
       <ElButton text>
         {{ headingLabel }}
-        <span class="tvp-caret">▾</span>
+        <ChevronDown :size="14" class="tvp-caret" />
       </ElButton>
       <template #dropdown>
         <ElDropdownMenu>
@@ -163,34 +174,34 @@ function confirmLink() {
         text
         :type="ctx.isActive('bold') ? 'primary' : 'default'"
         @click="ctx.commands.bold()"
-      >B</ElButton>
+      ><Bold :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="斜体" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('italic') ? 'primary' : 'default'"
         @click="ctx.commands.italic()"
-      ><i>I</i></ElButton>
+      ><Italic :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="删除线" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('strike') ? 'primary' : 'default'"
         @click="ctx.commands.strike()"
-      ><s>S</s></ElButton>
+      ><Strikethrough :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="下划线" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('underline') ? 'primary' : 'default'"
         @click="ctx.commands.underline()"
-      ><u>U</u></ElButton>
+      ><Underline :size="16" /></ElButton>
     </ElTooltip>
 
     <!-- 文字颜色 -->
     <ElDropdown trigger="click">
       <ElButton text>
-        <span class="tvp-color-icon" :style="{ color: currentColor || 'inherit' }">A</span>
+        <Baseline :size="16" :style="{ color: currentColor || 'inherit' }" />
         <span class="tvp-color-bar" :style="{ background: currentColor || '#909399' }" />
       </ElButton>
       <template #dropdown>
@@ -215,7 +226,7 @@ function confirmLink() {
     <!-- 背景高亮 -->
     <ElDropdown trigger="click">
       <ElButton text>
-        <span class="tvp-color-icon" :style="{ background: currentHighlight || 'transparent' }">H</span>
+        <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
       </ElButton>
       <template #dropdown>
         <div class="tvp-color-panel">
@@ -239,14 +250,14 @@ function confirmLink() {
     <!-- 文本对齐 -->
     <ElDropdown trigger="click" @command="onAlign">
       <ElButton text>
-        {{ alignIcon }}
+        <component :is="alignIcon" :size="16" />
       </ElButton>
       <template #dropdown>
         <ElDropdownMenu>
-          <ElDropdownItem command="left">左对齐 ⬅</ElDropdownItem>
-          <ElDropdownItem command="center">居中 ⬌</ElDropdownItem>
-          <ElDropdownItem command="right">右对齐 ➡</ElDropdownItem>
-          <ElDropdownItem command="justify">两端对齐 ⬍</ElDropdownItem>
+          <ElDropdownItem command="left"><AlignLeft :size="16" /> 左对齐</ElDropdownItem>
+          <ElDropdownItem command="center"><AlignCenter :size="16" /> 居中</ElDropdownItem>
+          <ElDropdownItem command="right"><AlignRight :size="16" /> 右对齐</ElDropdownItem>
+          <ElDropdownItem command="justify"><AlignJustify :size="16" /> 两端对齐</ElDropdownItem>
         </ElDropdownMenu>
       </template>
     </ElDropdown>
@@ -259,31 +270,38 @@ function confirmLink() {
         text
         :type="ctx.isActive('bulletList') ? 'primary' : 'default'"
         @click="ctx.commands.bulletList()"
-      >• ☰</ElButton>
+      ><List :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="有序列表" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('orderedList') ? 'primary' : 'default'"
         @click="ctx.commands.orderedList()"
-      >1. ☰</ElButton>
+      ><ListOrdered :size="16" /></ElButton>
+    </ElTooltip>
+    <ElTooltip content="任务列表" placement="bottom" :show-after="300">
+      <ElButton
+        text
+        :type="ctx.isActive('taskList') ? 'primary' : 'default'"
+        @click="ctx.commands.taskList()"
+      ><ListChecks :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="引用" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('blockquote') ? 'primary' : 'default'"
         @click="ctx.commands.blockquote()"
-      >❝</ElButton>
+      ><Quote :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="代码块" placement="bottom" :show-after="300">
       <ElButton
         text
         :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
         @click="ctx.commands.codeBlock()"
-      >&lt;/&gt;</ElButton>
+      ><Code :size="16" /></ElButton>
     </ElTooltip>
     <ElTooltip content="分割线" placement="bottom" :show-after="300">
-      <ElButton text @click="ctx.commands.hr()">―</ElButton>
+      <ElButton text @click="ctx.commands.hr()"><Minus :size="16" /></ElButton>
     </ElTooltip>
 
     <span class="tvp-divider" />
@@ -294,12 +312,12 @@ function confirmLink() {
         text
         :type="ctx.isActive('link') ? 'primary' : 'default'"
         @click="openLinkDialog"
-      >🔗</ElButton>
+      ><Link :size="16" /></ElButton>
     </ElTooltip>
 
     <!-- 图片上传 -->
     <ElTooltip v-if="uploadImage" content="上传图片" placement="bottom" :show-after="300">
-      <ElButton text @click="triggerImageUpload">🖼</ElButton>
+      <ElButton text @click="triggerImageUpload"><ImagePlus :size="16" /></ElButton>
     </ElTooltip>
     <input
       ref="imageInput"
@@ -312,7 +330,7 @@ function confirmLink() {
     <!-- 表格(网格选择器) -->
     <ElTooltip content="插入表格" placement="bottom" :show-after="300">
       <ElDropdown trigger="click" @command="onTableInsert">
-        <ElButton text>▦</ElButton>
+        <ElButton text><Table :size="16" /></ElButton>
         <template #dropdown>
           <div class="tvp-table-grid" @mouseleave="resetTableHover">
             <div
@@ -339,28 +357,28 @@ function confirmLink() {
 
     <!-- 清除格式 -->
     <ElTooltip content="清除格式" placement="bottom" :show-after="300">
-      <ElButton text @click="ctx.commands.clearFormat()">⌫</ElButton>
+      <ElButton text @click="ctx.commands.clearFormat()"><Eraser :size="16" /></ElButton>
     </ElTooltip>
 
-    <!-- 链接弹窗(MVP 简化版,后续换 ElDialog 组件) -->
-    <teleport to="body">
-      <div v-if="linkDialogVisible" class="tvp-link-dialog-mask" @click.self="linkDialogVisible = false">
-        <div class="tvp-link-dialog">
-          <div class="tvp-link-dialog__title">插入链接</div>
-          <input
-            v-model="linkUrl"
-            class="tvp-link-dialog__input"
-            type="url"
-            placeholder="https://example.com"
-            @keyup.enter="confirmLink"
-          />
-          <div class="tvp-link-dialog__actions">
-            <ElButton size="small" @click="linkDialogVisible = false">取消</ElButton>
-            <ElButton size="small" type="primary" @click="confirmLink">确定</ElButton>
-          </div>
-        </div>
-      </div>
-    </teleport>
+    <!-- 链接弹窗(ElDialog) -->
+    <ElDialog
+      v-model="linkDialogVisible"
+      title="插入链接"
+      width="400px"
+      append-to-body
+      :close-on-click-modal="true"
+    >
+      <ElInput
+        v-model="linkUrl"
+        placeholder="https://example.com"
+        clearable
+        @keyup.enter="confirmLink"
+      />
+      <template #footer>
+        <ElButton @click="linkDialogVisible = false">取消</ElButton>
+        <ElButton type="primary" @click="confirmLink">确定</ElButton>
+      </template>
+    </ElDialog>
   </div>
 </template>
 
@@ -470,52 +488,5 @@ function confirmLink() {
   margin-left: 4px;
   font-size: 10px;
   opacity: 0.6;
-}
-
-/* 链接弹窗(简化版,MVP 不依赖 ElDialog 以减少样式耦合) */
-.tvp-link-dialog-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-.tvp-link-dialog {
-  background: var(--el-bg-color, #fff);
-  border-radius: 6px;
-  padding: 16px;
-  width: 360px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-}
-
-.tvp-link-dialog__title {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: var(--el-text-color-primary, #303133);
-}
-
-.tvp-link-dialog__input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid var(--el-border-color, #dcdfe6);
-  border-radius: 4px;
-  font-size: 14px;
-  outline: none;
-}
-
-.tvp-link-dialog__input:focus {
-  border-color: var(--el-color-primary, #409eff);
-}
-
-.tvp-link-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
 }
 </style>
