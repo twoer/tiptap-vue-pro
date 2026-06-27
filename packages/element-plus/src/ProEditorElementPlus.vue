@@ -32,6 +32,8 @@ const props = withDefaults(
     uploadImage?: UploadImage
     /** 是否只读 */
     readonly?: boolean
+    /** 暗色模式 */
+    dark?: boolean
     /** 自定义扩展(覆盖默认) */
     extensions?: Extensions
   }>(),
@@ -40,6 +42,7 @@ const props = withDefaults(
     output: 'html',
     placeholder: '请输入内容...',
     readonly: false,
+    dark: false,
   },
 )
 
@@ -121,7 +124,7 @@ const wordCount = computed(() => ctx.wordCount.value)
 </script>
 
 <template>
-  <div class="tvp-editor" :class="{ 'tvp-editor--readonly': readonly }">
+  <div class="tvp-editor" :class="{ 'tvp-editor--readonly': readonly, 'tvp-editor--dark': props.dark }">
     <Toolbar v-if="!readonly" :ctx="toolbarCtx" :upload-image="props.uploadImage" />
 
     <div
@@ -157,6 +160,31 @@ const wordCount = computed(() => ctx.wordCount.value)
 
 .tvp-editor--readonly {
   border-color: var(--el-border-color-lighter, #ebeef5);
+}
+
+/*
+ * 暗色模式:在编辑器根容器局部覆盖 --el-* 变量。
+ * 不依赖 html.dark 全局类,实现组件级独立暗色切换。
+ */
+.tvp-editor--dark {
+  --el-bg-color: #1d1e1f;
+  --el-bg-color-page: #141414;
+  --el-bg-color-overlay: #1d1e1f;
+  --el-text-color-primary: #e5eaf3;
+  --el-text-color-regular: #cfd3dc;
+  --el-text-color-secondary: #a3a6ad;
+  --el-text-color-placeholder: #8d9095;
+  --el-text-color-disabled: #0c0c0c;
+  --el-border-color: #414243;
+  --el-border-color-light: #414243;
+  --el-border-color-lighter: #363637;
+  --el-border-color-extra-light: #2e2e2f;
+  --el-border-color-dark: #4b4b4d;
+  --el-fill-color: #303030;
+  --el-fill-color-light: #262727;
+  --el-fill-color-lighter: #1d1e1f;
+  --el-fill-color-dark: #363637;
+  --el-color-primary: #409eff;
 }
 
 .tvp-content-wrap {
