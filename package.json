@@ -1,0 +1,21 @@
+{
+  "name": "tiptap-vue-pro-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "现代化 Vue3 富文本编辑器组件,基于 Tiptap v3(非官方社区项目)",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter playground dev",
+    "build": "pnpm -r --filter=./packages/* run build",
+    "typecheck": "pnpm -r run typecheck",
+    "postinstall": "node node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild/install.js || true"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=18"
+  }
+}
