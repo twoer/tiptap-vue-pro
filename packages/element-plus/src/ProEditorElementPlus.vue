@@ -3,6 +3,7 @@ import { ref, watch, computed } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { useProEditor, handleImageFiles, type UploadImage, type OutputFormat, type Extensions } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
+import BubbleMenu from './BubbleMenu.vue'
 
 /**
  * tiptap-vue-pro 的 Element Plus 适配主组件。
@@ -131,6 +132,13 @@ const wordCount = computed(() => ctx.wordCount.value)
     >
       <EditorContent :editor="ctx.editor.value" class="tvp-content" />
     </div>
+
+    <!-- 气泡菜单:选中文字时浮现(仅非只读) -->
+    <BubbleMenu
+      v-if="!readonly && ctx.editor.value"
+      :editor="ctx.editor.value"
+      :ctx="toolbarCtx"
+    />
 
     <div v-if="!readonly" class="tvp-footer">
       <span>字数: {{ wordCount.characters }}</span>

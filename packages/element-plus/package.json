@@ -26,13 +26,14 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "element-plus": "^2.5.0",
-    "vue": "^3.4.0",
     "@tiptap/core": "^3.0.0",
     "@tiptap/pm": "^3.0.0",
-    "@tiptap/vue-3": "^3.0.0"
+    "@tiptap/vue-3": "^3.0.0",
+    "element-plus": "^2.5.0",
+    "vue": "^3.4.0"
   },
   "dependencies": {
+    "@tiptap/extension-bubble-menu": "^3.27.1",
     "tiptap-vue-pro-core": "workspace:*"
   },
   "devDependencies": {
