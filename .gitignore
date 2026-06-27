@@ -27,3 +27,6 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+
+# Local notes / business drafts (not for commit)
+2026-06-27-tiptap-vue3-pro-editor.md
