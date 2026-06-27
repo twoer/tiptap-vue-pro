@@ -6,7 +6,7 @@
 
 ## 为什么做这个
 
-在 Vue3 项目里接入 Tiptap,你需要自己处理工具栏状态、图片上传/粘贴/拖拽、链接弹窗、表格、暗色模式……这些事不难,但琐碎且重复。
+在 Vue3 项目里接入 Tiptap,你需要自己处理工具栏状态、图片上传/粘贴/拖拽、链接弹窗、表格、气泡菜单、颜色……这些事不难,但琐碎且重复。
 
 `tiptap-vue-pro` 把这些封装好,让你 1 分钟接入:
 
@@ -26,7 +26,13 @@
 - ✅ 基于 Tiptap **v3**(stable)
 - ✅ Vue 3 + TypeScript
 - ✅ `v-model` 双向绑定,HTML / JSON 输出
-- ✅ 开箱即用的工具栏(标题、粗体、斜体、列表、引用、代码块、链接、表格、分割线)
+- ✅ 完整工具栏:标题、加粗/斜体/删除线/**下划线**、引用、代码块、分割线
+- ✅ **文字颜色 / 背景高亮**(预设色板)
+- ✅ **文本对齐**(左/中/右/两端)
+- ✅ **清除格式**(一键去除所有样式)
+- ✅ **气泡菜单**(选中文字浮现快捷工具条)
+- ✅ 有序列表、无序列表
+- ✅ 链接编辑、表格插入(网格选择器)
 - ✅ 图片上传(上传 / 粘贴 / 拖拽)
 - ✅ 字数统计、placeholder、只读模式
 - ✅ Element Plus 适配(Naive UI 适配开发中)
@@ -77,9 +83,23 @@ async function uploadImage(file: File): Promise<string> {
 | `modelValue` | `string \| object` | `''` | v-model 绑定值 |
 | `output` | `'html' \| 'json'` | `'html'` | 输出格式 |
 | `placeholder` | `string` | `'请输入内容...'` | 占位文案 |
-| `uploadImage` | `(file: File) => Promise<string \| null>` | — | 图片上传函数,传入后支持粘贴/拖拽上传 |
+| `uploadImage` | `(file: File) => Promise<string \| null>` | — | 图片上传函数,传入后支持上传/粘贴/拖拽 |
 | `readonly` | `boolean` | `false` | 只读模式 |
 | `extensions` | `Extensions` | 默认扩展包 | 自定义 Tiptap 扩展(覆盖默认) |
+
+## 工具栏能力一览
+
+| 分组 | 功能 |
+| --- | --- |
+| 撤销/重做 | 撤销、重做 |
+| 标题 | 正文 / H1-H4 |
+| 格式化 | 加粗、斜体、删除线、**下划线** |
+| 颜色 | **文字颜色**(12 预设色)、**背景高亮**(8 预设色) |
+| 对齐 | **左 / 中 / 右 / 两端** |
+| 列表 | 无序列表、有序列表、引用、代码块、分割线 |
+| 媒体 | 链接、图片上传、表格(网格选择行列) |
+| 清理 | **清除格式** |
+| 气泡菜单 | 选中文字浮现:加粗/斜体/下划线/删除线/链接/清除格式 |
 
 ## 架构
 
@@ -89,7 +109,7 @@ async function uploadImage(file: File): Promise<string> {
 packages/
   core/              # UI 无关核心层:封装 Tiptap v3
                     #   useProEditor() composable + 命令聚合 + 图片上传逻辑
-  element-plus/      # Element Plus 适配:ProEditorElementPlus 组件
+  element-plus/      # Element Plus 适配:ProEditorElementPlus 组件 + 工具栏 + 气泡菜单
   naive/             # (计划中)Naive UI 适配
 playground/          # 本地调试 + Demo
 ```
@@ -111,16 +131,29 @@ pnpm dev            # 启动 playground(http://localhost:5173)
 
 ## 功能路线
 
-- [x] 基础工具栏 + 格式化
+### 已完成 ✅
+
+- [x] 基础工具栏 + 格式化(加粗/斜体/删除线/下划线)
+- [x] 文字颜色 / 背景高亮(预设色板)
+- [x] 文本对齐(左/中/右/两端)
+- [x] 清除格式
+- [x] 气泡菜单(BubbleMenu)
 - [x] 图片上传(上传/粘贴/拖拽)
-- [x] 链接、表格、代码块
+- [x] 链接、表格(网格选择器)、代码块
 - [x] Element Plus 适配
-- [ ] Naive UI 适配
-- [ ] 任务列表(TaskList,v3 接入细化中)
+
+### 进行中 / 计划 🚧
+
+- [ ] TaskList 任务列表
 - [ ] 暗色模式
+- [ ] 链接编辑器换为完整 Dialog
+- [ ] 图片尺寸调整 / 对齐
+- [ ] 视频嵌入
 - [ ] Markdown 导入导出
-- [ ] Slash command
+- [ ] Slash command(/)
 - [ ] Mention / 文件附件
+- [ ] Naive UI 适配
+- [ ] Nuxt 支持
 
 ## License
 
