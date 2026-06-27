@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ElButton, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
+import { ElButton, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElDialog, ElInput } from 'element-plus'
 import type { ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
 
 /**
@@ -349,25 +349,25 @@ function confirmLink() {
       <ElButton text @click="ctx.commands.clearFormat()">⌫</ElButton>
     </ElTooltip>
 
-    <!-- 链接弹窗(MVP 简化版,后续换 ElDialog 组件) -->
-    <teleport to="body">
-      <div v-if="linkDialogVisible" class="tvp-link-dialog-mask" @click.self="linkDialogVisible = false">
-        <div class="tvp-link-dialog">
-          <div class="tvp-link-dialog__title">插入链接</div>
-          <input
-            v-model="linkUrl"
-            class="tvp-link-dialog__input"
-            type="url"
-            placeholder="https://example.com"
-            @keyup.enter="confirmLink"
-          />
-          <div class="tvp-link-dialog__actions">
-            <ElButton size="small" @click="linkDialogVisible = false">取消</ElButton>
-            <ElButton size="small" type="primary" @click="confirmLink">确定</ElButton>
-          </div>
-        </div>
-      </div>
-    </teleport>
+    <!-- 链接弹窗(ElDialog) -->
+    <ElDialog
+      v-model="linkDialogVisible"
+      title="插入链接"
+      width="400px"
+      append-to-body
+      :close-on-click-modal="true"
+    >
+      <ElInput
+        v-model="linkUrl"
+        placeholder="https://example.com"
+        clearable
+        @keyup.enter="confirmLink"
+      />
+      <template #footer>
+        <ElButton @click="linkDialogVisible = false">取消</ElButton>
+        <ElButton type="primary" @click="confirmLink">确定</ElButton>
+      </template>
+    </ElDialog>
   </div>
 </template>
 
@@ -477,52 +477,5 @@ function confirmLink() {
   margin-left: 4px;
   font-size: 10px;
   opacity: 0.6;
-}
-
-/* 链接弹窗(简化版,MVP 不依赖 ElDialog 以减少样式耦合) */
-.tvp-link-dialog-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-.tvp-link-dialog {
-  background: var(--el-bg-color, #fff);
-  border-radius: 6px;
-  padding: 16px;
-  width: 360px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-}
-
-.tvp-link-dialog__title {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: var(--el-text-color-primary, #303133);
-}
-
-.tvp-link-dialog__input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid var(--el-border-color, #dcdfe6);
-  border-radius: 4px;
-  font-size: 14px;
-  outline: none;
-}
-
-.tvp-link-dialog__input:focus {
-  border-color: var(--el-color-primary, #409eff);
-}
-
-.tvp-link-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
 }
 </style>
