@@ -52,13 +52,20 @@ export interface ProEditorContext {
   editor: Ref<Editor | undefined>
   /** 编辑器是否已挂载 */
   loaded: Ref<boolean>
-  /** 命令是否可用 */
-  isActive: (name: string, attrs?: Record<string, unknown>) => boolean
+  /** 命令是否可用。name 可传扩展名,或传 attrs-only 对象(如 { textAlign: 'center' }) */
+  isActive: (
+    name: string | Record<string, unknown>,
+    attrs?: Record<string, unknown>,
+  ) => boolean
   /** 聚合命令,工具栏按钮直接调用 */
   commands: ProEditorCommands
   /** 当前内容字符串(按 output 格式) */
   getHTML: () => string
   getJSON: () => object
+  /** 当前内容序列化为 Markdown。未启用 Markdown 扩展时返回空串 */
+  getMarkdown: () => string
+  /** 把一段 Markdown 写入编辑器(替换全部内容);解析失败则降级直接塞入 */
+  importMarkdown: (md: string) => void
   /** 字数统计 */
   wordCount: Ref<{ characters: number; words: number }>
   /** 切换只读 */
@@ -84,7 +91,23 @@ export interface ProEditorCommands {
   blockquote: () => void
   codeBlock: () => void
   /** 设置/更新链接;href 为空则移除链接 */
-  setLink: (href: string, opts?: { target?: string }) => void
+  setLink: (href: string, opts?: { target?: string; range?: { from: number; to: number } }) => void
+  /**
+   * 在指定位置插入/替换一段带链接的文本。
+   * 传 range 时按绝对位置写入(绕开弹窗失焦导致的 selection 漂移);
+   * 不传则用当前 selection。text 为空时用 href 作显示文字。
+   */
+  insertLinkText: (
+    href: string,
+    text?: string,
+    opts?: { target?: string; range?: { from: number; to: number } },
+  ) => void
+  /**
+   * 确保编辑器有可用光标位置。
+   * 用户从未点进编辑器时,把光标移到文档末尾并聚焦,
+   * 供工具栏「插入类」按钮在操作前调用,避免插入到开头看不到。
+   */
+  ensureFocusAtEnd: () => void
   /** 插入图片(已有 url) */
   setImage: (src: string, alt?: string) => void
   /** 插入图片(从 File,走 uploadImage) */

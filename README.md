@@ -23,6 +23,8 @@
 
 ## 特性
 
+> 🌐 **在线 Demo**:<https://twoer.github.io/tiptap-vue-pro/>（push 到 main 自动部署）
+
 - ✅ 基于 Tiptap **v3**(stable)
 - ✅ Vue 3 + TypeScript
 - ✅ `v-model` 双向绑定,HTML / JSON 输出
@@ -31,9 +33,12 @@
 - ✅ **文本对齐**(左/中/右/两端)
 - ✅ **清除格式**(一键去除所有样式)
 - ✅ **气泡菜单**(选中文字浮现快捷工具条)
+- ✅ **任务列表**(TaskList,勾选待办)
+- ✅ **暗色模式**(组件级独立切换)
 - ✅ 有序列表、无序列表
 - ✅ 链接编辑、表格插入(网格选择器)
 - ✅ 图片上传(上传 / 粘贴 / 拖拽)
+- ✅ **Markdown 导入 / 导出**(工具栏一键 `.md` 文件读写)
 - ✅ 字数统计、placeholder、只读模式
 - ✅ Element Plus 适配(Naive UI 适配开发中)
 
@@ -85,6 +90,7 @@ async function uploadImage(file: File): Promise<string> {
 | `placeholder` | `string` | `'请输入内容...'` | 占位文案 |
 | `uploadImage` | `(file: File) => Promise<string \| null>` | — | 图片上传函数,传入后支持上传/粘贴/拖拽 |
 | `readonly` | `boolean` | `false` | 只读模式 |
+| `dark` | `boolean` | `false` | 暗色模式(组件级独立切换,不依赖全局 class) |
 | `extensions` | `Extensions` | 默认扩展包 | 自定义 Tiptap 扩展(覆盖默认) |
 
 ## 工具栏能力一览
@@ -99,6 +105,7 @@ async function uploadImage(file: File): Promise<string> {
 | 列表 | 无序列表、有序列表、引用、代码块、分割线 |
 | 媒体 | 链接、图片上传、表格(网格选择行列) |
 | 清理 | **清除格式** |
+| Markdown | **导入 `.md` / 导出 `.md`** |
 | 气泡菜单 | 选中文字浮现:加粗/斜体/下划线/删除线/链接/清除格式 |
 
 ## 架构
@@ -125,9 +132,32 @@ playground/          # 本地调试 + Demo
 pnpm install        # 安装依赖
 pnpm build          # 构建所有 packages
 pnpm dev            # 启动 playground(http://localhost:5173)
+pnpm test           # 运行单元/集成测试(Vitest)
+pnpm typecheck      # 全量类型检查
 ```
 
 要求:Node ≥ 18,pnpm ≥ 9。
+
+## 测试
+
+core 层用 [Vitest](https://vitest.dev) + `@vue/test-utils` 覆盖,挂载**真实 Tiptap 编辑器**(非 mock)验证每个命令的产出,确保功能可用而非纸面声明:
+
+- `handleImageUpload.test.ts` — 图片文件判定、粘贴/拖拽批量上传调度(含失败不中断)
+- `extensions.test.ts` — 默认扩展包完整性(漏配扩展会让命令静默失效)
+- `useProEditor.test.ts` — 所有命令产出真实 HTML(bold/heading/link/taskList/color/align…),v-model 双向绑定,JSON 模式去重,字数统计,Markdown 导入导出,只读切换
+
+```bash
+pnpm test           # 单次运行
+pnpm -F tiptap-vue-pro-core test:watch   # watch 模式
+```
+
+> 注:element-plus 适配层(工具栏/弹窗等 UI 组件)的组件级测试尚未覆盖;core 层逻辑已全测。
+
+
+
+> 🚀 **在线 Demo**:`playground/` 会在 push 到 main 时通过 GitHub Actions 自动构建并部署到
+> <https://twoer.github.io/tiptap-vue-pro/>(见 `.github/workflows/deploy.yml`)。
+> 首次使用需在仓库 Settings → Pages → Source 选择「GitHub Actions」。
 
 ## 功能路线
 
@@ -140,16 +170,17 @@ pnpm dev            # 启动 playground(http://localhost:5173)
 - [x] 气泡菜单(BubbleMenu)
 - [x] 图片上传(上传/粘贴/拖拽)
 - [x] 链接、表格(网格选择器)、代码块
+- [x] **任务列表**(TaskList)
+- [x] **暗色模式**(组件级)
+- [x] **链接编辑器换为 Dialog**
+- [x] **Markdown 导入 / 导出**(工具栏按钮,基于官方 `@tiptap/markdown`)
 - [x] Element Plus 适配
+- [x] 在线 Demo(GitHub Pages 自动部署)
 
 ### 进行中 / 计划 🚧
 
-- [ ] TaskList 任务列表
-- [ ] 暗色模式
-- [ ] 链接编辑器换为完整 Dialog
 - [ ] 图片尺寸调整 / 对齐
 - [ ] 视频嵌入
-- [ ] Markdown 导入导出
 - [ ] Slash command(/)
 - [ ] Mention / 文件附件
 - [ ] Naive UI 适配

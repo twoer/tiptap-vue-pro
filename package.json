@@ -9,6 +9,7 @@
     "dev": "pnpm --filter playground dev",
     "build": "pnpm -r --filter=./packages/* run build",
     "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r --filter=./packages/* run test",
     "postinstall": "node node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild/install.js || true"
   },
   "devDependencies": {

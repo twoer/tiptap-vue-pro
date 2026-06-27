@@ -2,8 +2,14 @@ export { useProEditor } from './useProEditor'
 export { createDefaultExtensions } from './extensions'
 export {
   handleImageFiles,
+  hasImageFiles,
   isImageFile,
 } from './handleImageUpload'
+export {
+  MarkdownExtension,
+  getMarkdown,
+  importMarkdown,
+} from './markdown'
 
 export type {
   ProEditorOptions,

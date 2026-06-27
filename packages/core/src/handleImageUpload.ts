@@ -9,6 +9,20 @@ export function isImageFile(file: File): boolean {
 }
 
 /**
+ * 同步判断文件列表中是否含图片文件。
+ *
+ * 用途:paste/drop 事件处理器需要在**同步阶段**决定是否 preventDefault,
+ * 否则浏览器会在异步上传完成前执行默认行为(如把图片当链接打开)。
+ * handleImageFiles 是 async 不能用于这个判断,故抽出此同步谓词。
+ */
+export function hasImageFiles(
+  files: File[] | FileList | null | undefined,
+): boolean {
+  if (!files || files.length === 0) return false
+  return Array.from(files).some(isImageFile)
+}
+
+/**
  * 批量处理粘贴/拖拽进来的图片:
  * - 过滤出图片文件
  * - 逐个调用 uploadImage 拿到 url

@@ -12,6 +12,9 @@ import vue from '@vitejs/plugin-vue'
  * 这里两个包都硬编码 alias,MVP 阶段够用;以后包多了再改动态扫描。
  */
 export default defineConfig({
+  // 部署到 GitHub Pages (https://twoer.github.io/tiptap-vue-pro/) 需要正确的 base。
+  // 本地 dev 不受影响。
+  base: '/tiptap-vue-pro/',
   plugins: [vue()],
   resolve: {
     alias: {
