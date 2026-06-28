@@ -7,6 +7,7 @@ export default defineConfig({
     dts({
       entryRoot: 'src',
       outDir: 'dist',
+      exclude: ['src/**/*.test.ts', 'src/test/**'],
       // Tiptap 的类型来自 peer 依赖,不打包进 d.ts
       rollupTypes: false,
     }),

@@ -1,13 +1,14 @@
 import StarterKit from '@tiptap/starter-kit'
 import CharacterCount from '@tiptap/extension-character-count'
 import Placeholder from '@tiptap/extension-placeholder'
-import Image from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
+import { ImageExtended as Image } from './extensions/image'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
 import { TextAlign } from '@tiptap/extension-text-align'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
+import { Markdown as MarkdownExtension } from '@tiptap/markdown'
 import type { Extensions } from '@tiptap/core'
 
 export type { Extensions } from '@tiptap/core'
@@ -31,6 +32,9 @@ export type { Extensions } from '@tiptap/core'
  *   6. Highlight —— 文字背景高亮(multicolor 支持多色)
  *   7. TaskList + TaskItem —— 任务列表(checkbox),来自 @tiptap/extension-list
  *      (v3 中 TaskList/TaskItem 都在 extension-list,不是独立的 task-list 包)
+ *   8. Markdown —— 官方 @tiptap/markdown,提供导入/导出 MD 能力。
+ *      无对应 MD 语法的样式(颜色/高亮/对齐)在导出时会被丢弃——这是
+ *      Markdown 格式本身的局限,非本组件能力缺失。
  *
  * StarterKit 的 Link 默认新窗口打开、autolink,满足大多数 CMS 场景。
  * 返回类型用 v3 的 Extensions(同时接受 Extension 和 Node),因为 Image 是 Node。
@@ -53,10 +57,7 @@ export function createDefaultExtensions(placeholder?: string): Extensions {
       placeholder: placeholder ?? '请输入内容...',
     }),
     CharacterCount,
-    Image.configure({
-      inline: false,
-      allowBase64: false, // 强制走上传,避免 base64 撑大文档
-    }),
+    Image, // ImageExtended:在官方基础上开启 resize + 预留 align/caption 属性(对标飞书)
     TableKit.configure({
       table: { resizable: true },
     }),
@@ -70,5 +71,8 @@ export function createDefaultExtensions(placeholder?: string): Extensions {
     // 任务列表:TaskList 需要 TaskItem 提供 checkbox 行为
     TaskList,
     TaskItem.configure({ nested: true }),
+    // Markdown 导入/导出:官方扩展,自动接管 setContent(contentType:'markdown')
+    // 并提供 editor.storage.markdown.manager 用于序列化
+    MarkdownExtension,
   ]
 }

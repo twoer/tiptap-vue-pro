@@ -2,10 +2,31 @@
   "name": "tiptap-vue-pro-core",
   "version": "0.1.0",
   "description": "tiptap-vue-pro 的 UI 无关核心层:封装 Tiptap v3,提供 composable 与类型契约",
+  "author": "twoer",
   "license": "MIT",
+  "keywords": [
+    "tiptap",
+    "vue",
+    "vue3",
+    "rich-text",
+    "editor",
+    "wysiwyg",
+    "prosemirror",
+    "headless"
+  ],
+  "homepage": "https://github.com/twoer/tiptap-vue-pro#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/twoer/tiptap-vue-pro",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/twoer/tiptap-vue-pro/issues"
+  },
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "main": "./dist/index.umd.cjs",
   "module": "./dist/index.js",
@@ -18,9 +39,14 @@
     }
   },
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "peerDependencies": {
     "@tiptap/core": "^3.0.0",
@@ -39,13 +65,20 @@
     "@tiptap/extension-table": "3.27.1",
     "@tiptap/extension-text-align": "^3.27.1",
     "@tiptap/extension-text-style": "^3.27.1",
+    "@tiptap/markdown": "3.27.1",
     "@tiptap/pm": "3.27.1",
     "@tiptap/starter-kit": "3.27.1",
     "@tiptap/vue-3": "3.27.1"
   },
   "devDependencies": {
+    "@types/node": "^26.0.1",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/test-utils": "^2.4.11",
+    "happy-dom": "^20.10.6",
     "vite": "^5.4.0",
     "vite-plugin-dts": "^4.0.0",
+    "vitest": "^1.6.1",
+    "vue": "^3.5.0",
     "vue-tsc": "^2.1.0"
   }
 }

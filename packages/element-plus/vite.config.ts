@@ -9,6 +9,7 @@ export default defineConfig({
     dts({
       entryRoot: 'src',
       outDir: 'dist',
+      exclude: ['src/**/*.test.ts', 'src/test/**'],
     }),
   ],
   build: {

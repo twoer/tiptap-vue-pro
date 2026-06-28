@@ -1,9 +1,18 @@
 export { useProEditor } from './useProEditor'
 export { createDefaultExtensions } from './extensions'
+export { ImageExtended } from './extensions/image'
+export type { ImageAlign, ImageSizePreset } from './extensions/image'
 export {
   handleImageFiles,
+  hasImageFiles,
   isImageFile,
 } from './handleImageUpload'
+export type { ImageUploadErrorFn } from './handleImageUpload'
+export {
+  MarkdownExtension,
+  getMarkdown,
+  importMarkdown,
+} from './markdown'
 
 export type {
   ProEditorOptions,
@@ -11,6 +20,8 @@ export type {
   ProEditorCommands,
   OutputFormat,
   UploadImage,
+  NotifyType,
+  NotifyFn,
 } from './types'
 
 // 重新导出常用 Tiptap 类型,方便 adapter 不必额外引 @tiptap/core

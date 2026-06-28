@@ -57,7 +57,15 @@ function registerBubbleMenu() {
     updateDelay: 100,
     shouldShow: ({ state }) => {
       // 仅在有非空选区时显示(纯光标点击不弹)
-      return !state.selection.empty
+      if (state.selection.empty) return false
+      // 在表格内选文字时不弹文字气泡——表格气泡(proTableBubble)独占,
+      // 避免两个气泡同时浮现在同一位置打架。表格内的文字格式化用顶部工具栏。
+      const { $from } = state.selection
+      for (let d = $from.depth; d > 0; d--) {
+        const name = $from.node(d).type.name
+        if (name === 'tableCell' || name === 'tableHeader') return false
+      }
+      return true
     },
   })
   ed.registerPlugin(plugin)
