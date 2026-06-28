@@ -27,6 +27,7 @@ import {
 import {
   Undo2, Redo2, ChevronDown,
   Bold, Italic, Strikethrough, Underline,
+  Superscript, Subscript,
   Type, Highlighter,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, ListChecks,
@@ -36,7 +37,8 @@ import {
   Eraser, Printer,
   Maximize2, Minimize2, Eye, Pencil,
 } from 'lucide-vue-next'
-import type { ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
+import { CODE_BLOCK_LANGUAGES, codeBlockLanguageLabel } from 'tiptap-vue-pro-core'
+import type { CodeBlockLanguage, ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
 
 /**
  * Markdown 官方 logo。与 EP 版一致,内联 SVG,暴露 size 属性。
@@ -213,6 +215,16 @@ function onTableInsert() {
   tablePopover.value = false
 }
 
+const currentCodeBlockLanguage = computed(
+  () => (ctx.value.editor.value?.getAttributes('codeBlock') as { language?: CodeBlockLanguage })?.language ?? 'plaintext',
+)
+const currentCodeBlockLabel = computed(() => codeBlockLanguageLabel(currentCodeBlockLanguage.value))
+const codeBlockPopover = ref(false)
+function onCodeBlockSelect(language: CodeBlockLanguage) {
+  ctx.value.commands.codeBlock(language)
+  codeBlockPopover.value = false
+}
+
 // ---- 标题级别 dropdown ----
 // 当前标题级别(用于 dropdown 显示)
 const headingLabel = computed(() => {
@@ -229,6 +241,8 @@ const headingOptions: DropdownOption[] = [
   { label: '标题 2', key: 2 },
   { label: '标题 3', key: 3 },
   { label: '标题 4', key: 4 },
+  { label: '标题 5', key: 5 },
+  { label: '标题 6', key: 6 },
 ]
 function renderHeadingLabel(opt: DropdownOption) {
   const level = opt.key as number
@@ -421,17 +435,24 @@ function confirmLink() {
     <span class="tvp-divider" />
 
     <!-- 标题级别 dropdown -->
-    <NDropdown
-      trigger="click"
-      :options="headingOptions"
-      :render-label="renderHeadingLabel"
-      @select="onHeadingSelect"
-    >
-      <NButton text>
-        {{ headingLabel }}
-        <ChevronDown :size="14" class="tvp-caret" />
-      </NButton>
-    </NDropdown>
+    <NTooltip placement="top" :show-arrow="false">
+      <template #trigger>
+        <span class="tvp-tooltip-trigger">
+          <NDropdown
+            trigger="click"
+            :options="headingOptions"
+            :render-label="renderHeadingLabel"
+            @select="onHeadingSelect"
+          >
+            <NButton text aria-label="标题">
+              {{ headingLabel }}
+              <ChevronDown :size="14" class="tvp-caret" />
+            </NButton>
+          </NDropdown>
+        </span>
+      </template>
+      标题
+    </NTooltip>
 
     <span class="tvp-divider" />
 
@@ -480,82 +501,139 @@ function confirmLink() {
       </template>
       下划线
     </NTooltip>
+    <NTooltip placement="top" :show-arrow="false">
+      <template #trigger>
+        <NButton
+          text
+          class="tvp-icon-btn"
+          aria-label="行内代码"
+          :type="ctx.isActive('code') ? 'primary' : 'default'"
+          @click="ctx.commands.code()"
+        ><Code :size="18" /></NButton>
+      </template>
+      行内代码
+    </NTooltip>
+    <NTooltip placement="top" :show-arrow="false">
+      <template #trigger>
+        <NButton
+          text
+          class="tvp-icon-btn"
+          aria-label="上标"
+          :type="ctx.isActive('superscript') ? 'primary' : 'default'"
+          @click="ctx.commands.superscript()"
+        ><Superscript :size="18" /></NButton>
+      </template>
+      上标
+    </NTooltip>
+    <NTooltip placement="top" :show-arrow="false">
+      <template #trigger>
+        <NButton
+          text
+          class="tvp-icon-btn"
+          aria-label="下标"
+          :type="ctx.isActive('subscript') ? 'primary' : 'default'"
+          @click="ctx.commands.subscript()"
+        ><Subscript :size="18" /></NButton>
+      </template>
+      下标
+    </NTooltip>
 
     <!-- 文字颜色:NPopover + 自绘色板 -->
-    <NPopover trigger="click" placement="bottom" :width="260">
+    <NTooltip placement="top" :show-arrow="false">
       <template #trigger>
-        <NButton text class="tvp-icon-btn">
-          <Type :size="18" :style="{ color: currentColor || 'inherit' }" />
-        </NButton>
+        <span class="tvp-tooltip-trigger">
+          <NPopover trigger="click" placement="bottom" :width="260">
+            <template #trigger>
+              <NButton text class="tvp-icon-btn" aria-label="文字颜色">
+                <Type :size="18" :style="{ color: currentColor || 'inherit' }" />
+              </NButton>
+            </template>
+            <div class="tvp-color-panel">
+              <div
+                class="tvp-color-clear"
+                :class="{ 'is-active': currentColor === '' }"
+                @click="selectColor('')"
+              >默认</div>
+              <div
+                v-for="c in PRESET_COLORS"
+                :key="c"
+                class="tvp-color-swatch"
+                :class="{ 'is-active': currentColor === c }"
+                :style="{ background: c }"
+                @click="selectColor(c)"
+              />
+              <div class="tvp-color-custom">
+                <input
+                  v-model="customColor"
+                  class="tvp-hex-input"
+                  placeholder="#000000"
+                  @keyup.enter="applyCustomColor"
+                />
+              </div>
+            </div>
+          </NPopover>
+        </span>
       </template>
-      <div class="tvp-color-panel">
-        <div
-          class="tvp-color-clear"
-          :class="{ 'is-active': currentColor === '' }"
-          @click="selectColor('')"
-        >默认</div>
-        <div
-          v-for="c in PRESET_COLORS"
-          :key="c"
-          class="tvp-color-swatch"
-          :class="{ 'is-active': currentColor === c }"
-          :style="{ background: c }"
-          @click="selectColor(c)"
-        />
-        <div class="tvp-color-custom">
-          <input
-            v-model="customColor"
-            class="tvp-hex-input"
-            placeholder="#000000"
-            @keyup.enter="applyCustomColor"
-          />
-        </div>
-      </div>
-    </NPopover>
+      文字颜色
+    </NTooltip>
 
     <!-- 背景高亮:NPopover + 自绘色板 -->
-    <NPopover trigger="click" placement="bottom" :width="260">
+    <NTooltip placement="top" :show-arrow="false">
       <template #trigger>
-        <NButton text class="tvp-icon-btn">
-          <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
-        </NButton>
+        <span class="tvp-tooltip-trigger">
+          <NPopover trigger="click" placement="bottom" :width="260">
+            <template #trigger>
+              <NButton text class="tvp-icon-btn" aria-label="背景高亮">
+                <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
+              </NButton>
+            </template>
+            <div class="tvp-color-panel">
+              <div
+                class="tvp-color-clear"
+                :class="{ 'is-active': currentHighlight === '' }"
+                @click="selectHighlight('')"
+              >无</div>
+              <div
+                v-for="c in PRESET_HIGHLIGHTS"
+                :key="c"
+                class="tvp-color-swatch"
+                :class="{ 'is-active': currentHighlight === c }"
+                :style="{ background: c }"
+                @click="selectHighlight(c)"
+              />
+              <div class="tvp-color-custom">
+                <input
+                  v-model="customHighlight"
+                  class="tvp-hex-input"
+                  placeholder="#ffff00"
+                  @keyup.enter="applyCustomHighlight"
+                />
+              </div>
+            </div>
+          </NPopover>
+        </span>
       </template>
-      <div class="tvp-color-panel">
-        <div
-          class="tvp-color-clear"
-          :class="{ 'is-active': currentHighlight === '' }"
-          @click="selectHighlight('')"
-        >无</div>
-        <div
-          v-for="c in PRESET_HIGHLIGHTS"
-          :key="c"
-          class="tvp-color-swatch"
-          :class="{ 'is-active': currentHighlight === c }"
-          :style="{ background: c }"
-          @click="selectHighlight(c)"
-        />
-        <div class="tvp-color-custom">
-          <input
-            v-model="customHighlight"
-            class="tvp-hex-input"
-            placeholder="#ffff00"
-            @keyup.enter="applyCustomHighlight"
-          />
-        </div>
-      </div>
-    </NPopover>
+      背景高亮
+    </NTooltip>
 
     <!-- 文本对齐 -->
-    <NDropdown
-      trigger="click"
-      :options="alignOptions"
-      :render-label="renderAlignLabel"
-      @select="onAlignSelect"
-    >
-      <NButton text class="tvp-icon-btn">
-        <component :is="alignIcon" :size="16" />
-      </NButton>
-    </NDropdown>
+    <NTooltip placement="top" :show-arrow="false">
+      <template #trigger>
+        <span class="tvp-tooltip-trigger">
+          <NDropdown
+            trigger="click"
+            :options="alignOptions"
+            :render-label="renderAlignLabel"
+            @select="onAlignSelect"
+          >
+            <NButton text class="tvp-icon-btn" aria-label="文本对齐">
+              <component :is="alignIcon" :size="16" />
+            </NButton>
+          </NDropdown>
+        </span>
+      </template>
+      文本对齐
+    </NTooltip>
 
     <span class="tvp-divider" />
 
@@ -606,14 +684,33 @@ function confirmLink() {
     </NTooltip>
     <NTooltip placement="top" :show-arrow="false">
       <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
-          @click="ctx.commands.codeBlock()"
-        ><Code :size="18" /></NButton>
+        <span class="tvp-tooltip-trigger">
+          <NPopover v-model:show="codeBlockPopover" trigger="click" placement="bottom" :show-arrow="false">
+            <template #trigger>
+              <NButton
+                text
+                class="tvp-icon-btn"
+                aria-label="代码块"
+                :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
+              ><Code :size="18" /></NButton>
+            </template>
+            <div class="tvp-code-language-menu">
+              <button
+                v-for="language in CODE_BLOCK_LANGUAGES"
+                :key="language.value"
+                type="button"
+                class="tvp-code-language-menu__item"
+                :class="{ 'is-active': currentCodeBlockLanguage === language.value }"
+                @click="onCodeBlockSelect(language.value)"
+              >
+                <Code :size="15" />
+                <span>{{ language.label }}</span>
+              </button>
+            </div>
+          </NPopover>
+        </span>
       </template>
-      代码块
+      代码块: {{ currentCodeBlockLabel }}
     </NTooltip>
     <NTooltip placement="top" :show-arrow="false">
       <template #trigger>
@@ -677,30 +774,37 @@ function confirmLink() {
     </NModal>
 
     <!-- 表格(网格选择器)-->
-    <NPopover v-model:show="tablePopover" trigger="click" placement="bottom">
+    <NTooltip placement="top" :show-arrow="false">
       <template #trigger>
-        <NButton text class="tvp-icon-btn"><Table :size="18" /></NButton>
+        <span class="tvp-tooltip-trigger">
+          <NPopover v-model:show="tablePopover" trigger="click" placement="bottom">
+            <template #trigger>
+              <NButton text class="tvp-icon-btn" aria-label="插入表格"><Table :size="18" /></NButton>
+            </template>
+            <div class="tvp-table-grid" @mouseleave="resetTableHover">
+              <div
+                v-for="r in TABLE_MAX_ROWS"
+                :key="r"
+                class="tvp-table-grid__row"
+              >
+                <div
+                  v-for="c in TABLE_MAX_COLS"
+                  :key="c"
+                  class="tvp-table-grid__cell"
+                  :class="{ 'is-active': r <= tableHover.rows && c <= tableHover.cols }"
+                  @mouseenter="tableHover.rows = r; tableHover.cols = c"
+                  @click="onTableInsert()"
+                />
+              </div>
+              <div class="tvp-table-grid__label">
+                {{ tableHover.rows }} × {{ tableHover.cols }}
+              </div>
+            </div>
+          </NPopover>
+        </span>
       </template>
-      <div class="tvp-table-grid" @mouseleave="resetTableHover">
-        <div
-          v-for="r in TABLE_MAX_ROWS"
-          :key="r"
-          class="tvp-table-grid__row"
-        >
-          <div
-            v-for="c in TABLE_MAX_COLS"
-            :key="c"
-            class="tvp-table-grid__cell"
-            :class="{ 'is-active': r <= tableHover.rows && c <= tableHover.cols }"
-            @mouseenter="tableHover.rows = r; tableHover.cols = c"
-            @click="onTableInsert()"
-          />
-        </div>
-        <div class="tvp-table-grid__label">
-          {{ tableHover.rows }} × {{ tableHover.cols }}
-        </div>
-      </div>
-    </NPopover>
+      插入表格
+    </NTooltip>
 
     <!-- 清除格式 -->
     <NTooltip placement="top" :show-arrow="false">
@@ -721,14 +825,21 @@ function confirmLink() {
     </NTooltip>
 
     <!-- Markdown:导入 / 导出 -->
-    <NDropdown
-      trigger="click"
-      :options="mdOptions"
-      :render-label="renderMdLabel"
-      @select="onMdSelect"
-    >
-      <NButton text class="tvp-icon-btn"><MarkdownIcon :size="18" /></NButton>
-    </NDropdown>
+    <NTooltip placement="top" :show-arrow="false">
+      <template #trigger>
+        <span class="tvp-tooltip-trigger">
+          <NDropdown
+            trigger="click"
+            :options="mdOptions"
+            :render-label="renderMdLabel"
+            @select="onMdSelect"
+          >
+            <NButton text class="tvp-icon-btn" aria-label="导入 / 导出 Markdown"><MarkdownIcon :size="18" /></NButton>
+          </NDropdown>
+        </span>
+      </template>
+      导入 / 导出 Markdown
+    </NTooltip>
     <input
       ref="mdInput"
       type="file"
@@ -810,6 +921,11 @@ function confirmLink() {
   padding: 0;
 }
 
+.tvp-tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+}
+
 .tvp-toolbar {
   display: flex;
   flex-wrap: nowrap;
@@ -842,6 +958,8 @@ function confirmLink() {
 .tvp-h2 { font-size: 14px; font-weight: 700; }
 .tvp-h3 { font-size: 13px; font-weight: 600; }
 .tvp-h4 { font-size: 13px; font-weight: 600; }
+.tvp-h5 { font-size: 12px; font-weight: 600; }
+.tvp-h6 { font-size: 12px; font-weight: 500; }
 
 /* 表格网格选择器 */
 .tvp-table-grid {
@@ -870,6 +988,33 @@ function confirmLink() {
   margin-top: 6px;
   font-size: 12px;
   color: var(--n-text-color-3, #909399);
+}
+
+.tvp-code-language-menu {
+  display: grid;
+  min-width: 168px;
+  padding: 4px;
+}
+
+.tvp-code-language-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--n-text-color, #303133);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tvp-code-language-menu__item:hover,
+.tvp-code-language-menu__item.is-active {
+  background: var(--n-fill-color-light, #f5f7fa);
+  color: var(--n-primary-color, #18a058);
 }
 
 /* 颜色选择器 */

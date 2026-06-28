@@ -255,6 +255,9 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     bold: () => cmd()?.chain().focus().toggleBold().run(),
     italic: () => cmd()?.chain().focus().toggleItalic().run(),
     strike: () => cmd()?.chain().focus().toggleStrike().run(),
+    code: () => cmd()?.chain().focus().toggleCode().run(),
+    superscript: () => cmd()?.chain().focus().toggleSuperscript().run(),
+    subscript: () => cmd()?.chain().focus().toggleSubscript().run(),
     toggleHeading: (level) => {
       const ed = cmd()
       if (!ed) return
@@ -267,7 +270,15 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     bulletList: () => cmd()?.chain().focus().toggleBulletList().run(),
     orderedList: () => cmd()?.chain().focus().toggleOrderedList().run(),
     blockquote: () => cmd()?.chain().focus().toggleBlockquote().run(),
-    codeBlock: () => cmd()?.chain().focus().toggleCodeBlock().run(),
+    codeBlock: (language) => {
+      const chain = cmd()?.chain().focus()
+      if (!chain) return
+      if (language) {
+        chain.setCodeBlock({ language }).run()
+      } else {
+        chain.toggleCodeBlock().run()
+      }
+    },
     setLink: (href, o) => {
       const ed = cmd()
       if (!ed) return

@@ -4,6 +4,7 @@ import { ElButton, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElDial
 import {
   Undo2, Redo2, ChevronDown,
   Bold, Italic, Strikethrough, Underline,
+  Superscript, Subscript,
   Type, Highlighter,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, ListChecks,
@@ -13,7 +14,8 @@ import {
   Eraser, Printer,
   Maximize2, Minimize2, Eye, Pencil,
 } from 'lucide-vue-next'
-import type { ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
+import { CODE_BLOCK_LANGUAGES, codeBlockLanguageLabel } from 'tiptap-vue-pro-core'
+import type { CodeBlockLanguage, ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
 
 /**
  * Markdown 官方 logo(圆角方块 + 向下双箭头)。
@@ -211,6 +213,7 @@ function printContent() {
 const TABLE_MAX_ROWS = 8
 const TABLE_MAX_COLS = 10
 const tableHover = ref({ rows: 1, cols: 1 })
+const tableDropdown = ref<{ handleClose?: () => void } | null>(null)
 function resetTableHover() {
   tableHover.value = { rows: 1, cols: 1 }
 }
@@ -219,6 +222,15 @@ function onTableInsert(_cmd?: unknown) {
   void _cmd
   prepareInsert()
   ctx.value.commands.insertTable(tableHover.value.rows, tableHover.value.cols)
+  tableDropdown.value?.handleClose?.()
+}
+
+const currentCodeBlockLanguage = computed(
+  () => (ctx.value.editor.value?.getAttributes('codeBlock') as { language?: CodeBlockLanguage })?.language ?? 'plaintext',
+)
+const currentCodeBlockLabel = computed(() => codeBlockLanguageLabel(currentCodeBlockLanguage.value))
+function onCodeBlockLanguage(language: string) {
+  ctx.value.commands.codeBlock(language as CodeBlockLanguage)
 }
 
 // 当前标题级别(用于 dropdown 显示)
@@ -434,6 +446,12 @@ function confirmLink() {
           <ElDropdownItem :command="4">
             <span class="tvp-heading-preview tvp-h4">标题 4</span>
           </ElDropdownItem>
+          <ElDropdownItem :command="5">
+            <span class="tvp-heading-preview tvp-h5">标题 5</span>
+          </ElDropdownItem>
+          <ElDropdownItem :command="6">
+            <span class="tvp-heading-preview tvp-h6">标题 6</span>
+          </ElDropdownItem>
         </ElDropdownMenu>
       </template>
     </ElDropdown>
@@ -472,6 +490,33 @@ function confirmLink() {
         :type="ctx.isActive('underline') ? 'primary' : 'default'"
         @click="ctx.commands.underline()"
       ><Underline :size="18" /></ElButton>
+    </ElTooltip>
+    <ElTooltip content="行内代码" placement="top" :show-after="300">
+      <ElButton
+        text
+        class="tvp-icon-btn"
+        aria-label="行内代码"
+        :type="ctx.isActive('code') ? 'primary' : 'default'"
+        @click="ctx.commands.code()"
+      ><Code :size="18" /></ElButton>
+    </ElTooltip>
+    <ElTooltip content="上标" placement="top" :show-after="300">
+      <ElButton
+        text
+        class="tvp-icon-btn"
+        aria-label="上标"
+        :type="ctx.isActive('superscript') ? 'primary' : 'default'"
+        @click="ctx.commands.superscript()"
+      ><Superscript :size="18" /></ElButton>
+    </ElTooltip>
+    <ElTooltip content="下标" placement="top" :show-after="300">
+      <ElButton
+        text
+        class="tvp-icon-btn"
+        aria-label="下标"
+        :type="ctx.isActive('subscript') ? 'primary' : 'default'"
+        @click="ctx.commands.subscript()"
+      ><Subscript :size="18" /></ElButton>
     </ElTooltip>
 
     <!-- 文字颜色 -->
@@ -588,13 +633,27 @@ function confirmLink() {
         @click="ctx.commands.blockquote()"
       ><Quote :size="18" /></ElButton>
     </ElTooltip>
-    <ElTooltip content="代码块" placement="top" :show-after="300">
-      <ElButton
-        text
-        class="tvp-icon-btn"
-        :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
-        @click="ctx.commands.codeBlock()"
-      ><Code :size="18" /></ElButton>
+    <ElTooltip :content="`代码块:${currentCodeBlockLabel}`" placement="top" :show-after="300">
+      <ElDropdown trigger="click" @command="onCodeBlockLanguage">
+        <ElButton
+          text
+          class="tvp-icon-btn"
+          aria-label="代码块"
+          :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
+        ><Code :size="18" /></ElButton>
+        <template #dropdown>
+          <ElDropdownMenu>
+            <ElDropdownItem
+              v-for="language in CODE_BLOCK_LANGUAGES"
+              :key="language.value"
+              :command="language.value"
+            >
+              <Code :size="15" />
+              <span style="margin-left: 6px">{{ language.label }}</span>
+            </ElDropdownItem>
+          </ElDropdownMenu>
+        </template>
+      </ElDropdown>
     </ElTooltip>
     <ElTooltip content="分割线" placement="top" :show-after="300">
       <ElButton text class="tvp-icon-btn" @click="ctx.commands.hr()"><Minus :size="18" /></ElButton>
@@ -643,7 +702,7 @@ function confirmLink() {
 
     <!-- 表格(网格选择器) -->
     <ElTooltip content="插入表格" placement="top" :show-after="300">
-      <ElDropdown trigger="click" @command="onTableInsert">
+      <ElDropdown ref="tableDropdown" trigger="click" @command="onTableInsert">
         <ElButton text class="tvp-icon-btn"><Table :size="18" /></ElButton>
         <template #dropdown>
           <div class="tvp-table-grid" @mouseleave="resetTableHover">
@@ -822,6 +881,8 @@ function confirmLink() {
 .tvp-h2 { font-size: 14px; font-weight: 700; }
 .tvp-h3 { font-size: 13px; font-weight: 600; }
 .tvp-h4 { font-size: 13px; font-weight: 600; }
+.tvp-h5 { font-size: 12px; font-weight: 600; }
+.tvp-h6 { font-size: 12px; font-weight: 500; }
 
 /* 表格网格选择器 */
 .tvp-table-grid {

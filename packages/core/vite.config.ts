@@ -26,6 +26,7 @@ export default defineConfig({
         '@tiptap/pm',
         '@tiptap/vue-3',
         /^@tiptap\//,
+        'lowlight',
       ],
     },
   },

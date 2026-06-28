@@ -1,5 +1,10 @@
 export { useProEditor } from './useProEditor'
 export { createDefaultExtensions } from './extensions'
+export {
+  CODE_BLOCK_LANGUAGES,
+  codeBlockLanguageLabel,
+} from './codeBlock'
+export type { CodeBlockLanguage } from './codeBlock'
 export { ImageExtended } from './extensions/image'
 export type { ImageAlign, ImageSizePreset } from './extensions/image'
 export {

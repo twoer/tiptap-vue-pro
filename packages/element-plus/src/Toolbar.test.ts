@@ -30,6 +30,11 @@ function createCtx(editor?: ReturnType<typeof createEditor>) {
       uploadAndInsertImage: vi.fn(),
       insertLinkText: vi.fn(),
       setLink: vi.fn(),
+      code: vi.fn(),
+      superscript: vi.fn(),
+      subscript: vi.fn(),
+      codeBlock: vi.fn(),
+      insertTable: vi.fn(),
     },
     getHTML: vi.fn(() => '<p>hello</p>'),
     getMarkdown: vi.fn(() => '# hello'),
@@ -58,6 +63,19 @@ function inputByPlaceholder(placeholder: string) {
 async function setNativeInput(input: HTMLInputElement, value: string) {
   input.value = value
   input.dispatchEvent(new Event('input', { bubbles: true }))
+  await nextTick()
+}
+
+async function clickBodyText(text: string) {
+  await nextTick()
+  const node = Array.from(document.body.querySelectorAll('*')).find((item) =>
+    item.textContent?.trim() === text,
+  ) as HTMLElement | undefined
+  expect(node).toBeTruthy()
+  const target = (node!.closest('.el-dropdown-menu__item, .n-dropdown-option-body, .n-dropdown-option') as HTMLElement | null) ?? node!
+  target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+  target.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   await nextTick()
 }
 
@@ -119,6 +137,35 @@ describe('Element Plus Toolbar', () => {
 
     expect(wrapper.emitted('toggle-preview')).toHaveLength(1)
     expect(wrapper.emitted('toggle-fullscreen')).toHaveLength(1)
+  })
+
+  it('格式化补充按钮会调用行内代码、上标、下标命令', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="行内代码"]').trigger('click')
+    await wrapper.find('button[aria-label="上标"]').trigger('click')
+    await wrapper.find('button[aria-label="下标"]').trigger('click')
+
+    expect(ctx.commands.code).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.superscript).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.subscript).toHaveBeenCalledTimes(1)
+  })
+
+  it('代码块语言菜单会用所选语言创建代码块', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="代码块"]').trigger('click')
+    await clickBodyText('TypeScript')
+
+    expect(ctx.commands.codeBlock).toHaveBeenCalledWith('typescript')
   })
 
   it('链接弹窗:输入文字和 URL 后按保存位置插入链接', async () => {
@@ -197,5 +244,32 @@ describe('Element Plus Toolbar', () => {
 
     expect(ctx.commands.uploadAndInsertImage).toHaveBeenCalledWith(file)
     expect(input.value).toBe('')
+  })
+
+  it('表格网格:选择尺寸后插入表格并关闭下拉', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+    const handleClose = vi.fn()
+    const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+    ;(dropdown.vm as unknown as { handleOpen: () => void }).handleOpen()
+    await nextTick()
+    ;(wrapper.vm as unknown as { tableDropdown: { handleClose: () => void } }).tableDropdown = {
+      handleClose,
+    }
+
+    const cells = Array.from(document.body.querySelectorAll('.tvp-table-grid__cell')) as HTMLElement[]
+    expect(cells.length).toBe(80)
+
+    cells[23].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+    await nextTick()
+    cells[23].dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+
+    expect(ctx.prepareInsert).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.insertTable).toHaveBeenCalledWith(3, 4)
+    expect(handleClose).toHaveBeenCalledTimes(1)
   })
 })

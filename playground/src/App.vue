@@ -8,21 +8,25 @@ import { uploadImage } from './uploadImage'
 import { formatHTML } from './formatHTML'
 
 // 编辑器内容:覆盖主要能力(标题/格式化/颜色/对齐/列表/任务/引用/代码块/表格)
-const content = ref(
-  '<h2>你好,tiptap-vue-pro 👋</h2>' +
-    '<p>这是一个基于 <strong>Tiptap v3</strong> + <em>Element Plus</em> 的富文本编辑器组件。</p>' +
+function createDemoContent(uiName: string) {
+  return (
+    '<h2>你好,tiptap-vue-pro 👋</h2>' +
+    `<p>这是一个基于 <strong>Tiptap v3</strong> + <em>${uiName}</em> 的富文本编辑器组件。</p>` +
     '<p><span style="color: #e0398b">文字颜色</span>、<mark data-color="#fff3b0">背景高亮</mark>、<u>下划线</u>、<s>删除线</s> 都开箱即用。</p>' +
     '<p style="text-align: center">← 这一行是居中对齐 →</p>' +
     '<ul><li>开箱即用的工具栏</li><li>图片上传 / 粘贴 / 拖拽</li><li>表格、代码块、列表、任务列表</li></ul>' +
     '<ul data-type="taskList"><li data-checked="false"><label><input type="checkbox"><span></span></label><div><p>试试顶部的开关切换演示</p></div></li>' +
     '<li data-checked="true"><label><input type="checkbox" checked=""><span></span></label><div><p>已完成项会有删除线</p></div></li></ul>' +
-    '<blockquote>选中文字会浮现气泡菜单(加粗/斜体/链接…)。</blockquote>' +
+    '<blockquote>选中文字会浮现气泡菜单(加粗/斜体/链接...)。</blockquote>' +
     '<pre><code>const editor = useProEditor({ content })\n// 开箱即用的 Tiptap v3 封装</code></pre>' +
-    '<table><tbody><tr><th>功能</th><th>状态</th></tr><tr><td>表格</td><td>✅</td></tr></tbody></table>' +
+    '<table><tbody><tr><th>功能</th><th>状态</th></tr><tr><td>表格</td><td>OK</td></tr></tbody></table>' +
     '<h3>图片功能(对标飞书)</h3>' +
     '<p>点击下方图片选中 → 浮现工具条:拖拽四角调整大小、切换左/中/右对齐、编辑题注、替换、删除。</p>' +
-    '<img src="https://avatars.githubusercontent.com/u/7254263" data-align="center" data-caption="示例图片:点击我试试调整大小与对齐" width="320">',
-)
+    '<img src="https://avatars.githubusercontent.com/u/7254263" data-align="center" data-caption="示例图片:点击我试试调整大小与对齐" width="320">'
+  )
+}
+
+const content = ref(createDemoContent('Element Plus'))
 
 // ---- hash 路由:用 location.hash 区分 UI 适配页(#/element-plus | #/naive)----
 // 选 hash 而非 history:GitHub Pages 下 history 刷新会 404,hash 天然可刷新可分享。
@@ -43,6 +47,10 @@ const dark = ref(false)
 const readonly = ref(false)
 const showWordCount = ref(true)
 const output = ref<'html' | 'json'>('html')
+const currentUiName = computed(() => (route.value === 'naive' ? 'Naive UI' : 'Element Plus'))
+const currentUiPackage = computed(() =>
+  route.value === 'naive' ? 'tiptap-vue-pro-naive' : 'tiptap-vue-pro-element-plus',
+)
 
 // 暗色模式:
 // - Element Plus 版:切 html.dark,让 EP 全局暗色 + 本页暗色样式生效
@@ -82,11 +90,18 @@ async function copyOutput() {
 <template>
   <div class="page">
     <header class="page__header">
-      <h1>tiptap-vue-pro</h1>
-      <p>Vue3 + Tiptap v3 的富文本编辑器(非官方社区项目)</p>
-      <a class="page__link" href="https://github.com/twoer/tiptap-vue-pro" target="_blank">
-        GitHub →
-      </a>
+      <div class="page__title">
+        <p class="page__eyebrow">Playground</p>
+        <h1>Tiptap Vue Pro</h1>
+        <p>Vue3 + Tiptap v3 的富文本编辑器社区封装。</p>
+      </div>
+      <div class="page__meta">
+        <span class="status-pill">{{ currentUiName }}</span>
+        <code>{{ currentUiPackage }}</code>
+        <a class="page__link" href="https://github.com/twoer/tiptap-vue-pro" target="_blank">
+          GitHub →
+        </a>
+      </div>
     </header>
 
     <!-- UI 适配页导航:hash 路由,可刷新可分享 -->
@@ -104,67 +119,76 @@ async function copyOutput() {
       用原生控件(checkbox / select),不依赖任何 UI 库——
       这样 EP 页和 Naive 页的外观完全一致,且暗色下统一跟随 html.dark。
     -->
-    <section class="controls">
-      <label class="control control--switch">
-        <input v-model="dark" type="checkbox" class="toggle" />
-        <span>暗色模式</span>
-      </label>
-      <label class="control control--switch">
-        <input v-model="readonly" type="checkbox" class="toggle" />
-        <span>只读</span>
-      </label>
-      <label class="control control--switch">
-        <input v-model="showWordCount" type="checkbox" class="toggle" />
-        <span>字数统计</span>
-      </label>
-      <label class="control">
-        <span>输出格式:</span>
-        <select v-model="output" class="native-select">
-          <option value="html">html</option>
-          <option value="json">json</option>
-        </select>
-      </label>
-    </section>
-
-    <section class="demo">
-      <h3>编辑器</h3>
-      <!--
-        两个 UI 适配各占一个「页面」,用 hash 路由切换。
-        两版 props 对等、共享同一份 content(v-model 互通),只挂载当前路由对应的那一个,
-        避免 EP(全局 html.dark 暗色)与 Naive(组件级 NConfigProvider 暗色)同屏混用。
-        v-if 而非 v-show:非当前页的编辑器实例不创建,互不干扰。
-      -->
-      <ProEditorElementPlus
-        v-if="route === 'element-plus'"
-        v-model="content"
-        :output="output"
-        :dark="dark"
-        :readonly="readonly"
-        :show-word-count="showWordCount"
-        placeholder="开始输入..."
-        :upload-image="uploadImage"
-      />
-      <ProEditorNaive
-        v-else
-        v-model="content"
-        :output="output"
-        :dark="dark"
-        :readonly="readonly"
-        :show-word-count="showWordCount"
-        placeholder="开始输入..."
-        :upload-image="uploadImage"
-      />
-    </section>
-
-    <section class="demo">
-      <div class="demo__head">
-        <h3>输出({{ output }})</h3>
-        <button class="copy-btn" @click="copyOutput">
-          {{ copied ? '已复制 ✓' : '复制' }}
-        </button>
+    <section class="demo-toolbar" aria-label="Playground controls">
+      <div class="demo-toolbar__group">
+        <label class="control control--switch">
+          <input v-model="dark" type="checkbox" class="toggle" />
+          <span>暗色</span>
+        </label>
+        <label class="control control--switch">
+          <input v-model="readonly" type="checkbox" class="toggle" />
+          <span>只读</span>
+        </label>
+        <label class="control control--switch">
+          <input v-model="showWordCount" type="checkbox" class="toggle" />
+          <span>字数</span>
+        </label>
       </div>
-      <pre class="output">{{ outputPreview }}</pre>
+      <div class="demo-toolbar__group demo-toolbar__group--right">
+        <label class="control">
+          <span>输出</span>
+          <select v-model="output" class="native-select">
+            <option value="html">HTML</option>
+            <option value="json">JSON</option>
+          </select>
+        </label>
+      </div>
     </section>
+
+    <main class="workbench">
+      <section class="demo demo--editor">
+        <div class="demo__head">
+          <h3>编辑器</h3>
+          <span v-if="readonly" class="state-badge">只读</span>
+        </div>
+        <!--
+          两个 UI 适配各占一个「页面」,用 hash 路由切换。
+          两版 props 对等、共享同一份 content(v-model 互通),只挂载当前路由对应的那一个,
+          避免 EP(全局 html.dark 暗色)与 Naive(组件级 NConfigProvider 暗色)同屏混用。
+          v-if 而非 v-show:非当前页的编辑器实例不创建,互不干扰。
+        -->
+        <ProEditorElementPlus
+          v-if="route === 'element-plus'"
+          v-model="content"
+          :output="output"
+          :dark="dark"
+          :readonly="readonly"
+          :show-word-count="showWordCount"
+          placeholder="开始输入..."
+          :upload-image="uploadImage"
+        />
+        <ProEditorNaive
+          v-else
+          v-model="content"
+          :output="output"
+          :dark="dark"
+          :readonly="readonly"
+          :show-word-count="showWordCount"
+          placeholder="开始输入..."
+          :upload-image="uploadImage"
+        />
+      </section>
+
+      <section class="demo demo--output">
+        <div class="demo__head">
+          <h3>输出 · {{ output.toUpperCase() }}</h3>
+          <button class="copy-btn" @click="copyOutput">
+            {{ copied ? '已复制' : '复制' }}
+          </button>
+        </div>
+        <pre class="output">{{ outputPreview }}</pre>
+      </section>
+    </main>
 
     <footer class="page__footer">
       MIT · 基于 Tiptap v3 的社区封装
@@ -204,7 +228,22 @@ html.dark body {
 }
 
 .page__header {
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.page__title {
+  min-width: 0;
+}
+
+.page__eyebrow {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #409eff;
 }
 
 .page__header h1 {
@@ -223,6 +262,21 @@ html.dark .page__header p {
   color: #a3a6ad;
 }
 
+.page__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.page__meta code {
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #eef0f3;
+  color: #606266;
+  font-size: 12px;
+}
+
 .page__link {
   font-size: 12px;
   color: #409eff;
@@ -231,6 +285,28 @@ html.dark .page__header p {
 
 .page__link:hover {
   text-decoration: underline;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #ecf5ff;
+  color: #409eff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+html.dark .page__meta code {
+  background: #2a2a2b;
+  color: #cfd3dc;
+}
+
+html.dark .status-pill {
+  background: #18222c;
+  color: #79bbff;
 }
 
 /*
@@ -289,19 +365,30 @@ html.dark .ui-nav__item.is-active {
  * 开关区:不依赖任何 UI 库,用固定色 + html.dark 切暗色,
  * 保证 EP 页和 Naive 页外观完全一致。
  */
-.controls {
+.demo-toolbar {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px 14px;
-  margin-bottom: 20px;
+  padding: 10px;
+  margin-bottom: 18px;
   background: #fff;
   border: 1px solid #ebeef5;
   border-radius: 6px;
   font-size: 13px;
 }
 
-html.dark .controls {
+.demo-toolbar__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.demo-toolbar__group--right {
+  justify-content: flex-start;
+}
+
+html.dark .demo-toolbar {
   background: #1d1e1f;
   border-color: #363637;
 }
@@ -392,8 +479,17 @@ html.dark .native-select {
   border-color: #414243;
 }
 
+.workbench {
+  display: grid;
+  gap: 20px;
+}
+
 .demo {
   margin-bottom: 24px;
+}
+
+.demo--output {
+  min-width: 0;
 }
 
 .demo h3 {
@@ -410,13 +506,33 @@ html.dark .demo h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .demo__head h3 {
   margin: 0;
 }
 
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: #909399;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+html.dark .state-badge {
+  background: #2a2a2b;
+  color: #a3a6ad;
+}
+
 .copy-btn {
+  min-width: 64px;
   padding: 4px 12px;
   font-size: 12px;
   color: #606266;
@@ -444,17 +560,19 @@ html.dark .copy-btn:hover {
 }
 
 .output {
+  margin: 10px 0 0;
   background: #1e1e1e;
   color: #d4d4d4;
   padding: 14px;
   border-radius: 6px;
   font-size: 12px;
   font-family: 'SFMono-Regular', Consolas, monospace;
-  overflow-x: auto;
+  line-height: 1.6;
+  overflow: auto;
   /* 移动端:输出区矮一点,留出编辑器空间 */
-  max-height: 200px;
+  max-height: 240px;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
 }
 
 .page__footer {
@@ -482,17 +600,17 @@ html.dark .page__footer {
     font-size: 14px;
   }
   /* 开关区:横向排,但允许换行 */
-  .controls {
+  .demo-toolbar {
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
     font-size: 14px;
+  }
+  .demo-toolbar__group--right {
+    justify-content: flex-end;
   }
   .demo h3 {
     font-size: 15px;
-  }
-  .output {
-    max-height: 240px;
   }
 }
 
@@ -505,14 +623,20 @@ html.dark .page__footer {
     padding: 36px 24px 56px;
   }
   .page__header {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
     margin-bottom: 24px;
+  }
+  .page__meta {
+    justify-content: flex-end;
   }
   .page__header h1 {
     font-size: 26px;
   }
   .output {
     padding: 16px;
-    max-height: 280px;
+    max-height: 320px;
   }
 }
 
@@ -533,10 +657,30 @@ html.dark .page__footer {
   }
 }
 
+@media (min-width: 1180px) {
+  .page {
+    max-width: 1180px;
+  }
+
+  .workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    align-items: start;
+  }
+
+  .demo--output {
+    position: sticky;
+    top: 24px;
+  }
+
+  .output {
+    max-height: calc(100vh - 180px);
+  }
+}
+
 /* —— xl ≥1280px:大屏,上限封顶避免过宽 —— */
 @media (min-width: 1280px) {
   .page {
-    max-width: 920px;
+    max-width: 1180px;
     padding: 56px 32px 72px;
   }
 }

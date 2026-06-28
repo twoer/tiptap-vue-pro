@@ -96,6 +96,8 @@ describe('ProEditorElementPlus', () => {
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('预览模式(只读)')
+    expect(wrapper.find('.tvp-preview-bar__edit-btn').exists()).toBe(true)
+    expect(wrapper.find('.tvp-preview-bar__edit-btn').text()).toContain('编辑')
     expect(mockState.ctx!.setEditable).toHaveBeenCalledWith(false)
   })
 })

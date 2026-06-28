@@ -68,10 +68,12 @@ export function createImageNodeView(
     node,
     getPos,
     onResize: (width, height) => {
+      if (!(editor as Editor).isEditable) return
       img.style.width = `${width}px`
       img.style.height = `${height}px`
     },
     onCommit: (width, height) => {
+      if (!(editor as Editor).isEditable) return
       const pos = getPos()
       if (pos === undefined) return
       ;(editor as Editor)
@@ -90,12 +92,19 @@ export function createImageNodeView(
       preserveAspectRatio: true,
     },
   })
+  resizable.dom.classList.add('tvp-img-resizable')
 
   // 官方实现:图片加载前隐藏 container,加载后显示(避免手柄闪到错误位置)。
   // 但必须同时兜底 onerror——若 src 加载失败(404/网络),onload 永远不触发,
   // 手柄会被永久隐藏,用户无法调整大小。这里无论成功/失败都恢复显示。
-  resizable.dom.style.visibility = 'hidden'
-  resizable.dom.style.pointerEvents = 'none'
+  let imageLoaded = false
+  const syncInteractiveState = () => {
+    const editable = (editor as Editor).isEditable
+    captionInput.readOnly = !editable
+    resizable.dom.style.visibility = imageLoaded ? '' : 'hidden'
+    resizable.dom.style.pointerEvents = imageLoaded && editable ? '' : 'none'
+    outer.classList.toggle('tvp-img-node--readonly', !editable)
+  }
   // 图片加载完成时:① 恢复手柄显示;② 强制图片气泡菜单按加载后的真实尺寸
   // 重新定位。BubbleMenuPlugin 仅在 selection/doc 变化时重算位置,而图片加载
   // 不产生 transaction,导致菜单停留在「图片高度 0」时的错位(偏下),加载完
@@ -103,8 +112,8 @@ export function createImageNodeView(
   // 用官方支持的 pluginKey meta 'updatePosition' 触发重定位(见 BubbleMenu 源码
   // transactionHandler)。
   const reveal = () => {
-    resizable.dom.style.visibility = ''
-    resizable.dom.style.pointerEvents = ''
+    imageLoaded = true
+    syncInteractiveState()
     const view = (editor as Editor).view
     view.dispatch(view.state.tr.setMeta('proImageBubbleMenu', 'updatePosition'))
   }
@@ -121,11 +130,8 @@ export function createImageNodeView(
   captionInput.value = initialCaption
   if (!initialCaption) captionInput.classList.add('tvp-img-caption-empty')
   // 只读模式下题注不可编辑,但仍显示
-  const syncCaptionReadonly = () => {
-    captionInput.readOnly = !(editor as Editor).isEditable
-  }
-  syncCaptionReadonly()
-  const onEditorUpdate = () => syncCaptionReadonly()
+  syncInteractiveState()
+  const onEditorUpdate = () => syncInteractiveState()
   ;(editor as Editor).on('update', onEditorUpdate)
   // 输入即写回 data-caption 属性
   const onCaptionInput = () => {
@@ -162,7 +168,7 @@ export function createImageNodeView(
       else outer.removeAttribute('data-align')
       // editable 不是节点属性,但只读/预览切换会触发 editor.setEditable。
       // NodeView 可能不会重建,因此每次更新时同步 input 状态。
-      syncCaptionReadonly()
+      syncInteractiveState()
       // 同步题注(外部命令 setImageCaption 改了属性时,回填到 input)
       const newCaption = attrs.caption || ''
       if (newCaption !== captionInput.value) {

@@ -179,4 +179,23 @@ describe('ImageExtended — NodeView 渲染(题注/对齐)', () => {
 
     expect(ctx.getHTML()).not.toContain('data-caption="只读下的输入"')
   })
+
+  it('切换只读后图片 resize 交互禁用,恢复编辑后重新启用', async () => {
+    const ctx = await mountWithImage('<img src="a.png">')
+    const resizable = query(ctx, '.tvp-img-resizable') as HTMLElement
+    const img = query(ctx, '.tvp-img-resizable img') as HTMLImageElement
+
+    expect(resizable).toBeTruthy()
+    img.dispatchEvent(new Event('load'))
+    await nextTick()
+    expect(resizable.style.pointerEvents).toBe('')
+
+    ctx.setEditable(false)
+    await nextTick()
+    expect(resizable.style.pointerEvents).toBe('none')
+
+    ctx.setEditable(true)
+    await nextTick()
+    expect(resizable.style.pointerEvents).toBe('')
+  })
 })

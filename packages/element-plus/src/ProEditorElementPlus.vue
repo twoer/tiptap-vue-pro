@@ -229,9 +229,9 @@ const wordCount = computed(() => ctx.wordCount.value)
     <div v-if="isPreview" class="tvp-preview-bar">
       <span class="tvp-preview-bar__hint">预览模式(只读)</span>
       <ElTooltip content="返回编辑" placement="top" :show-after="300">
-        <ElButton text class="tvp-icon-btn" @click="togglePreview">
+        <ElButton text class="tvp-preview-bar__edit-btn" @click="togglePreview">
           <Pencil :size="16" />
-          <span style="margin-left: 4px">编辑</span>
+          <span class="tvp-preview-bar__edit-text">编辑</span>
         </ElButton>
       </ElTooltip>
     </div>
@@ -340,6 +340,22 @@ const wordCount = computed(() => ctx.wordCount.value)
 .tvp-preview-bar__hint {
   font-size: 12px;
   color: var(--el-text-color-secondary, #909399);
+}
+
+.tvp-preview-bar :deep(.el-button.tvp-preview-bar__edit-btn) {
+  width: auto;
+  min-width: 56px;
+  height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.tvp-preview-bar__edit-text {
+  margin-left: 4px;
+  line-height: 1;
 }
 
 /* 纯图标按钮正方形击中区,复用工具栏的约束 */
@@ -517,6 +533,45 @@ const wordCount = computed(() => ctx.wordCount.value)
 .tvp-content .ProseMirror pre code {
   background: none;
   padding: 0;
+}
+
+.tvp-content .ProseMirror pre .hljs-keyword,
+.tvp-content .ProseMirror pre .hljs-selector-tag,
+.tvp-content .ProseMirror pre .hljs-built_in {
+  color: #7c3aed;
+}
+
+.tvp-content .ProseMirror pre .hljs-string,
+.tvp-content .ProseMirror pre .hljs-attr,
+.tvp-content .ProseMirror pre .hljs-title {
+  color: #047857;
+}
+
+.tvp-content .ProseMirror pre .hljs-number,
+.tvp-content .ProseMirror pre .hljs-literal {
+  color: #b45309;
+}
+
+.tvp-content .ProseMirror pre .hljs-comment {
+  color: #8a8f98;
+  font-style: italic;
+}
+
+html.dark .tvp-content .ProseMirror pre .hljs-keyword,
+html.dark .tvp-content .ProseMirror pre .hljs-selector-tag,
+html.dark .tvp-content .ProseMirror pre .hljs-built_in {
+  color: #c4b5fd;
+}
+
+html.dark .tvp-content .ProseMirror pre .hljs-string,
+html.dark .tvp-content .ProseMirror pre .hljs-attr,
+html.dark .tvp-content .ProseMirror pre .hljs-title {
+  color: #86efac;
+}
+
+html.dark .tvp-content .ProseMirror pre .hljs-number,
+html.dark .tvp-content .ProseMirror pre .hljs-literal {
+  color: #fbbf24;
 }
 
 .tvp-content .ProseMirror code {

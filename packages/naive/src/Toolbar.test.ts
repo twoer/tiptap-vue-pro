@@ -30,6 +30,10 @@ function createCtx(editor?: ReturnType<typeof createEditor>) {
       uploadAndInsertImage: vi.fn(),
       insertLinkText: vi.fn(),
       setLink: vi.fn(),
+      code: vi.fn(),
+      superscript: vi.fn(),
+      subscript: vi.fn(),
+      codeBlock: vi.fn(),
     },
     getHTML: vi.fn(() => '<p>hello</p>'),
     getMarkdown: vi.fn(() => '# hello'),
@@ -58,6 +62,19 @@ function inputByPlaceholder(placeholder: string) {
 async function setNativeInput(input: HTMLInputElement, value: string) {
   input.value = value
   input.dispatchEvent(new Event('input', { bubbles: true }))
+  await nextTick()
+}
+
+async function clickBodyText(text: string) {
+  await nextTick()
+  const node = Array.from(document.body.querySelectorAll('*')).find((item) =>
+    item.textContent?.trim() === text,
+  ) as HTMLElement | undefined
+  expect(node).toBeTruthy()
+  const target = (node!.closest('.el-dropdown-menu__item, .n-dropdown-option-body, .n-dropdown-option') as HTMLElement | null) ?? node!
+  target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+  target.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   await nextTick()
 }
 
@@ -119,6 +136,57 @@ describe('Naive Toolbar', () => {
 
     expect(wrapper.emitted('toggle-preview')).toHaveLength(1)
     expect(wrapper.emitted('toggle-fullscreen')).toHaveLength(1)
+  })
+
+  it('下拉和弹出类工具也接入 Naive tooltip 触发器', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    for (const label of [
+      '标题',
+      '文字颜色',
+      '背景高亮',
+      '文本对齐',
+      '代码块',
+      '插入表格',
+      '导入 / 导出 Markdown',
+    ]) {
+      const button = wrapper.find(`button[aria-label="${label}"]`)
+      expect(button.exists()).toBe(true)
+      expect(button.element.closest('.tvp-tooltip-trigger')).toBeTruthy()
+    }
+  })
+
+  it('格式化补充按钮会调用行内代码、上标、下标命令', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="行内代码"]').trigger('click')
+    await wrapper.find('button[aria-label="上标"]').trigger('click')
+    await wrapper.find('button[aria-label="下标"]').trigger('click')
+
+    expect(ctx.commands.code).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.superscript).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.subscript).toHaveBeenCalledTimes(1)
+  })
+
+  it('代码块语言菜单会用所选语言创建代码块', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="代码块"]').trigger('click')
+    await clickBodyText('TypeScript')
+
+    expect(ctx.commands.codeBlock).toHaveBeenCalledWith('typescript')
   })
 
   it('链接弹窗:输入文字和 URL 后按保存位置插入链接', async () => {

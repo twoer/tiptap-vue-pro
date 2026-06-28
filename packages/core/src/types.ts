@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/vue-3'
 import type { Extensions } from '@tiptap/core'
+import type { CodeBlockLanguage } from './codeBlock'
 import type { ImageAlign, ImageSizePreset } from './extensions/image'
 
 /**
@@ -142,12 +143,19 @@ export interface ProEditorCommands {
   bold: () => void
   italic: () => void
   strike: () => void
+  /** 行内代码 */
+  code: () => void
+  /** 上标 */
+  superscript: () => void
+  /** 下标 */
+  subscript: () => void
   /** 切换标题级别,level 0 表示取消标题(转普通段落) */
   toggleHeading: (level: 1 | 2 | 3 | 4 | 5 | 6 | 0) => void
   bulletList: () => void
   orderedList: () => void
   blockquote: () => void
-  codeBlock: () => void
+  /** 切换代码块;传入语言时会创建/更新为指定语言 */
+  codeBlock: (language?: CodeBlockLanguage) => void
   /** 设置/更新链接;href 为空则移除链接 */
   setLink: (href: string, opts?: { target?: string; range?: { from: number; to: number } }) => void
   /**
@@ -247,3 +255,4 @@ import type { Ref } from 'vue'
 
 // 图片对齐/尺寸预设类型(供 ProEditorCommands 引用,并对外 re-export)
 export type { ImageAlign, ImageSizePreset } from './extensions/image'
+export type { CodeBlockLanguage } from './codeBlock'

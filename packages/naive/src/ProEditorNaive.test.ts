@@ -47,7 +47,7 @@ const childStubs = {
   NConfigProvider: { template: '<div><slot /></div>' },
   NMessageProvider: { template: '<div><slot /></div>' },
   NTooltip: { template: '<span><slot name="trigger" /><slot /></span>' },
-  NButton: { template: '<button @click="$emit(\'click\', $event)"><slot /></button>' },
+  NButton: { template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>' },
   MessageBridge: { template: '<span />', methods: { get: () => null } },
   Toolbar: {
     emits: ['toggle-preview', 'toggle-fullscreen'],
@@ -101,6 +101,8 @@ describe('ProEditorNaive', () => {
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('预览模式(只读)')
+    expect(wrapper.find('.tvp-preview-bar__edit-btn').exists()).toBe(true)
+    expect(wrapper.find('.tvp-preview-bar__edit-btn').text()).toContain('编辑')
     expect(mockState.ctx!.setEditable).toHaveBeenCalledWith(false)
   })
 })

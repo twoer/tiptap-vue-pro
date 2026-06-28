@@ -40,6 +40,17 @@ describe('createDefaultExtensions', () => {
     expect(names).toContain('textAlign')
   })
 
+  it('包含上标与下标(superscript / subscript)', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).toContain('superscript')
+    expect(names).toContain('subscript')
+  })
+
+  it('包含 lowlight 代码块扩展(codeBlock)', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).toContain('codeBlock')
+  })
+
   it('包含图片与表格(image / tableKit)', () => {
     const names = createDefaultExtensions().map((e: any) => e.name)
     expect(names).toContain('image')

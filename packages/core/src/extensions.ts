@@ -1,5 +1,6 @@
 import StarterKit from '@tiptap/starter-kit'
 import CharacterCount from '@tiptap/extension-character-count'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import { ImageExtended as Image } from './extensions/image'
@@ -7,9 +8,12 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
 import { TextAlign } from '@tiptap/extension-text-align'
+import { Subscript } from '@tiptap/extension-subscript'
+import { Superscript } from '@tiptap/extension-superscript'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Markdown as MarkdownExtension } from '@tiptap/markdown'
 import type { Extensions } from '@tiptap/core'
+import { codeBlockLowlight } from './codeBlock'
 
 export type { Extensions } from '@tiptap/core'
 
@@ -32,7 +36,9 @@ export type { Extensions } from '@tiptap/core'
  *   6. Highlight —— 文字背景高亮(multicolor 支持多色)
  *   7. TaskList + TaskItem —— 任务列表(checkbox),来自 @tiptap/extension-list
  *      (v3 中 TaskList/TaskItem 都在 extension-list,不是独立的 task-list 包)
- *   8. Markdown —— 官方 @tiptap/markdown,提供导入/导出 MD 能力。
+ *   8. CodeBlockLowlight —— 带语言 class 与语法高亮的代码块。
+ *   9. Superscript + Subscript —— 上标 / 下标,用于公式、脚注、化学式等。
+ *   10. Markdown —— 官方 @tiptap/markdown,提供导入/导出 MD 能力。
  *      无对应 MD 语法的样式(颜色/高亮/对齐)在导出时会被丢弃——这是
  *      Markdown 格式本身的局限,非本组件能力缺失。
  *
@@ -43,6 +49,7 @@ export function createDefaultExtensions(placeholder?: string): Extensions {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4, 5, 6] },
+      codeBlock: false,
       link: {
         openOnClick: false,
         autolink: true,
@@ -68,6 +75,15 @@ export function createDefaultExtensions(placeholder?: string): Extensions {
     Highlight.configure({ multicolor: true }),
     // 文本对齐:作用于段落和标题
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    // 代码块:替换 StarterKit 的纯文本 CodeBlock,增加 lowlight 高亮
+    CodeBlockLowlight.configure({
+      lowlight: codeBlockLowlight,
+      defaultLanguage: 'plaintext',
+      languageClassPrefix: 'language-',
+    }),
+    // 上标 / 下标:StarterKit 不包含,需单独接入
+    Superscript,
+    Subscript,
     // 任务列表:TaskList 需要 TaskItem 提供 checkbox 行为
     TaskList,
     TaskItem.configure({ nested: true }),

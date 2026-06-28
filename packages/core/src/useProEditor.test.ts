@@ -110,6 +110,32 @@ describe('useProEditor — 命令产出真实 HTML', () => {
     expect(ed.getHTML()).toContain('<u>')
   })
 
+  it('code: 选中文字设为行内代码 → <code>', async () => {
+    const { ctx } = mountEditor({ content: '<p>hi</p>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.code()
+    await nextTick()
+    expect(ed.getHTML()).toContain('<code>')
+    expect(ed.getHTML()).not.toContain('<pre>')
+  })
+
+  it('superscript / subscript → <sup> / <sub>', async () => {
+    const sup = mountEditor({ content: '<p>2</p>' })
+    const supEd = await ready(sup.ctx)
+    selectAll(sup.ctx)
+    sup.ctx.commands.superscript()
+    await nextTick()
+    expect(supEd.getHTML()).toContain('<sup>')
+
+    const sub = mountEditor({ content: '<p>2</p>' })
+    const subEd = await ready(sub.ctx)
+    selectAll(sub.ctx)
+    sub.ctx.commands.subscript()
+    await nextTick()
+    expect(subEd.getHTML()).toContain('<sub>')
+  })
+
   it('strike: 选中文字删除线 → <s>', async () => {
     const { ctx } = mountEditor({ content: '<p>hi</p>' })
     const ed = await ready(ctx)
@@ -149,7 +175,17 @@ describe('useProEditor — 命令产出真实 HTML', () => {
     ctx.commands.codeBlock()
     await nextTick()
     expect(ed.getHTML()).toContain('<pre>')
-    expect(ed.getHTML()).toContain('<code>')
+    expect(ed.getHTML()).toContain('<code class="language-plaintext">')
+  })
+
+  it('codeBlock(language) → 带语言 class', async () => {
+    const { ctx } = mountEditor({ content: '<p>const answer = 42</p>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.codeBlock('javascript')
+    await nextTick()
+    const html = ed.getHTML()
+    expect(html).toContain('language-javascript')
   })
 
   it('bulletList → <ul>', async () => {

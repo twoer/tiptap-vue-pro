@@ -267,9 +267,9 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           <span class="tvp-preview-bar__hint">预览模式(只读)</span>
           <NTooltip placement="top" :show-arrow="false">
             <template #trigger>
-              <NButton text class="tvp-icon-btn" @click="togglePreview">
+              <NButton text class="tvp-preview-bar__edit-btn" @click="togglePreview">
                 <Pencil :size="16" />
-                <span style="margin-left: 4px">编辑</span>
+                <span class="tvp-preview-bar__edit-text">编辑</span>
               </NButton>
             </template>
             返回编辑
@@ -392,6 +392,26 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 .tvp-preview-bar__hint {
   font-size: 12px;
   color: var(--n-text-color-3, #909399);
+}
+
+.tvp-preview-bar .tvp-preview-bar__edit-btn {
+  width: auto;
+  min-width: 56px;
+  height: 28px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.tvp-preview-bar .tvp-preview-bar__edit-btn :deep(.n-button__content) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+}
+
+.tvp-preview-bar__edit-text {
+  margin-left: 4px;
+  line-height: 1;
 }
 
 /* 纯图标按钮正方形击中区,复用工具栏的约束 */
@@ -523,6 +543,45 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 .tvp-content .ProseMirror pre code {
   background: none;
   padding: 0;
+}
+
+.tvp-content .ProseMirror pre .hljs-keyword,
+.tvp-content .ProseMirror pre .hljs-selector-tag,
+.tvp-content .ProseMirror pre .hljs-built_in {
+  color: #7c3aed;
+}
+
+.tvp-content .ProseMirror pre .hljs-string,
+.tvp-content .ProseMirror pre .hljs-attr,
+.tvp-content .ProseMirror pre .hljs-title {
+  color: #047857;
+}
+
+.tvp-content .ProseMirror pre .hljs-number,
+.tvp-content .ProseMirror pre .hljs-literal {
+  color: #b45309;
+}
+
+.tvp-content .ProseMirror pre .hljs-comment {
+  color: #8a8f98;
+  font-style: italic;
+}
+
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-keyword,
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-selector-tag,
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-built_in {
+  color: #c4b5fd;
+}
+
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-string,
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-attr,
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-title {
+  color: #86efac;
+}
+
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-number,
+.tvp-editor--dark .tvp-content .ProseMirror pre .hljs-literal {
+  color: #fbbf24;
 }
 
 .tvp-content .ProseMirror code {

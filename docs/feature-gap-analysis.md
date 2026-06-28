@@ -9,10 +9,10 @@
 
 | 维度 | 已有能力 |
 | --- | --- |
-| 格式化 | 加粗 / 斜体 / 删除线 / 下划线 / 标题(H1–H4) / 正文 |
+| 格式化 | 加粗 / 斜体 / 删除线 / 下划线 / 行内代码 / 上标 / 下标 / 标题(H1–H6) / 正文 |
 | 颜色 | 文字颜色(40 预设色 + 自定义 hex) / 背景高亮(32 预设色 + 自定义) |
 | 对齐 | 左 / 中 / 右 / 两端 |
-| 列表 | 无序 / 有序 / 任务(checkbox) / 引用 / 代码块 / 分割线 |
+| 列表 | 无序 / 有序 / 任务(checkbox) / 引用 / 代码块语言选择 + 语法高亮 / 分割线 |
 | 媒体 | 链接(弹窗) / 图片(上传 + 粘贴 + 拖拽) / 表格(网格选择器) |
 | 操作 | 撤销 / 重做 / 清除格式 |
 | 视图 | 全屏 / 预览(只读) / 暗色模式(组件级) |
@@ -106,15 +106,15 @@
 
 ---
 
-### 7. [P1] 上下标 / 行内代码已有但缺失补集(上标 / 下标)
+### 7. [P1] 上下标 / 行内代码补集 ✅ 已实现
 
-**现状:** 有行内 `code`(StarterKit 自带),但**没有上标 / 下标**(`superscript` / `subscript`)。
+**现状(2026-06-28 已实现):** core 已接入官方 `@tiptap/extension-superscript` 与 `@tiptap/extension-subscript`,并暴露 `code` / `superscript` / `subscript` 三个命令。Element Plus / Naive 两个 toolbar 已同步新增行内代码、上标、下标按钮,标题下拉也从 H1-H4 补齐到 H1-H6。
 
 **对比:** 飞书 / 语雀 / TinyMCE 都有(数学公式、化学式、脚注引用场景必需)。
 
-**建议:** 装官方 `@tiptap/extension-superscript` + `@tiptap/extension-subscript`,加 2 个命令 + 2 个工具栏按钮。先确认不在 v3 StarterKit 内(目前不在)。
+**建议:** 保持 adapter 对等测试覆盖,后续若做数学公式,可复用上标 / 下标作为轻量公式补充能力。
 
-**工作量:** 小。
+**工作量:** 已完成。
 
 ---
 
@@ -273,15 +273,15 @@ imageCrop?: boolean | { ratio?: number; fixed?: boolean }
 
 ---
 
-### 18. [P3] 代码块语法高亮 + 语言选择
+### 18. [P3] 代码块语法高亮 + 语言选择 ✅ 已实现
 
-**现状:** 代码块是纯文本(`StarterKit` 的 `CodeBlock`),无语法高亮、无语言选择下拉。
+**现状(2026-06-28 已实现):** core 已用 `@tiptap/extension-code-block-lowlight` 替换 StarterKit 的纯文本 CodeBlock,并集中导出语言列表。Element Plus toolbar 使用语言下拉,Naive toolbar 使用 popover 语言菜单;两边都支持 Plain Text / JavaScript / TypeScript / HTML/Vue / CSS / JSON / Bash / Markdown。
 
 **对比:** 飞书 / 语雀 / Notion 代码块都有语言高亮(基于 Prism / highlight.js / Shiki)+ 语言下拉。
 
-**建议:** 用 `@tiptap/extension-code-block-lowlight`(基于 lowlight / highlight.js)替换默认 CodeBlock,或在 adapter 用 NodeView 套 Shiki。core 配置扩展,adapter 提供语言下拉。
+**建议:** 后续可继续补更完整的代码块体验,如复制代码按钮、显示语言标签、更多语言注册、代码块标题。
 
-**工作量:** 小中。
+**工作量:** 已完成;后续为体验增强。
 
 ---
 
@@ -304,7 +304,6 @@ imageCrop?: boolean | { ratio?: number; fixed?: boolean }
 | **P0** | 1. Adapter 组件级测试覆盖 | 质量 / 可维护 | 中 |
 | **P1** | 3. Slash Command | 交互标配 | 中 |
 | **P1** | 4. Mention(@提及) | 协作标配 | 中 |
-| **P1** | 7. 上标/下标 | 格式补集 | 小 |
 | **P1** | 8. 图片上传前裁剪 | 固定比例场景刚需,core 零改动 | 小中 |
 | **P2** | 9. 多人协同(Yjs) | 平台级 | 高 |
 | **P2** | 10. 数学公式(KaTeX) | 技术文档 | 中 |
@@ -315,7 +314,6 @@ imageCrop?: boolean | { ratio?: number; fixed?: boolean }
 | **P3** | 15. AI 辅助写作 | 差异化 | 高 |
 | **P3** | 16. 国际化(i18n) | 出海 | 中 |
 | **P3** | 17. 无障碍(a11y) | 合规 | 中 |
-| **P3** | 18. 代码块语法高亮 | 技术体验 | 小中 |
 | **P3** | 19. Nuxt/SSR 支持 | 生态 | 小 |
 
 ---
@@ -328,10 +326,9 @@ imageCrop?: boolean | { ratio?: number; fixed?: boolean }
 - 继续补表格菜单与 Markdown 导入导出
 - 新增 adapter 功能时保持「两个 adapter 对等 + 对等测试」
 
-**阶段二(主流标配功能,3–5 周):** P1-3 → P1-4 → P1-7 → P1-8
+**阶段二(主流标配功能,3–5 周):** P1-3 → P1-4 → P1-8
 - 先做用户感知最强的 Slash Command
 - 再做协作标配 Mention
-- 上标/下标作为小补集穿插实现
 - 图片裁剪留在图片工作流继续打磨阶段,core 契约保持不变
 - 每个功能 core 补命令 + 测试,两个 adapter 同步加按钮
 
