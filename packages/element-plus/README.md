@@ -1,4 +1,4 @@
-# tiptap-vue-pro-element-plus
+# Tiptap Vue Pro Element Plus
 
 基于 Tiptap v3 + Vue 3 + Element Plus 的开箱即用富文本编辑器组件。
 
@@ -34,6 +34,53 @@ const content = ref('<p>hello world</p>')
 </template>
 ```
 
+## 配置
+
+`toolbar` 控制内置按钮的显示和顺序;`toolbarOptions` 控制菜单数据,如字体、字号、行高、颜色、代码语言、表格网格、Markdown 和打印;`editorBehaviorOptions` 控制默认行为,如链接打开方式、表格是否带表头、图片 accept。
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import {
+  ProEditorElementPlus,
+  type EditorBehaviorOptions,
+  type ToolbarOptions,
+} from 'tiptap-vue-pro-element-plus'
+
+const content = ref('<p>hello world</p>')
+
+const toolbarOptions: ToolbarOptions = {
+  fontFamilies: [
+    { label: '默认字体', value: '' },
+    { label: '苹方', value: 'PingFang SC' },
+  ],
+  fontSizes: ['', '14px', '16px', '20px', '28px'],
+  lineHeights: ['', '1.5', '1.75', '2'],
+  codeBlockLanguages: [
+    { label: 'TypeScript', value: 'typescript' },
+    { label: 'Python', value: 'python' },
+  ],
+  tableGrid: { maxRows: 12, maxCols: 12 },
+}
+
+const editorBehaviorOptions: EditorBehaviorOptions = {
+  link: { defaultTarget: '_self' },
+  table: { withHeaderRow: false },
+  image: { accept: 'image/png,image/jpeg,image/webp' },
+}
+</script>
+
+<template>
+  <ProEditorElementPlus
+    v-model="content"
+    :toolbar-options="toolbarOptions"
+    :editor-behavior-options="editorBehaviorOptions"
+  />
+</template>
+```
+
+完整配置项见文档站: https://twoer.github.io/tiptap-vue-pro/guide/configuration
+
 ## 自定义工具栏
 
 ```vue
@@ -61,4 +108,5 @@ const toolbar: ToolbarConfig = [
 
 传 `:toolbar="false"` 可隐藏内置按钮;使用 `toolbar` 插槽可完全替换内置工具栏。
 
-完整文档和 Demo: https://github.com/twoer/tiptap-vue-pro
+完整文档: https://twoer.github.io/tiptap-vue-pro/
+在线 Demo: https://twoer.github.io/tiptap-vue-pro/playground/

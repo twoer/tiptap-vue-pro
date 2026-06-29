@@ -2,17 +2,19 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import { ProEditorNaive } from 'tiptap-vue-pro-naive'
+import { ProEditorAntDesignVue } from 'tiptap-vue-pro-ant-design-vue'
 import type { ToolbarConfig } from 'tiptap-vue-pro-core'
 // 生产级图片上传示例:XHR 真实上传 + 进度条 + 三态提示,详见文件内注释
 import { uploadImage } from './uploadImage'
 // HTML 美化:用 DOMParser 解析 + 递归序列化,把紧凑 HTML 格式化成带缩进可读形式
 import { formatHTML } from './formatHTML'
 
-// ---- hash 路由:用 location.hash 区分 UI 适配页(#/element-plus | #/naive)----
+// ---- hash 路由:用 location.hash 区分 UI 适配页(#/element-plus | #/naive | #/ant-design-vue)----
 // 选 hash 而非 history:GitHub Pages 下 history 刷新会 404,hash 天然可刷新可分享。
-type UiKey = 'element-plus' | 'naive'
+type UiKey = 'element-plus' | 'naive' | 'ant-design-vue'
 function readHashRoute(): UiKey {
   const h = location.hash.replace(/^#\/?/, '')
+  if (h === 'ant-design-vue') return 'ant-design-vue'
   return h === 'naive' ? 'naive' : 'element-plus'
 }
 const route = ref<UiKey>(readHashRoute())
@@ -36,7 +38,13 @@ function createDemoContent(uiName: string) {
   )
 }
 
-const content = ref(createDemoContent(route.value === 'naive' ? 'Naive UI' : 'Element Plus'))
+const content = ref(createDemoContent(
+  route.value === 'naive'
+    ? 'Naive UI'
+    : route.value === 'ant-design-vue'
+      ? 'Ant Design Vue'
+      : 'Element Plus',
+))
 function syncRoute() {
   route.value = readHashRoute()
 }
@@ -52,9 +60,17 @@ const readonly = ref(false)
 const showWordCount = ref(true)
 const compactToolbar = ref(false)
 const output = ref<'html' | 'json'>('html')
-const currentUiName = computed(() => (route.value === 'naive' ? 'Naive UI' : 'Element Plus'))
+const currentUiName = computed(() => {
+  if (route.value === 'naive') return 'Naive UI'
+  if (route.value === 'ant-design-vue') return 'Ant Design Vue'
+  return 'Element Plus'
+})
 const currentUiPackage = computed(() =>
-  route.value === 'naive' ? 'tiptap-vue-pro-naive' : 'tiptap-vue-pro-element-plus',
+  route.value === 'naive'
+    ? 'tiptap-vue-pro-naive'
+    : route.value === 'ant-design-vue'
+      ? 'tiptap-vue-pro-ant-design-vue'
+      : 'tiptap-vue-pro-element-plus',
 )
 const toolbarConfig = computed<ToolbarConfig | undefined>(() =>
   compactToolbar.value
@@ -72,7 +88,7 @@ function resetDemoContent() {
 
 // 暗色模式:
 // - Element Plus 版:切 html.dark,让 EP 全局暗色 + 本页暗色样式生效
-// - Naive 版:组件级 dark prop 接管(不依赖 html.dark),但仍切本页暗色背景
+// - Naive / Ant 版:组件级 dark prop 接管(不依赖 html.dark),但仍切本页暗色背景
 watch(
   dark,
   (v) => {
@@ -130,6 +146,9 @@ async function copyOutput() {
       <a href="#/naive" class="ui-nav__item" :class="{ 'is-active': route === 'naive' }">
         Naive UI
       </a>
+      <a href="#/ant-design-vue" class="ui-nav__item" :class="{ 'is-active': route === 'ant-design-vue' }">
+        Ant Design Vue
+      </a>
     </nav>
 
     <!--
@@ -177,9 +196,9 @@ async function copyOutput() {
           <span v-if="readonly" class="state-badge">只读</span>
         </div>
         <!--
-          两个 UI 适配各占一个「页面」,用 hash 路由切换。
+          三个 UI 适配各占一个「页面」,用 hash 路由切换。
           两版 props 对等、共享同一份 content(v-model 互通),只挂载当前路由对应的那一个,
-          避免 EP(全局 html.dark 暗色)与 Naive(组件级 NConfigProvider 暗色)同屏混用。
+          避免不同 adapter 的暗色与弹层机制同屏混用。
           v-if 而非 v-show:非当前页的编辑器实例不创建,互不干扰。
         -->
         <ProEditorElementPlus
@@ -194,6 +213,17 @@ async function copyOutput() {
           :upload-image="uploadImage"
         />
         <ProEditorNaive
+          v-else-if="route === 'naive'"
+          v-model="content"
+          :output="output"
+          :dark="dark"
+          :readonly="readonly"
+          :show-word-count="showWordCount"
+          :toolbar="toolbarConfig"
+          placeholder="开始输入..."
+          :upload-image="uploadImage"
+        />
+        <ProEditorAntDesignVue
           v-else
           v-model="content"
           :output="output"
@@ -341,7 +371,7 @@ html.dark .status-pill {
  * 整体是一个带圆角浅灰底色的胶囊容器,两个 tab 像在轨道里,
  * active 态白色凸起卡片 + 阴影,inactive 态透明——对比强烈,一眼看出能切换。
  * 这是 iOS 设置 / 飞书 / 多数 SaaS 后台通用的导航范式。
- * 用固定色 + html.dark,不依赖任何 UI 库变量(EP 页/Naive 页一致)。
+ * 用固定色 + html.dark,不依赖任何 UI 库变量(各 adapter 页面一致)。
  */
 .ui-nav {
   display: inline-flex;
@@ -390,7 +420,7 @@ html.dark .ui-nav__item.is-active {
 
 /*
  * 开关区:不依赖任何 UI 库,用固定色 + html.dark 切暗色,
- * 保证 EP 页和 Naive 页外观完全一致。
+ * 保证各 adapter 页面外观完全一致。
  */
 .demo-toolbar {
   display: flex;

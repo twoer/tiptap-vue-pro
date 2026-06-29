@@ -13,7 +13,18 @@ export type {
   ToolbarBuiltinKey,
   ToolbarConfig,
   ToolbarGroupConfig,
+  ToolbarOptions,
+  ToolbarFontFamilyOption,
+  ToolbarCodeBlockLanguageOption,
+  ToolbarTableGridOptions,
+  ToolbarMarkdownOptions,
+  ToolbarPrintOptions,
   ToolbarProp,
+  EditorBehaviorOptions,
+  EditorLinkTarget,
+  EditorLinkBehaviorOptions,
+  EditorTableBehaviorOptions,
+  EditorImageBehaviorOptions,
 } from 'tiptap-vue-pro-core'
 
 export default ProEditorElementPlus

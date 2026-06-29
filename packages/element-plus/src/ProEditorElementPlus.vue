@@ -3,7 +3,7 @@ import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { ElButton, ElTooltip, ElMessage } from 'element-plus'
 import { Pencil } from 'lucide-vue-next'
-import { useProEditor, handleImageFiles, hasImageFiles, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarProp } from 'tiptap-vue-pro-core'
+import { useEditorEventBridge, useImageDropPaste, useProEditor, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
@@ -11,7 +11,7 @@ import TableGripHandles from './TableGripHandles.vue'
 import ImageBubbleMenu from './ImageBubbleMenu.vue'
 
 /**
- * tiptap-vue-pro 的 Element Plus 适配主组件。
+ * Tiptap Vue Pro 的 Element Plus 适配主组件。
  *
  * 用户用法:
  *   <ProEditorElementPlus v-model="content" :upload-image="upload" output="html" />
@@ -19,7 +19,7 @@ import ImageBubbleMenu from './ImageBubbleMenu.vue'
  * 职责:
  * - 把 v-model 接到 Core 的 useProEditor
  * - 渲染工具栏 + EditorContent
- * - 处理图片粘贴/拖拽上传(委托 Core 的 handleImageFiles)
+ * - 处理图片粘贴/拖拽上传(委托 Core 的 useImageDropPaste)
  *
  * 注意:active 态的响应性。
  * Tiptap 的 isActive 不会自动触发 Vue 重渲染,这里用一个 selectionTick
@@ -43,6 +43,10 @@ const props = withDefaults(
     showWordCount?: boolean
     /** 工具栏配置:false 隐藏内置按钮;数组控制内置按钮分组/顺序 */
     toolbar?: ToolbarProp
+    /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
+    toolbarOptions?: ToolbarOptions
+    /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
+    editorBehaviorOptions?: EditorBehaviorOptions
     /** 自定义扩展(覆盖默认) */
     extensions?: Extensions
   }>(),
@@ -54,6 +58,8 @@ const props = withDefaults(
     dark: false,
     showWordCount: true,
     toolbar: undefined,
+    toolbarOptions: undefined,
+    editorBehaviorOptions: undefined,
   },
 )
 
@@ -89,6 +95,9 @@ const ctx = useProEditor({
   },
   placeholder: props.placeholder,
   uploadImage: props.uploadImage,
+  get editorBehaviorOptions() {
+    return props.editorBehaviorOptions
+  },
   editable: !props.readonly,
   extensions: props.extensions,
   notify: (msg: string, type?: NotifyType) => {
@@ -108,28 +117,10 @@ watch(
   },
 )
 
-// 工具栏 active 响应性:监听 editor 实例,绑定 selectionUpdate 触发重渲染
-const selectionTick = ref(0)
 // 是否曾获得过焦点:用于判断「用户从未点进编辑器」的场景。
 // ProseMirror 的 selection 在失焦后仍保留上次值,但点工具栏按钮时 DOM 已失焦,
 // editor.isFocused 恒为 false,无法直接区分「从未点过」和「点过后失焦」。
-let editorHasBeenFocused = false
-watch(
-  () => ctx.editor.value,
-  (ed) => {
-    if (!ed) return
-    ed.on('selectionUpdate', () => {
-      selectionTick.value++
-    })
-    ed.on('transaction', () => {
-      selectionTick.value++
-    })
-    ed.on('focus', () => {
-      editorHasBeenFocused = true
-    })
-  },
-  { immediate: true },
-)
+const { selectionTick, editorHasBeenFocused } = useEditorEventBridge(ctx.editor)
 
 // readonly 变化
 watch(
@@ -181,39 +172,15 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
   return {
     ...ctx,
     prepareInsert: () => {
-      if (!editorHasBeenFocused) {
+      if (!editorHasBeenFocused.value) {
         ctx.commands.ensureFocusAtEnd()
       }
     },
   }
 })
 
-// 图片粘贴/拖拽:挂到 EditorContent 的容器上
-//
-// 关键:preventDefault 必须在事件的「同步阶段」调用才生效。而 handleImageFiles
-// 是 async(要等上传),不能把它的返回值用于 if 判断——那会让 if 永远拿到一个
-// Promise(恒真),既误拦所有粘贴,又因 preventDefault 时机已过而失效。
-// 因此:先用同步的 hasImageFiles 判断「有没有图片」并立即 preventDefault,
-// 再异步走真正的上传 + 插入。
-function onPaste(e: ClipboardEvent) {
-  if (!props.uploadImage) return
-  const files = e.clipboardData?.files
-  if (!hasImageFiles(files)) return
-  e.preventDefault()
-  void handleImageFiles(files, props.uploadImage, ctx.editor.value!, () => {
-    ctx.notify('部分图片上传失败', 'error')
-  })
-}
-
-function onDrop(e: DragEvent) {
-  if (!props.uploadImage) return
-  const files = e.dataTransfer?.files
-  if (!hasImageFiles(files)) return
-  e.preventDefault()
-  void handleImageFiles(files, props.uploadImage, ctx.editor.value!, () => {
-    ctx.notify('部分图片上传失败', 'error')
-  })
-}
+// 图片粘贴/拖拽:挂到 EditorContent 的容器上。
+const { onPaste, onDrop } = useImageDropPaste(ctx, () => props.uploadImage)
 
 // 字数
 const wordCount = computed(() => ctx.wordCount.value)
@@ -237,6 +204,8 @@ const wordCount = computed(() => ctx.wordCount.value)
       :is-preview="isPreview"
       :toggle-fullscreen="toggleFullscreen"
       :toggle-preview="togglePreview"
+      :toolbar-options="props.toolbarOptions"
+      :editor-behavior-options="props.editorBehaviorOptions"
     />
 
     <Toolbar
@@ -246,6 +215,8 @@ const wordCount = computed(() => ctx.wordCount.value)
       :is-fullscreen="isFullscreen"
       :is-preview="isPreview"
       :toolbar="props.toolbar"
+      :toolbar-options="props.toolbarOptions"
+      :editor-behavior-options="props.editorBehaviorOptions"
       @toggle-fullscreen="toggleFullscreen"
       @toggle-preview="togglePreview"
     >
@@ -306,6 +277,7 @@ const wordCount = computed(() => ctx.wordCount.value)
       :editor="ctx.editor.value"
       :ctx="toolbarCtx"
       :upload-image="props.uploadImage"
+      :editor-behavior-options="props.editorBehaviorOptions"
     />
 
     <div v-if="!readonly && !isPreview && showWordCount" class="tvp-footer">

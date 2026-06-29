@@ -1,4 +1,4 @@
-name: Deploy Playground to GitHub Pages
+name: Deploy Docs to GitHub Pages
 
 on:
   push:
@@ -35,9 +35,8 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # playground 通过 alias 直接引用 packages 源码,不需要先 build packages
-      - name: Build playground
-        run: pnpm --filter playground build
+      - name: Build docs and playground
+        run: pnpm docs:build
 
       # upload-pages-artifact 要求产物在名为 artifact 的目录
       - name: Setup Pages
@@ -46,7 +45,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: playground/dist
+          path: docs/.vitepress/dist
 
   deploy:
     needs: build

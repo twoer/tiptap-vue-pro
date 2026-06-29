@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Naive 适配的表格行/列抓手(飞书式)。与 EP 版逻辑完全对等。
+ * Naive 适配的表格行/列抓手(飞书式)。
  * 悬停某行 → 左外侧抓手;悬停某列 → 上外侧抓手。点击选中整行/列 + 弹 NDropdown 菜单。
  * 用手写覆盖层(逐行/逐列多按钮,BubbleMenuPlugin 不适用),相对 tvp-content-wrap 定位。
  */
@@ -31,22 +31,22 @@ const iconMap: Record<string, any> = {
   delete: Trash2,
 }
 const rowOptions: DropdownOption[] = [
-  { key: 'addUp', label: '在上方插入行' },
-  { key: 'addDown', label: '在下方插入行' },
+  { key: 'addUp', label: '在上方插入' },
+  { key: 'addDown', label: '在下方插入' },
   { type: 'divider' },
-  { key: 'moveUp', label: '上移行' },
-  { key: 'moveDown', label: '下移行' },
+  { key: 'moveUp', label: '上移' },
+  { key: 'moveDown', label: '下移' },
   { type: 'divider' },
-  { key: 'delete', label: '删除行' },
+  { key: 'delete', label: '删除' },
 ]
 const colOptions: DropdownOption[] = [
-  { key: 'addLeft', label: '在左侧插入列' },
-  { key: 'addRight', label: '在右侧插入列' },
+  { key: 'addLeft', label: '在左侧插入' },
+  { key: 'addRight', label: '在右侧插入' },
   { type: 'divider' },
-  { key: 'moveLeft', label: '左移列' },
-  { key: 'moveRight', label: '右移列' },
+  { key: 'moveLeft', label: '左移' },
+  { key: 'moveRight', label: '右移' },
   { type: 'divider' },
-  { key: 'delete', label: '删除列' },
+  { key: 'delete', label: '删除' },
 ]
 function renderLabel(opt: DropdownOption): VNode {
   const Icon = iconMap[opt.key as string] ?? GripVertical
@@ -82,6 +82,7 @@ function runAfterPopperClose(command: () => void) {
 // 表格时编辑器选区可能还在表格外,tableState 仍是空。
 let activeTable: HTMLTableElement | null = null
 let activeCell: HTMLElement | null = null
+let activeEditor: Editor | null = null
 
 function getTableEl(): HTMLTableElement | null {
   if (activeTable) return activeTable
@@ -248,6 +249,7 @@ function setup() {
   const ed = props.editor
   scrollEl = props.scrollContainer
   if (!ed) return
+  activeEditor = ed
   ed.on('transaction', refresh)
   if (scrollEl) {
     scrollEl.addEventListener('mousemove', onContainerMouseMove)
@@ -260,8 +262,9 @@ function setup() {
 function teardown() {
   cancelHide()
   clearDestructiveTimer()
-  const ed = props.editor
+  const ed = activeEditor
   if (ed) ed.off('transaction', refresh)
+  activeEditor = null
   if (scrollEl) {
     scrollEl.removeEventListener('mousemove', onContainerMouseMove)
     scrollEl.removeEventListener('mouseleave', onContainerMouseLeave)

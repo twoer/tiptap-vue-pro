@@ -7,13 +7,19 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter playground dev",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "pnpm docs:build:site && pnpm --filter playground build && rm -rf docs/.vitepress/dist/playground && cp -R playground/dist docs/.vitepress/dist/playground",
+    "docs:build:site": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "build": "pnpm -r --filter=./packages/* run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r --filter=./packages/* run test",
     "postinstall": "node node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild/install.js || true"
   },
   "devDependencies": {
-    "typescript": "^5.6.0"
+    "mermaid": "^11.16.0",
+    "typescript": "^5.6.0",
+    "vitepress": "^1.6.4"
   },
   "packageManager": "pnpm@10.32.1",
   "engines": {

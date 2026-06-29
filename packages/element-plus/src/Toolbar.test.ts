@@ -1,10 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { h, nextTick, ref } from 'vue'
 import Toolbar from './Toolbar.vue'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import { getCommandLabel, TOOLBAR_MARKDOWN_OPTIONS } from 'tiptap-vue-pro-core'
+import type { ProEditorContext, ToolbarOptions } from 'tiptap-vue-pro-core'
 
-function createEditor(options: { empty?: boolean; inLink?: boolean } = {}) {
+function createEditor(options: { empty?: boolean; inLink?: boolean; codeBlockLanguage?: string } = {}) {
   return {
     state: {
       selection: {
@@ -17,7 +19,11 @@ function createEditor(options: { empty?: boolean; inLink?: boolean } = {}) {
       },
     },
     isActive: vi.fn((name: string) => name === 'link' && !!options.inLink),
-    getAttributes: vi.fn((name: string) => (name === 'link' && options.inLink ? { href: 'https://old.example.com' } : {})),
+    getAttributes: vi.fn((name: string) => {
+      if (name === 'link' && options.inLink) return { href: 'https://old.example.com' }
+      if (name === 'codeBlock' && options.codeBlockLanguage) return { language: options.codeBlockLanguage }
+      return {}
+    }),
   }
 }
 
@@ -78,7 +84,7 @@ async function clickBodyText(text: string) {
     item.textContent?.trim() === text,
   ) as HTMLElement | undefined
   expect(node).toBeTruthy()
-  const target = (node!.closest('.el-dropdown-menu__item, .n-dropdown-option-body, .n-dropdown-option') as HTMLElement | null) ?? node!
+  const target = (node!.closest('.el-dropdown-menu__item') as HTMLElement | null) ?? node!
   target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
   target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
   target.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -178,6 +184,21 @@ describe('Element Plus Toolbar', () => {
     expect(wrapper.find('button[aria-label="标题"]').exists()).toBe(false)
   })
 
+  it('使用 core 命令注册表的 label 渲染基础按钮', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        toolbar: [['bold', 'undo', 'clearFormat']],
+      },
+    })
+
+    expect(wrapper.find(`button[aria-label="${getCommandLabel('bold')}"]`).exists()).toBe(true)
+    expect(wrapper.find(`button[aria-label="${getCommandLabel('undo')}"]`).exists()).toBe(true)
+    expect(wrapper.find(`button[aria-label="${getCommandLabel('clearFormat')}"]`).exists()).toBe(true)
+  })
+
   it('toolbar=false 时隐藏所有内置工具栏按钮', () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
@@ -232,7 +253,7 @@ describe('Element Plus Toolbar', () => {
   })
 
   it('字体、字号、行高下拉会分别调用对应命令', async () => {
-    const ctx = createCtx(createEditor())
+    const ctx = createCtx(createEditor({ codeBlockLanguage: 'mermaid' }))
     wrapper = mount(Toolbar, {
       attachTo: document.body,
       props: { ctx },
@@ -249,6 +270,50 @@ describe('Element Plus Toolbar', () => {
     await wrapper.find('button[aria-label="行高"]').trigger('click')
     await clickBodyText('1.6')
     expect(ctx.commands.setLineHeight).toHaveBeenCalledWith('1.6')
+  })
+
+  it('toolbarOptions 会覆盖工具栏菜单和动作配置', () => {
+    const ctx = createCtx(createEditor({ codeBlockLanguage: 'mermaid' }))
+    const exportFilename = () => 'notes.md'
+    const toolbarOptions: ToolbarOptions = {
+      fontFamilies: [{ label: '苹方', value: 'PingFang SC' }],
+      fontSizes: ['', '13px'],
+      lineHeights: ['', '1.75'],
+      colors: ['#123456'],
+      highlights: ['#abcdef'],
+      codeBlockLanguages: [{ label: 'Mermaid', value: 'mermaid' }],
+      tableGrid: { maxRows: 3, maxCols: 4 },
+      markdown: { importAccept: '.mdx,text/markdown', exportFilename },
+      print: { title: '打印预览', cleanupDelay: 25 },
+    }
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, toolbarOptions },
+    })
+    const vm = wrapper.vm as unknown as {
+      FONT_FAMILIES: Array<{ label: string; value: string }>
+      FONT_SIZES: string[]
+      LINE_HEIGHTS: string[]
+      PRESET_COLORS: string[]
+      PRESET_HIGHLIGHTS: string[]
+      CODE_BLOCK_LANGUAGE_OPTIONS: Array<{ label: string; value: string }>
+      TABLE_MAX_ROWS: number
+      TABLE_MAX_COLS: number
+      MARKDOWN_IMPORT_ACCEPT: string
+      currentCodeBlockLabel: string
+    }
+
+    expect(vm.FONT_FAMILIES).toEqual([{ label: '苹方', value: 'PingFang SC' }])
+    expect(vm.FONT_SIZES).toEqual(['', '13px'])
+    expect(vm.LINE_HEIGHTS).toEqual(['', '1.75'])
+    expect(vm.PRESET_COLORS).toEqual(['#123456'])
+    expect(vm.PRESET_HIGHLIGHTS).toEqual(['#abcdef'])
+    expect(vm.CODE_BLOCK_LANGUAGE_OPTIONS).toEqual([{ label: 'Mermaid', value: 'mermaid' }])
+    expect(vm.TABLE_MAX_ROWS).toBe(3)
+    expect(vm.TABLE_MAX_COLS).toBe(4)
+    expect(vm.MARKDOWN_IMPORT_ACCEPT).toBe('.mdx,text/markdown')
+    expect(vm.currentCodeBlockLabel).toBe('Mermaid')
+    expect(wrapper.find('input[accept=".mdx,text/markdown"]').exists()).toBe(true)
   })
 
   it('缩进按钮会调用 increaseIndent / decreaseIndent', async () => {
@@ -295,6 +360,30 @@ describe('Element Plus Toolbar', () => {
       'https://example.com',
       'Example',
       { target: '_blank', range: { from: 3, to: 3 } },
+    )
+  })
+
+  it('editorBehaviorOptions 可配置链接默认 target 为当前窗口', async () => {
+    const ctx = createCtx(createEditor())
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        editorBehaviorOptions: {
+          link: { defaultTarget: '_self' },
+        },
+      },
+    })
+
+    await wrapper.find('button[aria-label="链接"]').trigger('click')
+    await setNativeInput(inputByPlaceholder('显示的文字(留空则用链接地址)'), 'Example')
+    await setNativeInput(inputByPlaceholder('https://example.com'), 'https://example.com')
+    await clickBodyButton('确定')
+
+    expect(ctx.commands.insertLinkText).toHaveBeenCalledWith(
+      'https://example.com',
+      'Example',
+      { target: '_self', range: { from: 3, to: 3 } },
     )
   })
 
@@ -356,6 +445,22 @@ describe('Element Plus Toolbar', () => {
     expect(input.value).toBe('')
   })
 
+  it('editorBehaviorOptions 可配置图片上传 accept', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        uploadImage: vi.fn(),
+        editorBehaviorOptions: {
+          image: { accept: 'image/png,image/jpeg' },
+        },
+      },
+    })
+
+    expect(wrapper.find('input[accept="image/png,image/jpeg"]').exists()).toBe(true)
+  })
+
   it('表格网格:选择尺寸后插入表格并关闭下拉', async () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
@@ -381,5 +486,40 @@ describe('Element Plus Toolbar', () => {
     expect(ctx.prepareInsert).toHaveBeenCalledTimes(1)
     expect(ctx.commands.insertTable).toHaveBeenCalledWith(3, 4)
     expect(handleClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Markdown 菜单文案保持简化,菜单项图标文字间距统一', () => {
+    const source = readFileSync(`${process.cwd()}/src/Toolbar.vue`, 'utf8')
+
+    expect(TOOLBAR_MARKDOWN_OPTIONS.map((option) => option.label)).toEqual(['导入', '导出'])
+    expect(source).toContain('TOOLBAR_MARKDOWN_OPTIONS')
+    expect(source).toContain('markdownOptionIcon')
+    expect(source).toContain('.tvp-menu-item')
+    expect(source).toContain('gap: 6px')
+  })
+
+  it('工具栏 UI 角色使用 Element Plus 对应控件', () => {
+    const source = readFileSync(`${process.cwd()}/src/Toolbar.vue`, 'utf8')
+
+    for (const item of ['heading', 'fontFamily', 'fontSize', 'lineHeight', 'color', 'highlight', 'align']) {
+      expect(source).toContain(`<ElDropdown v-else-if="item === '${item}'"`)
+    }
+    for (const item of ['codeBlock', 'table', 'markdown']) {
+      expect(source).toContain(`<ElTooltip v-else-if="item === '${item}'"`)
+      expect(source).toMatch(new RegExp(`item === '${item}'[\\s\\S]*<ElDropdown`))
+    }
+    expect(source).toContain('<ElDialog v-model="urlDialogVisible"')
+    expect(source).toContain('v-model="linkDialogVisible"')
+    expect(source).toContain(':accept="IMAGE_ACCEPT"')
+    expect(source).toContain(':accept="MARKDOWN_IMPORT_ACCEPT"')
+  })
+
+  it('纯图标按钮保持 32px 正方形击中区', () => {
+    const source = readFileSync(`${process.cwd()}/src/Toolbar.vue`, 'utf8')
+
+    expect(source).toContain('.tvp-toolbar :deep(.el-button.tvp-icon-btn)')
+    expect(source).toContain('width: 32px')
+    expect(source).toContain('height: 32px')
+    expect(source).toContain('padding: 0')
   })
 })

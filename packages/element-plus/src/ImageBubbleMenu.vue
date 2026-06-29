@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onBeforeUnmount, nextTick } from 'vue'
 import { ElButton, ElTooltip, ElDivider } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import {
@@ -16,7 +16,9 @@ import type {
   UploadImage,
   ImageAlign,
   ImageSizePreset,
+  EditorBehaviorOptions,
 } from 'tiptap-vue-pro-core'
+import { resolveEditorBehaviorOptions, useEditorPluginRegistration } from 'tiptap-vue-pro-core'
 
 /**
  * 图片气泡菜单:选中图片(NodeSelection)时浮现的工具条(对标飞书)。
@@ -35,11 +37,12 @@ const props = defineProps<{
   editor: Editor | undefined
   ctx: ProEditorContext
   uploadImage?: UploadImage
+  editorBehaviorOptions?: EditorBehaviorOptions
 }>()
 
 const rootEl = ref<HTMLElement | null>(null)
-let registeredEditor: Editor | null = null
-let selectionUpdateHandler: (() => void) | null = null
+const resolvedEditorBehaviorOptions = computed(() => resolveEditorBehaviorOptions(props.editorBehaviorOptions))
+const IMAGE_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.image.accept)
 
 // 当前选中图片的属性(用于高亮当前对齐/尺寸态)
 const activeAlign = computed<ImageAlign>(() => {
@@ -62,60 +65,47 @@ const currentImageAttrs = computed(() => {
   return null
 })
 
-function registerBubbleMenu() {
-  const ed = props.editor
-  if (!ed || !rootEl.value || registeredEditor === ed) return
-  unregisterBubbleMenu()
-
-  const plugin = BubbleMenuPlugin({
+useEditorPluginRegistration({
+  getEditor: () => props.editor,
+  getElement: () => rootEl.value,
+  pluginKey: 'proImageBubbleMenu',
+  createPlugin: (ed, element) => BubbleMenuPlugin({
     pluginKey: 'proImageBubbleMenu',
     editor: ed,
-    element: rootEl.value,
+    element,
     updateDelay: 100,
     shouldShow: ({ state }) => {
       const sel = state.selection as { node?: { type: { name: string } } }
       // 仅图片节点选中时显示
       return !!sel.node && sel.node.type.name === 'image'
     },
-  })
-  ed.registerPlugin(plugin)
-  selectionUpdateHandler = () => {
-    selectionTick.value++
-  }
-  ed.on('selectionUpdate', selectionUpdateHandler)
-  registeredEditor = ed
+  }),
+  onRegistered: (ed) => {
+    const selectionUpdateHandler = () => {
+      selectionTick.value++
+    }
+    ed.on('selectionUpdate', selectionUpdateHandler)
+    return () => ed.off('selectionUpdate', selectionUpdateHandler)
+  },
+})
+
+function refreshSelectionState() {
+  selectionTick.value++
 }
-
-function unregisterBubbleMenu() {
-  const ed = registeredEditor
-  if (!ed) return
-  ed.unregisterPlugin('proImageBubbleMenu')
-  if (selectionUpdateHandler) ed.off('selectionUpdate', selectionUpdateHandler)
-  registeredEditor = null
-  selectionUpdateHandler = null
-}
-
-onMounted(() => registerBubbleMenu())
-
-watch(
-  () => props.editor,
-  () => registerBubbleMenu(),
-)
 
 onBeforeUnmount(() => {
   if (removeTimer) window.clearTimeout(removeTimer)
-  unregisterBubbleMenu()
 })
 
 // ---- 操作 ----
 function setAlign(align: ImageAlign) {
   props.ctx.commands.setImageAlign(align)
-  selectionTick.value++
+  refreshSelectionState()
 }
 
 function setSize(preset: ImageSizePreset) {
   props.ctx.commands.setImageSize(preset)
-  selectionTick.value++
+  refreshSelectionState()
 }
 
 function focusCaption() {
@@ -231,7 +221,7 @@ async function remove() {
     <input
       ref="replaceInput"
       type="file"
-      accept="image/*"
+      :accept="IMAGE_ACCEPT"
       class="tvp-image-input"
       @change="onReplaceSelected"
     />

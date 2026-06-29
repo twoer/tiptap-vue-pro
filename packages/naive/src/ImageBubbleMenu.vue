@@ -2,11 +2,11 @@
 /**
  * Naive 适配的图片气泡菜单:选中图片(NodeSelection)时浮现(对标飞书)。
  *
- * 能力与 EP 版完全对等,只替换 UI 组件(ElButton → NButton 等)。
+ * 能力与其他 adapter 完全对等,组件全部使用 Naive UI。
  * shouldShow 判断当前是否「选中图片节点」,文字选区不弹、图片选中才弹。
  * 工具条:[小][中][大][原始] | [左][中][右] | [题注] [替换] [删除]
  */
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onBeforeUnmount, nextTick } from 'vue'
 import { NButton, NTooltip, NDivider } from 'naive-ui'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import {
@@ -23,17 +23,20 @@ import type {
   UploadImage,
   ImageAlign,
   ImageSizePreset,
+  EditorBehaviorOptions,
 } from 'tiptap-vue-pro-core'
+import { resolveEditorBehaviorOptions, useEditorPluginRegistration } from 'tiptap-vue-pro-core'
 
 const props = defineProps<{
   editor: Editor | undefined
   ctx: ProEditorContext
   uploadImage?: UploadImage
+  editorBehaviorOptions?: EditorBehaviorOptions
 }>()
 
 const rootEl = ref<HTMLElement | null>(null)
-let registeredEditor: Editor | null = null
-let selectionUpdateHandler: (() => void) | null = null
+const resolvedEditorBehaviorOptions = computed(() => resolveEditorBehaviorOptions(props.editorBehaviorOptions))
+const IMAGE_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.image.accept)
 
 // 当前选中图片的对齐(高亮态)
 const selectionTick = ref(0)
@@ -49,58 +52,45 @@ const currentImageAttrs = computed(() => {
 })
 const activeAlign = computed<ImageAlign>(() => (currentImageAttrs.value?.align as ImageAlign) ?? 'center')
 
-function registerBubbleMenu() {
-  const ed = props.editor
-  if (!ed || !rootEl.value || registeredEditor === ed) return
-  unregisterBubbleMenu()
-
-  const plugin = BubbleMenuPlugin({
+useEditorPluginRegistration({
+  getEditor: () => props.editor,
+  getElement: () => rootEl.value,
+  pluginKey: 'proImageBubbleMenu',
+  createPlugin: (ed, element) => BubbleMenuPlugin({
     pluginKey: 'proImageBubbleMenu',
     editor: ed,
-    element: rootEl.value,
+    element,
     updateDelay: 100,
     shouldShow: ({ state }) => {
       const sel = state.selection as { node?: { type: { name: string } } }
       return !!sel.node && sel.node.type.name === 'image'
     },
-  })
-  ed.registerPlugin(plugin)
-  selectionUpdateHandler = () => {
-    selectionTick.value++
-  }
-  ed.on('selectionUpdate', selectionUpdateHandler)
-  registeredEditor = ed
+  }),
+  onRegistered: (ed) => {
+    const selectionUpdateHandler = () => {
+      selectionTick.value++
+    }
+    ed.on('selectionUpdate', selectionUpdateHandler)
+    return () => ed.off('selectionUpdate', selectionUpdateHandler)
+  },
+})
+
+function refreshSelectionState() {
+  selectionTick.value++
 }
-
-function unregisterBubbleMenu() {
-  const ed = registeredEditor
-  if (!ed) return
-  ed.unregisterPlugin('proImageBubbleMenu')
-  if (selectionUpdateHandler) ed.off('selectionUpdate', selectionUpdateHandler)
-  registeredEditor = null
-  selectionUpdateHandler = null
-}
-
-onMounted(() => registerBubbleMenu())
-
-watch(
-  () => props.editor,
-  () => registerBubbleMenu(),
-)
 
 onBeforeUnmount(() => {
   if (removeTimer) window.clearTimeout(removeTimer)
-  unregisterBubbleMenu()
 })
 
 function setAlign(align: ImageAlign) {
   props.ctx.commands.setImageAlign(align)
-  selectionTick.value++
+  refreshSelectionState()
 }
 
 function setSize(preset: ImageSizePreset) {
   props.ctx.commands.setImageSize(preset)
-  selectionTick.value++
+  refreshSelectionState()
 }
 
 function focusCaption() {
@@ -238,7 +228,7 @@ async function remove() {
     <input
       ref="replaceInput"
       type="file"
-      accept="image/*"
+      :accept="IMAGE_ACCEPT"
       class="tvp-image-input"
       @change="onReplaceSelected"
     />
@@ -261,7 +251,7 @@ async function remove() {
 }
 
 /*
- * 统一所有按钮为 28x28 正方形击中区,图标 16px——与 EP 版的 .tvp-icon-btn 对齐。
+ * 统一所有按钮为 28x28 正方形击中区,图标 16px。
  * 关键:文字按钮(小/中/大/原始)和图标按钮必须等高,否则工具条参差不齐显丑。
  * 用 :deep() 穿透 NButton 的 scoped 边界,统一 padding/height/min-width。
  */

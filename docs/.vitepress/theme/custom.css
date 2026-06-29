@@ -1,0 +1,42 @@
+:root {
+  --vp-c-brand-1: #3157d5;
+  --vp-c-brand-2: #2548bd;
+  --vp-c-brand-3: #4f70e0;
+  --vp-home-hero-name-color: #3157d5;
+}
+
+.VPHome .vp-doc.container {
+  max-width: none;
+  padding: 0;
+}
+
+.VPHome .vp-doc > div {
+  margin: 0;
+}
+
+.live-demo-page .VPDoc.has-aside .content-container,
+.live-demo-page .VPDoc:not(.has-aside) .content-container {
+  max-width: 1180px;
+}
+
+.live-demo-page .VPDoc.has-aside .aside {
+  display: none;
+}
+
+.live-demo-page .VPDoc.has-aside .content {
+  padding-right: 0;
+}
+
+.live-demo-page .vp-doc h1 {
+  max-width: 760px;
+  font-size: 44px;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.live-demo-page .vp-doc > p {
+  max-width: 760px;
+  color: var(--vp-c-text-2);
+  font-size: 17px;
+  line-height: 1.8;
+}

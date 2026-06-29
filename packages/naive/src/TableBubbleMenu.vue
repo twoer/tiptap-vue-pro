@@ -2,11 +2,11 @@
 /**
  * Naive 适配的表格气泡菜单:光标进入表格单元格时,浮在表格上方的操作工具条。
  *
- * 设计与 EP 版完全对等——常用操作(增删行列)一排按钮直达,低频操作(合并/拆分/
+ * 常用操作(增删行列)一排按钮直达,低频操作(合并/拆分/
  * 表头/删除整表)收进「更多」下拉。复用 BubbleMenuPlugin 机制,独立 pluginKey
  * ('proTableBubble'),与文字气泡互斥(文字气泡 shouldShow 加 !inTable)。
  */
-import { ref, onMounted, onBeforeUnmount, watch, computed, h, type VNode } from 'vue'
+import { ref, onBeforeUnmount, computed, h, type VNode } from 'vue'
 import { NButton, NDropdown } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
@@ -15,7 +15,7 @@ import {
   TableProperties, Trash2,
 } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import { useEditorPluginRegistration, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 const props = defineProps<{
   editor: Editor | undefined
@@ -24,7 +24,6 @@ const props = defineProps<{
 
 const rootEl = ref<HTMLElement | null>(null)
 const moreMenuShow = ref(false)
-let extensionAdded = false
 let destructiveTimer: number | null = null
 const RUN_AFTER_POPPER_CLOSE_MS = 240
 
@@ -40,9 +39,9 @@ const moreOpIcons: Partial<Record<TableOp, any>> = {
   deleteTable: Trash2,
 }
 const moreOptions: DropdownOption[] = [
-  { key: 'toggleHeaderRow', label: '切换首行为表头' },
-  { key: 'toggleHeaderColumn', label: '切换首列为表头' },
-  { key: 'deleteTable', label: '删除整个表格' },
+  { key: 'toggleHeaderRow', label: '首行为表头' },
+  { key: 'toggleHeaderColumn', label: '首列为表头' },
+  { key: 'deleteTable', label: '删除表格' },
 ]
 // 合并/拆分的可用性(驱动独立按钮的按需出现)
 const tableState = computed(() => props.ctx.tableState.value)
@@ -76,14 +75,14 @@ function onMoreSelect(key: string | number) {
   props.ctx.commands[op]()
 }
 
-function registerTableBubble() {
-  const ed = props.editor
-  if (!ed || !rootEl.value || extensionAdded) return
-
-  const plugin = BubbleMenuPlugin({
+useEditorPluginRegistration({
+  getEditor: () => props.editor,
+  getElement: () => rootEl.value,
+  pluginKey: 'proTableBubble',
+  createPlugin: (ed, element) => BubbleMenuPlugin({
     pluginKey: 'proTableBubble',
     editor: ed,
-    element: rootEl.value,
+    element,
     updateDelay: 100,
     shouldShow: ({ state }) => {
       // 选区菜单:只在「选中多格可合并」或「光标在合并格可拆分」时浮现。
@@ -103,26 +102,11 @@ function registerTableBubble() {
       const canSplit = (attrs.colspan ?? 1) > 1 || (attrs.rowspan ?? 1) > 1
       return canMerge || canSplit
     },
-  })
-  ed.registerPlugin(plugin)
-  extensionAdded = true
-}
-
-onMounted(registerTableBubble)
-
-watch(
-  () => props.editor,
-  (ed) => {
-    if (ed) registerTableBubble()
-  },
-)
+  }),
+})
 
 onBeforeUnmount(() => {
   clearDestructiveTimer()
-  const ed = props.editor
-  if (ed) {
-    ed.unregisterPlugin('proTableBubble')
-  }
 })
 </script>
 

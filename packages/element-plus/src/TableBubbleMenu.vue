@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
+import { ref, onBeforeUnmount, computed } from 'vue'
 import { ElButton, ElDropdown, ElDropdownMenu, ElDropdownItem, ElTooltip, ElIcon } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import {
@@ -7,7 +7,7 @@ import {
   TableProperties, Trash2,
 } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import { useEditorPluginRegistration, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 /**
  * 表格气泡菜单:光标进入表格单元格时,浮在表格上方的操作工具条。
@@ -33,7 +33,6 @@ const props = defineProps<{
 
 const rootEl = ref<HTMLElement | null>(null)
 const moreMenuShow = ref(false)
-let extensionAdded = false
 let destructiveTimer: number | null = null
 const RUN_AFTER_POPPER_CLOSE_MS = 240
 
@@ -68,19 +67,19 @@ function run(op: TableOp) {
 // 光标在被合并单元格才弹「拆分」,符合 Notion/飞书的「按需出现」交互。
 const tableState = computed(() => props.ctx.tableState.value)
 const moreOps = [
-  { op: 'toggleHeaderRow' as TableOp, icon: TableProperties, text: '切换首行为表头' },
-  { op: 'toggleHeaderColumn' as TableOp, icon: TableProperties, text: '切换首列为表头' },
-  { op: 'deleteTable' as TableOp, icon: Trash2, text: '删除整个表格' },
+  { op: 'toggleHeaderRow' as TableOp, icon: TableProperties, text: '首行为表头' },
+  { op: 'toggleHeaderColumn' as TableOp, icon: TableProperties, text: '首列为表头' },
+  { op: 'deleteTable' as TableOp, icon: Trash2, text: '删除表格' },
 ]
 
-function registerTableBubble() {
-  const ed = props.editor
-  if (!ed || !rootEl.value || extensionAdded) return
-
-  const plugin = BubbleMenuPlugin({
+useEditorPluginRegistration({
+  getEditor: () => props.editor,
+  getElement: () => rootEl.value,
+  pluginKey: 'proTableBubble',
+  createPlugin: (ed, element) => BubbleMenuPlugin({
     pluginKey: 'proTableBubble',
     editor: ed,
-    element: rootEl.value,
+    element,
     updateDelay: 100,
     shouldShow: ({ state }) => {
       // 选区菜单:只在「选中多格可合并」或「光标在合并格可拆分」时浮现。
@@ -102,26 +101,11 @@ function registerTableBubble() {
       const canSplit = (attrs.colspan ?? 1) > 1 || (attrs.rowspan ?? 1) > 1
       return canMerge || canSplit
     },
-  })
-  ed.registerPlugin(plugin)
-  extensionAdded = true
-}
-
-onMounted(registerTableBubble)
-
-watch(
-  () => props.editor,
-  (ed) => {
-    if (ed) registerTableBubble()
-  },
-)
+  }),
+})
 
 onBeforeUnmount(() => {
   clearDestructiveTimer()
-  const ed = props.editor
-  if (ed) {
-    ed.unregisterPlugin('proTableBubble')
-  }
 })
 </script>
 
@@ -145,8 +129,7 @@ onBeforeUnmount(() => {
       <template #dropdown>
         <ElDropdownMenu>
           <ElDropdownItem v-for="item in moreOps" :key="item.op" :command="item.op">
-            <component :is="item.icon" :size="15" />
-            <span style="margin-left: 6px">{{ item.text }}</span>
+            <span class="tvp-menu-item"><component :is="item.icon" :size="15" />{{ item.text }}</span>
           </ElDropdownItem>
         </ElDropdownMenu>
       </template>
@@ -193,5 +176,11 @@ onBeforeUnmount(() => {
 .tvp-table-bubble__more {
   /* 「更多」按钮稍微突出,提示有低频操作 */
   font-weight: 500;
+}
+
+.tvp-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

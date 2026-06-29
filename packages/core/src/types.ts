@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/vue-3'
 import type { Extensions } from '@tiptap/core'
 import type { CodeBlockLanguage } from './codeBlock'
 import type { ImageAlign, ImageSizePreset } from './extensions/image'
+import type { EditorBehaviorOptions } from './editorBehaviorOptions'
 
 /**
  * 扩展数组类型,v3 用 Extensions(同时接受 Extension 和 Node)。
@@ -57,6 +58,8 @@ export interface ProEditorOptions {
   placeholder?: string
   /** 图片上传函数。不传则图片只能以已有 url 插入,粘贴/拖拽上传失效 */
   uploadImage?: UploadImage
+  /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
+  editorBehaviorOptions?: EditorBehaviorOptions
   /** 是否只读 */
   editable?: boolean
   /**
@@ -66,6 +69,13 @@ export interface ProEditorOptions {
   notify?: NotifyFn
   /** 额外编辑器属性,透传给 Editor 构造函数(如 autofocus, editorProps) */
   editorProps?: Record<string, unknown>
+  /**
+   * 是否立即渲染编辑器。
+   *
+   * Tiptap 在 SSR/Nuxt 环境下需要显式关闭服务端立即渲染,否则会访问浏览器 API
+   * 或产生 hydration mismatch。默认 false,客户端应用仍会在挂载后正常初始化。
+   */
+  immediatelyRender?: boolean
 }
 
 /**

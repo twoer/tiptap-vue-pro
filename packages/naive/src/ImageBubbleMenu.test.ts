@@ -111,6 +111,24 @@ describe('Naive ImageBubbleMenu', () => {
     expect(editor.off).toHaveBeenCalledWith('selectionUpdate', expect.any(Function))
   })
 
+  it('editor 切换时迁移 BubbleMenu 插件和 selectionUpdate 监听', async () => {
+    const selectedNode = document.createElement('div')
+    selectedNode.innerHTML = '<input class="tvp-img-caption" />'
+    const first = createEditor(selectedNode)
+    const second = createEditor(selectedNode)
+    wrapper = mount(ImageBubbleMenu, {
+      attachTo: document.body,
+      props: { editor: first as never, ctx: createCtx() },
+    })
+
+    await wrapper.setProps({ editor: second as never })
+
+    expect(first.unregisterPlugin).toHaveBeenCalledWith('proImageBubbleMenu')
+    expect(first.off).toHaveBeenCalledWith('selectionUpdate', expect.any(Function))
+    expect(second.registerPlugin).toHaveBeenCalledTimes(1)
+    expect(second.on).toHaveBeenCalledWith('selectionUpdate', expect.any(Function))
+  })
+
   it('尺寸、对齐、删除按钮会调用对应图片命令', async () => {
     const selectedNode = document.createElement('div')
     selectedNode.innerHTML = '<input class="tvp-img-caption" />'
@@ -158,6 +176,24 @@ describe('Naive ImageBubbleMenu', () => {
     expect(editor.chainApi.updateAttributes).toHaveBeenCalledWith('image', { src: 'https://example.com/new.png' })
     expect(editor.chainApi.run).toHaveBeenCalledTimes(1)
     expect(input.value).toBe('')
+  })
+
+  it('editorBehaviorOptions 可配置替换图片 accept', () => {
+    const selectedNode = document.createElement('div')
+    selectedNode.innerHTML = '<input class="tvp-img-caption" />'
+    wrapper = mount(ImageBubbleMenu, {
+      attachTo: document.body,
+      props: {
+        editor: createEditor(selectedNode) as never,
+        ctx: createCtx(),
+        uploadImage: vi.fn(),
+        editorBehaviorOptions: {
+          image: { accept: 'image/png,image/jpeg' },
+        },
+      },
+    })
+
+    expect(wrapper.find('input[accept="image/png,image/jpeg"]').exists()).toBe(true)
   })
 
   it('替换图片失败时提示上传失败', async () => {

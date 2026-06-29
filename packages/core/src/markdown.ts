@@ -1,6 +1,10 @@
 import { Markdown } from '@tiptap/markdown'
 import type { MarkdownManager } from '@tiptap/markdown'
 import type { Editor } from '@tiptap/vue-3'
+import {
+  createMarkdownManager,
+  getNativeMarkdownManager,
+} from './markdownManager'
 
 /**
  * Markdown 导入/导出能力(基于官方 @tiptap/markdown 扩展)。
@@ -15,21 +19,17 @@ import type { Editor } from '@tiptap/vue-3'
  */
 
 export { Markdown as MarkdownExtension }
+export { createMarkdownManager, getNativeMarkdownManager }
+export type { ProMarkdownManager } from './markdownManager'
 
 /** 取到编辑器上的 MarkdownManager(未启用扩展时为 undefined) */
 export function getMarkdownManager(editor: Editor): MarkdownManager | undefined {
-  const storage = editor.storage as unknown as Record<
-    string,
-    { manager?: MarkdownManager }
-  >
-  return storage.markdown?.manager
+  return getNativeMarkdownManager(editor)
 }
 
 /** 编辑器当前内容序列化为 Markdown 字符串。未启用扩展时返回空串。 */
 export function getMarkdown(editor: Editor): string {
-  const manager = getMarkdownManager(editor)
-  if (!manager) return ''
-  return manager.serialize(editor.getJSON())
+  return createMarkdownManager(editor).exportMarkdown()
 }
 
 /**
@@ -42,15 +42,5 @@ export function getMarkdown(editor: Editor): string {
  * 不传 emitUpdate:false,以便新内容通过 onUpdate 流回 v-model。
  */
 export function importMarkdown(editor: Editor, md: string): void {
-  const manager = getMarkdownManager(editor)
-  if (manager) {
-    try {
-      const json = manager.parse(md)
-      editor.commands.setContent(json)
-      return
-    } catch {
-      // 解析失败则走下面的降级路径
-    }
-  }
-  editor.commands.setContent(md)
+  createMarkdownManager(editor).importMarkdown(md)
 }

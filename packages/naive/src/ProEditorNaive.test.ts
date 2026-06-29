@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
 import ProEditorNaive from './ProEditorNaive.vue'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import { useProEditor } from 'tiptap-vue-pro-core'
+import type { EditorBehaviorOptions, ProEditorContext, ToolbarOptions } from 'tiptap-vue-pro-core'
 
 const mockState = vi.hoisted(() => ({
   ctx: undefined as ProEditorContext | undefined,
@@ -13,8 +14,6 @@ vi.mock('tiptap-vue-pro-core', async (importOriginal) => {
   return {
     ...actual,
     useProEditor: vi.fn(() => mockState.ctx),
-    handleImageFiles: vi.fn(),
-    hasImageFiles: vi.fn(() => false),
   }
 })
 
@@ -55,7 +54,7 @@ const childStubs = {
   MessageBridge: { template: '<span />', methods: { get: () => null } },
   Toolbar: {
     name: 'Toolbar',
-    props: ['toolbar'],
+    props: ['toolbar', 'toolbarOptions', 'editorBehaviorOptions'],
     emits: ['toggle-preview', 'toggle-fullscreen'],
     template: `
       <div data-testid="toolbar">
@@ -67,7 +66,11 @@ const childStubs = {
   },
   BubbleMenu: { template: '<div data-testid="bubble-menu" />' },
   TableBubbleMenu: { template: '<div data-testid="table-bubble-menu" />' },
-  ImageBubbleMenu: { template: '<div data-testid="image-bubble-menu" />' },
+  ImageBubbleMenu: {
+    name: 'ImageBubbleMenu',
+    props: ['editorBehaviorOptions'],
+    template: '<div data-testid="image-bubble-menu" />',
+  },
   TableGripHandles: { template: '<div data-testid="table-grip-handles" />' },
   EditorContent: { template: '<div data-testid="editor-content" />' },
 }
@@ -164,6 +167,43 @@ describe('ProEditorNaive', () => {
     expect(toolbar.props('toolbar')).toEqual([['bold']])
   })
 
+  it('把 toolbarOptions 配置传给内置 Toolbar', () => {
+    const toolbarOptions: ToolbarOptions = {
+      fontFamilies: [{ label: 'PingFang SC', value: 'PingFang SC' }],
+      fontSizes: ['', '13px'],
+      lineHeights: ['', '1.75'],
+    }
+    wrapper = mount(ProEditorNaive, {
+      attachTo: document.body,
+      props: { toolbarOptions },
+      global: { stubs: childStubs },
+    })
+
+    const toolbar = wrapper.findComponent({ name: 'Toolbar' })
+    expect(toolbar.props('toolbarOptions')).toEqual(toolbarOptions)
+  })
+
+  it('把 editorBehaviorOptions 配置传给 core、Toolbar 和 ImageBubbleMenu', () => {
+    const editorBehaviorOptions: EditorBehaviorOptions = {
+      link: { defaultTarget: '_self' },
+      table: { withHeaderRow: false },
+      image: { accept: 'image/png,image/jpeg' },
+    }
+    wrapper = mount(ProEditorNaive, {
+      attachTo: document.body,
+      props: { editorBehaviorOptions },
+      global: { stubs: childStubs },
+    })
+
+    const toolbar = wrapper.findComponent({ name: 'Toolbar' })
+    const imageBubbleMenu = wrapper.findComponent({ name: 'ImageBubbleMenu' })
+    const useProEditorCalls = vi.mocked(useProEditor).mock.calls
+    const useProEditorOptions = useProEditorCalls[useProEditorCalls.length - 1]?.[0]
+    expect(useProEditorOptions?.editorBehaviorOptions).toEqual(editorBehaviorOptions)
+    expect(toolbar.props('editorBehaviorOptions')).toEqual(editorBehaviorOptions)
+    expect(imageBubbleMenu.props('editorBehaviorOptions')).toEqual(editorBehaviorOptions)
+  })
+
   it('toolbar=false 时把隐藏配置传给内置 Toolbar', () => {
     wrapper = mount(ProEditorNaive, {
       attachTo: document.body,
@@ -200,5 +240,39 @@ describe('ProEditorNaive', () => {
 
     expect(wrapper.find('[data-testid="before"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="after"]').exists()).toBe(true)
+  })
+
+  it('卸载时清理 editor 事件监听', () => {
+    const ctx = createCtx()
+    const editor = ctx.editor.value!
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorNaive, {
+      attachTo: document.body,
+      global: { stubs: childStubs },
+    })
+
+    wrapper.unmount()
+
+    expect(editor.off).toHaveBeenCalledWith('selectionUpdate', expect.any(Function))
+    expect(editor.off).toHaveBeenCalledWith('transaction', expect.any(Function))
+    expect(editor.off).toHaveBeenCalledWith('focus', expect.any(Function))
+  })
+
+  it('粘贴图片但 editor 未就绪时不调用上传插入', async () => {
+    const ctx = createCtx()
+    ctx.editor.value = undefined
+    mockState.ctx = ctx
+    const uploadImage = vi.fn()
+    wrapper = mount(ProEditorNaive, {
+      attachTo: document.body,
+      props: { uploadImage },
+      global: { stubs: childStubs },
+    })
+
+    await wrapper.find('.tvp-content-wrap').trigger('paste', {
+      clipboardData: { files: [new File(['x'], 'x.png', { type: 'image/png' })] },
+    })
+
+    expect(uploadImage).not.toHaveBeenCalled()
   })
 })

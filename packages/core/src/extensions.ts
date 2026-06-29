@@ -20,6 +20,7 @@ import { Markdown as MarkdownExtension } from '@tiptap/markdown'
 import type { Extensions } from '@tiptap/core'
 import { codeBlockLowlight } from './codeBlock'
 import { BlockIndent } from './extensions/blockIndent'
+import type { EditorExtensionConfig } from './extensionRegistry'
 
 export type { Extensions } from '@tiptap/core'
 
@@ -52,55 +53,122 @@ export type { Extensions } from '@tiptap/core'
  * StarterKit 的 Link 默认新窗口打开、autolink,满足大多数 CMS 场景。
  * 返回类型用 v3 的 Extensions(同时接受 Extension 和 Node),因为 Image 是 Node。
  */
-export function createDefaultExtensions(placeholder?: string): Extensions {
-  return [
-    StarterKit.configure({
-      heading: { levels: [1, 2, 3, 4, 5, 6] },
-      codeBlock: false,
-      link: {
-        openOnClick: false,
-        autolink: true,
-        defaultProtocol: 'https',
-        HTMLAttributes: {
-          target: '_blank',
-          rel: 'noopener noreferrer nofollow',
+export function createDefaultExtensions(
+  placeholder?: string,
+  config: EditorExtensionConfig = {},
+): Extensions {
+  const enabled = {
+    placeholder: true,
+    starterKit: true,
+    characterCount: true,
+    image: true,
+    table: true,
+    typography: true,
+    highlight: true,
+    textAlign: true,
+    blockIndent: true,
+    codeBlock: true,
+    script: true,
+    taskList: true,
+    markdown: true,
+    ...config,
+  }
+  const extensions: Extensions = []
+
+  if (enabled.starterKit) {
+    extensions.push(
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
+        codeBlock: false,
+        link: {
+          openOnClick: false,
+          autolink: true,
+          defaultProtocol: 'https',
+          HTMLAttributes: {
+            target: '_blank',
+            rel: 'noopener noreferrer nofollow',
+          },
         },
-      },
-    }),
-    Placeholder.configure({
-      placeholder: placeholder ?? '请输入内容...',
-    }),
-    CharacterCount,
-    Image, // ImageExtended:在官方基础上开启 resize + 预留 align/caption 属性(对标飞书)
-    TableKit.configure({
-      table: { resizable: true },
-    }),
-    // 行内文字样式:字体/字号/行高/颜色均依赖 TextStyle mark
-    TextStyle,
-    FontFamily.configure({ types: ['textStyle'] }),
-    FontSize.configure({ types: ['textStyle'] }),
-    LineHeight.configure({ types: ['textStyle'] }),
-    Color,
+      }),
+    )
+  }
+
+  if (enabled.placeholder) {
+    extensions.push(
+      Placeholder.configure({
+        placeholder: placeholder ?? '请输入内容...',
+      }),
+    )
+  }
+
+  if (enabled.characterCount) {
+    extensions.push(CharacterCount)
+  }
+
+  if (enabled.image) {
+    extensions.push(Image) // ImageExtended:在官方基础上开启 resize + 预留 align/caption 属性(对标飞书)
+  }
+
+  if (enabled.table) {
+    extensions.push(
+      TableKit.configure({
+        table: { resizable: true },
+      }),
+    )
+  }
+
+  if (enabled.typography) {
+    extensions.push(
+      // 行内文字样式:字体/字号/行高/颜色均依赖 TextStyle mark
+      TextStyle,
+      FontFamily.configure({ types: ['textStyle'] }),
+      FontSize.configure({ types: ['textStyle'] }),
+      LineHeight.configure({ types: ['textStyle'] }),
+      Color,
+    )
+  }
+
+  if (enabled.highlight) {
     // 背景高亮:multicolor 允许多种颜色共存
-    Highlight.configure({ multicolor: true }),
+    extensions.push(Highlight.configure({ multicolor: true }))
+  }
+
+  if (enabled.textAlign) {
     // 文本对齐:作用于段落和标题
-    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    extensions.push(TextAlign.configure({ types: ['heading', 'paragraph'] }))
+  }
+
+  if (enabled.blockIndent) {
     // 段落/标题缩进:列表缩进由 sink/liftListItem 维护嵌套结构
-    BlockIndent,
+    extensions.push(BlockIndent)
+  }
+
+  if (enabled.codeBlock) {
     // 代码块:替换 StarterKit 的纯文本 CodeBlock,增加 lowlight 高亮
-    CodeBlockLowlight.configure({
-      lowlight: codeBlockLowlight,
-      defaultLanguage: 'plaintext',
-      languageClassPrefix: 'language-',
-    }),
+    extensions.push(
+      CodeBlockLowlight.configure({
+        lowlight: codeBlockLowlight,
+        defaultLanguage: 'plaintext',
+        languageClassPrefix: 'language-',
+      }),
+    )
+  }
+
+  if (enabled.script) {
     // 上标 / 下标:StarterKit 不包含,需单独接入
-    Superscript,
-    Subscript,
+    extensions.push(Superscript, Subscript)
+  }
+
+  if (enabled.taskList) {
     // 任务列表:TaskList 需要 TaskItem 提供 checkbox 行为
-    TaskList,
-    TaskItem.configure({ nested: true }),
+    extensions.push(TaskList, TaskItem.configure({ nested: true }))
+  }
+
+  if (enabled.markdown) {
     // Markdown 导入/导出:官方扩展,自动接管 setContent(contentType:'markdown')
     // 并提供 editor.storage.markdown.manager 用于序列化
-    MarkdownExtension,
-  ]
+    extensions.push(MarkdownExtension)
+  }
+
+  return extensions
 }

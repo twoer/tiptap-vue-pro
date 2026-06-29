@@ -1,9 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h, ref, nextTick } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { useProEditor } from './useProEditor'
 import type { ProEditorContext, OutputFormat } from './types'
+import type { EditorBehaviorOptions } from './editorBehaviorOptions'
 
 /**
  * useProEditor 的集成测试。
@@ -26,6 +27,7 @@ function mountEditor(opts: {
   content?: string | object
   output?: OutputFormat
   placeholder?: string
+  editorBehaviorOptions?: EditorBehaviorOptions
   onModelValue?: (v: string | object) => void
 }) {
   let ctx: ProEditorContext | undefined
@@ -43,6 +45,7 @@ function mountEditor(opts: {
         },
         output: opts.output ?? 'html',
         placeholder: opts.placeholder,
+        editorBehaviorOptions: opts.editorBehaviorOptions,
       } as any)
       return () => h(EditorContent, { editor: ctx!.editor.value })
     },
@@ -521,6 +524,21 @@ describe('useProEditor — 表格结构操作', () => {
     expect(ed.getHTML()).not.toContain('<th')
   })
 
+  it('insertTable 可通过 editorBehaviorOptions 关闭默认表头', async () => {
+    const { ctx } = mountEditor({
+      content: '<p>x</p>',
+      editorBehaviorOptions: {
+        table: { withHeaderRow: false },
+      },
+    })
+    const ed = await ready(ctx)
+    ctx.commands.insertTable(2, 2)
+    await nextTick()
+
+    expect(ed.getHTML()).toContain('<td')
+    expect(ed.getHTML()).not.toContain('<th')
+  })
+
   it('mergeCells / splitCell 不抛错(冒烟)', async () => {
     const { ctx } = mountEditor({ content: '<p>x</p>' })
     const ed = await ready(ctx)
@@ -593,6 +611,17 @@ describe('useProEditor — 表格结构操作', () => {
     // tablePos 应指向文档中的 table 节点
     const node = ctx.editor.value!.state.doc.nodeAt(ctx.tableState.value.tablePos!)
     expect(node?.type.name).toBe('table')
+  })
+
+  it('tableState: 组件卸载时清理 editor 事件监听', async () => {
+    const { wrapper, ctx } = mountEditor({ content: '<p>x</p>' })
+    const ed = await ready(ctx)
+    const off = vi.spyOn(ed, 'off')
+
+    wrapper.unmount()
+
+    expect(off).toHaveBeenCalledWith('transaction', expect.any(Function))
+    expect(off).toHaveBeenCalledWith('selectionUpdate', expect.any(Function))
   })
 
   it('selectRow: 选中整行 → CellSelection + isRowSelection', async () => {

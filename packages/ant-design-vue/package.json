@@ -1,0 +1,81 @@
+{
+  "name": "tiptap-vue-pro-ant-design-vue",
+  "version": "0.1.4",
+  "description": "Tiptap Vue Pro 的 Ant Design Vue 适配:开箱即用的富文本编辑器组件",
+  "author": "twoer",
+  "license": "MIT",
+  "keywords": [
+    "tiptap",
+    "vue",
+    "vue3",
+    "rich-text",
+    "editor",
+    "wysiwyg",
+    "prosemirror",
+    "ant-design-vue"
+  ],
+  "homepage": "https://github.com/twoer/tiptap-vue-pro#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/twoer/tiptap-vue-pro",
+    "directory": "packages/ant-design-vue"
+  },
+  "bugs": {
+    "url": "https://github.com/twoer/tiptap-vue-pro/issues"
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.umd.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.umd.cjs"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/pm": "^3.0.0",
+    "@tiptap/vue-3": "^3.0.0",
+    "ant-design-vue": "^4.2.0",
+    "vue": "^3.4.0"
+  },
+  "dependencies": {
+    "@tiptap/extension-bubble-menu": "^3.27.1",
+    "lucide-vue-next": "^1.0.0",
+    "tiptap-vue-pro-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@tiptap/core": "3.27.1",
+    "@tiptap/pm": "3.27.1",
+    "@tiptap/vue-3": "3.27.1",
+    "@types/node": "^26.0.1",
+    "@vitejs/plugin-vue": "^5.1.0",
+    "@vue/test-utils": "^2.4.11",
+    "ant-design-vue": "^4.2.0",
+    "happy-dom": "^20.10.6",
+    "vite": "^5.4.0",
+    "vite-plugin-dts": "^4.0.0",
+    "vitest": "^1.6.1",
+    "vue": "^3.5.0",
+    "vue-tsc": "^2.1.0"
+  }
+}

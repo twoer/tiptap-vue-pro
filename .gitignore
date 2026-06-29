@@ -30,7 +30,8 @@ yarn-error.log*
 
 # Local notes / business drafts (not for commit)
 2026-06-27-tiptap-vue3-pro-editor.md
-docs/
+docs/feature-gap-analysis.md
+docs/plans/
 
 # Git worktrees (isolated workspaces)
 .worktrees

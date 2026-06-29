@@ -12,6 +12,7 @@ import {
 } from '@tiptap/pm/tables'
 import { createDefaultExtensions } from './extensions'
 import { getMarkdown, importMarkdown } from './markdown'
+import { resolveEditorBehaviorOptions } from './editorBehaviorOptions'
 import type {
   ProEditorOptions,
   ProEditorContext,
@@ -21,7 +22,7 @@ import type {
 } from './types'
 
 /**
- * tiptap-vue-pro 的核心 composable。
+ * Tiptap Vue Pro 的核心 composable。
  *
  * 职责:
  * 1. 通过官方 useEditor 创建编辑器实例(必须用 useEditor,不能用 new Editor,
@@ -46,24 +47,28 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     editable = true,
     editorProps,
     notify,
+    immediatelyRender = false,
   } = options
 
   const exts = extensions ?? createDefaultExtensions(placeholder)
   const getOutput = () => options.output ?? 'html'
+  const getBehaviorOptions = () => resolveEditorBehaviorOptions(options.editorBehaviorOptions)
 
   // ---- 通过官方 useEditor 创建实例 ----
   // 注意:useEditor 内部用 Vue 生命周期管理 Editor,返回 Ref<Editor | undefined>
-  const editor = useEditor({
+  const editorOptions = {
     extensions: exts,
     content: content as never,
     editable,
+    immediatelyRender,
     editorProps: editorProps ?? {},
-    onUpdate: ({ editor: ed }) => {
+    onUpdate: ({ editor: ed }: { editor: CoreEditor }) => {
       isUpdatingFromEditor = true
       emitValue(ed)
       syncWordCount(ed)
     },
-  })
+  }
+  const editor = useEditor(editorOptions as Parameters<typeof useEditor>[0])
 
   const loaded = computed(() => !!editor.value)
   const wordCount = ref({ characters: 0, words: 0 })
@@ -436,7 +441,11 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       ed.chain().focus().deleteSelection().run()
     },
     insertTable: (rows = 3, cols = 3) =>
-      cmd()?.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).scrollIntoView().run(),
+      cmd()?.chain().focus().insertTable({
+        rows,
+        cols,
+        withHeaderRow: getBehaviorOptions().table.withHeaderRow,
+      }).scrollIntoView().run(),
     // ---- 表格结构操作 ----
     // Tiptap TableKit 全部内置这些命令,这里只做转发。命令作用在当前选区(光标所在单元格),
     // adapter 的工具栏用 isActive('table') 判定后才显示对应按钮,所以无需在 core 判断场景。
@@ -521,11 +530,15 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   const tableTick = ref(0)
   watch(
     editor,
-    (ed) => {
+    (ed, _oldEd, onCleanup) => {
       if (!ed) return
       const bump = () => tableTick.value++
       ed.on('transaction', bump)
       ed.on('selectionUpdate', bump)
+      onCleanup(() => {
+        ed.off('transaction', bump)
+        ed.off('selectionUpdate', bump)
+      })
     },
     { immediate: true },
   )

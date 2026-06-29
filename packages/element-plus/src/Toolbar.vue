@@ -15,8 +15,38 @@ import {
   Eraser, Printer,
   Maximize2, Minimize2, Eye, Pencil,
 } from 'lucide-vue-next'
-import { CODE_BLOCK_LANGUAGES, DEFAULT_TOOLBAR, codeBlockLanguageLabel, normalizeToolbarConfig } from 'tiptap-vue-pro-core'
-import type { CodeBlockLanguage, ProEditorContext, ToolbarConfig, ToolbarProp, UploadImage } from 'tiptap-vue-pro-core'
+import {
+  DEFAULT_TOOLBAR,
+  codeBlockLanguageLabel,
+  exportMarkdownFile,
+  getActiveHeadingLevel,
+  getActiveTextAlign,
+  getCommandLabel,
+  importMarkdownFile,
+  isToolbarCommandActive,
+  normalizeToolbarConfig,
+  printEditorContent,
+  resolveEditorBehaviorOptions,
+  resolveToolbarOptions,
+  runToolbarCommand,
+  TOOLBAR_ALIGN_OPTIONS,
+  TOOLBAR_HEADING_OPTIONS,
+  TOOLBAR_MARKDOWN_OPTIONS,
+} from 'tiptap-vue-pro-core'
+import type {
+  CodeBlockLanguage,
+  ProEditorContext,
+  ToolbarBuiltinKey,
+  ToolbarCommandPayload,
+  ToolbarConfig,
+  ToolbarHeadingLevel,
+  ToolbarMarkdownAction,
+  ToolbarOptions,
+  ToolbarProp,
+  ToolbarTextAlign,
+  UploadImage,
+  EditorBehaviorOptions,
+} from 'tiptap-vue-pro-core'
 
 /**
  * Markdown 官方 logo(圆角方块 + 向下双箭头)。
@@ -62,7 +92,7 @@ const MarkdownIcon = markRaw(
  *
  * 设计原则:
  * - 每个按钮的 active 态用 type="primary" 体现
- * - 命令直接调 ctx.commands.xxx(),无中间层
+ * - 编辑器命令通过 core command registry 分发
  * - 标题用 dropdown(多级),其余用 button
  *
  * active 响应性:依赖 ctx.isActive,工具栏组件本身在 EditorContent
@@ -79,9 +109,15 @@ const props = withDefaults(
     isPreview?: boolean
     /** 工具栏配置。false 表示不渲染内置按钮 */
     toolbar?: ToolbarProp
+    /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
+    toolbarOptions?: ToolbarOptions
+    /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
+    editorBehaviorOptions?: EditorBehaviorOptions
   }>(),
   {
     toolbar: undefined,
+    toolbarOptions: undefined,
+    editorBehaviorOptions: undefined,
   },
 )
 
@@ -99,6 +135,15 @@ function togglePreview() {
 }
 
 const ctx = computed(() => props.ctx)
+function commandLabel(id: ToolbarBuiltinKey) {
+  return getCommandLabel(id)
+}
+function commandActive(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
+  return isToolbarCommandActive(ctx.value, id, payload)
+}
+function runCommand(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
+  runToolbarCommand(ctx.value, id, payload)
+}
 const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['undo', 'redo'],
   ['heading', 'fontFamily', 'fontSize', 'lineHeight'],
@@ -186,28 +231,13 @@ async function onMdSelected(e: Event) {
   const file = input.files?.[0]
   input.value = '' // 允许重复选同一文件
   if (!file) return
-  try {
-    const text = await file.text()
-    ctx.value.importMarkdown(text)
-    ctx.value.notify('已导入 Markdown', 'success')
-  } catch {
-    ctx.value.notify('导入失败:无法读取该文件', 'error')
-  }
+  await importMarkdownFile(ctx.value, file)
 }
 
 function exportMarkdown() {
-  const md = ctx.value.getMarkdown()
-  if (!md) {
-    ctx.value.notify('当前未启用 Markdown 能力,无法导出', 'warning')
-    return
-  }
-  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `content-${Date.now()}.md`
-  a.click()
-  URL.revokeObjectURL(url)
+  exportMarkdownFile(ctx.value, {
+    filename: resolvedToolbarOptions.value.markdown.exportFilename,
+  })
 }
 
 // dropdown 命令分派
@@ -221,32 +251,10 @@ function onMarkdownCommand(cmd: string) {
 // iframe 卸载时机:load 后调 print();print() 返回后(用户已确认/取消)再移除。
 // 兼容 Safari:用 onload 触发 print,而非 setTimeout;部分引擎要 setTimeout 才稳定,二者并用。
 function printContent() {
-  const html = ctx.value.getHTML()
-  const iframe = document.createElement('iframe')
-  iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = '0'
-  document.body.appendChild(iframe)
-  const doc = iframe.contentWindow?.document!
-  doc.open()
-  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>打印</title>
-<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;padding:24px;line-height:1.6}img{max-width:100%}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px 10px}pre{background:#f5f7fa;padding:12px;border-radius:4px;overflow-x:auto}code{background:#f5f7fa;padding:1px 4px;border-radius:3px}blockquote{border-left:3px solid #ddd;padding-left:1em;color:#666}</style>
-</head><body>${html}</body></html>`)
-  doc.close()
-  const cleanup = () => iframe.remove()
-  iframe.onload = () => {
-    iframe.contentWindow?.focus()
-    iframe.contentWindow?.print()
-    setTimeout(cleanup, 500)
-  }
+  printEditorContent(ctx.value.getHTML(), resolvedToolbarOptions.value.print)
 }
 
 // ---- 表格网格选择器 ----
-const TABLE_MAX_ROWS = 8
-const TABLE_MAX_COLS = 10
 const tableHover = ref({ rows: 1, cols: 1 })
 const tableDropdown = ref<{ handleClose?: () => void } | null>(null)
 function resetTableHover() {
@@ -263,71 +271,43 @@ function onTableInsert(_cmd?: unknown) {
 const currentCodeBlockLanguage = computed(
   () => (ctx.value.editor.value?.getAttributes('codeBlock') as { language?: CodeBlockLanguage })?.language ?? 'plaintext',
 )
-const currentCodeBlockLabel = computed(() => codeBlockLanguageLabel(currentCodeBlockLanguage.value))
+const currentCodeBlockLabel = computed(
+  () =>
+    CODE_BLOCK_LANGUAGE_OPTIONS.value.find((language) => language.value === currentCodeBlockLanguage.value)?.label
+    ?? codeBlockLanguageLabel(currentCodeBlockLanguage.value),
+)
 function onCodeBlockLanguage(language: string) {
-  ctx.value.commands.codeBlock(language as CodeBlockLanguage)
+  runCommand('codeBlock', language as CodeBlockLanguage)
 }
 
 // 当前标题级别(用于 dropdown 显示)
 const headingLabel = computed(() => {
-  for (const level of [1, 2, 3, 4, 5, 6] as const) {
-    if (ctx.value.isActive('heading', { level })) return `H${level}`
-  }
-  return '正文'
+  const level = getActiveHeadingLevel(ctx.value)
+  return level > 0 ? `H${level}` : '正文'
 })
 
 // 标题 dropdown 命令
 function onHeading(level: number) {
-  ctx.value.commands.toggleHeading(level as 0 | 1 | 2 | 3 | 4 | 5 | 6)
+  runCommand('heading', level)
+}
+function headingPreviewClass(level: ToolbarHeadingLevel) {
+  return level === 0 ? 'tvp-heading-preview' : `tvp-heading-preview tvp-h${level}`
 }
 
 // ---- 颜色选择器 ----
-// 文字预设色:40 色,按灰阶 + 9 个色系组织(每色系 4 深浅),
-// 覆盖主流编辑器(飞书/语雀)常用色,空字符串 = 清除
-const PRESET_COLORS = [
-  // 灰阶
-  '#000000', '#434343', '#666666', '#999999', '#b7b7b7', '#cccccc', '#d9d9d9', '#efefef',
-  // 红
-  '#e03131', '#e8590c', '#f08c00', '#fcc419',
-  // 橙黄
-  '#d9480f', '#f76707', '#fa5252', '#ff6b6b',
-  // 绿
-  '#2f9e44', '#40c057', '#82c91e', '#a9e34b',
-  // 青
-  '#0c8599', '#1098ad', '#15aabf', '#22b8cf',
-  // 蓝
-  '#1864ab', '#1971c2', '#228be6', '#4dabf7',
-  // 紫
-  '#5f3dc4', '#6741d9', '#7048e8', '#9775fa',
-  // 粉
-  '#a61e4d', '#c2255c', '#d6336c', '#f06595',
-  // 棕
-  '#5c2f14', '#7b4019', '#a0522d', '#c08456',
-]
-
-// 背景高亮预设:32 色,各色系的浅色变体(适合做背景)
-const PRESET_HIGHLIGHTS = [
-  '#fff3bf', '#ffe8cc', '#ffe066', '#fab005',
-  '#ffc9c9', '#ffa8a8', '#ff8787', '#fa5252',
-  '#d3f9d8', '#b2f2bb', '#8ce99a', '#40c057',
-  '#c3fae8', '#96f2d7', '#63e6be', '#0ca678',
-  '#d0ebff', '#a5d8ff', '#74c0fc', '#1c7ed6',
-  '#e5dbff', '#d0bfff', '#b197fc', '#7048e8',
-  '#fcc2d7', '#faa2c1', '#f783ac', '#d6336c',
-  '#fff0f6', '#ffdeeb', '#fcc2d7', '#e64980',
-]
-
-const FONT_FAMILIES = [
-  { label: '默认字体', value: '' },
-  { label: 'Arial', value: 'Arial' },
-  { label: 'Inter', value: 'Inter' },
-  { label: 'Helvetica', value: 'Helvetica' },
-  { label: 'Times New Roman', value: '"Times New Roman"' },
-  { label: 'Georgia', value: 'Georgia' },
-  { label: 'Monospace', value: 'monospace' },
-]
-const FONT_SIZES = ['', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '40px', '48px', '64px', '72px', '96px']
-const LINE_HEIGHTS = ['', '1', '1.2', '1.4', '1.6', '1.8', '2']
+const resolvedToolbarOptions = computed(() => resolveToolbarOptions(props.toolbarOptions))
+const PRESET_COLORS = computed(() => resolvedToolbarOptions.value.colors)
+const PRESET_HIGHLIGHTS = computed(() => resolvedToolbarOptions.value.highlights)
+const FONT_FAMILIES = computed(() => resolvedToolbarOptions.value.fontFamilies)
+const FONT_SIZES = computed(() => resolvedToolbarOptions.value.fontSizes)
+const LINE_HEIGHTS = computed(() => resolvedToolbarOptions.value.lineHeights)
+const CODE_BLOCK_LANGUAGE_OPTIONS = computed(() => resolvedToolbarOptions.value.codeBlockLanguages)
+const TABLE_MAX_ROWS = computed(() => resolvedToolbarOptions.value.tableGrid.maxRows)
+const TABLE_MAX_COLS = computed(() => resolvedToolbarOptions.value.tableGrid.maxCols)
+const MARKDOWN_IMPORT_ACCEPT = computed(() => resolvedToolbarOptions.value.markdown.importAccept)
+const resolvedEditorBehaviorOptions = computed(() => resolveEditorBehaviorOptions(props.editorBehaviorOptions))
+const IMAGE_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.image.accept)
+const LINK_DEFAULT_TARGET = computed(() => resolvedEditorBehaviorOptions.value.link.defaultTarget)
 
 // 当前文字色(从选区的 textStyle mark 读取)
 const currentColor = computed(
@@ -347,10 +327,10 @@ const currentHighlight = computed(
 )
 
 function selectColor(color: string) {
-  ctx.value.commands.setColor(color)
+  runCommand('color', color)
 }
 function selectHighlight(color: string) {
-  ctx.value.commands.toggleHighlight(color)
+  runCommand('highlight', color)
 }
 
 // ---- 自定义 hex 输入 ----
@@ -380,17 +360,20 @@ const ALIGN_ICONS = {
   justify: markRaw(AlignJustify),
 }
 const alignIcon = computed(() => {
-  for (const a of ['center', 'right', 'justify'] as const) {
-    if (ctx.value.isActive({ textAlign: a })) return ALIGN_ICONS[a]
-  }
-  return ALIGN_ICONS.left
+  return ALIGN_ICONS[getActiveTextAlign(ctx.value)]
 })
 function onAlign(align: string) {
-  ctx.value.commands.align(align as 'left' | 'center' | 'right' | 'justify')
+  runCommand('align', align)
+}
+function alignOptionIcon(align: ToolbarTextAlign) {
+  return ALIGN_ICONS[align]
+}
+function markdownOptionIcon(action: ToolbarMarkdownAction) {
+  return action === 'import' ? FileUp : FileDown
 }
 
 const currentFontLabel = computed(
-  () => FONT_FAMILIES.find((font) => font.value === currentTextStyle.value.fontFamily)?.label ?? '字体',
+  () => FONT_FAMILIES.value.find((font) => font.value === currentTextStyle.value.fontFamily)?.label ?? '字体',
 )
 const currentFontSizeLabel = computed(() => currentTextStyle.value.fontSize || '字号')
 const currentLineHeightLabel = computed(() => currentTextStyle.value.lineHeight || '行高')
@@ -428,7 +411,7 @@ function openLinkDialog() {
   linkText.value = !empty
     ? ed.state.doc.textBetween(from, to, ' ')
     : ''
-  linkNewTab.value = true
+  linkNewTab.value = LINK_DEFAULT_TARGET.value === '_blank'
   linkDialogVisible.value = true
 }
 
@@ -487,34 +470,34 @@ function confirmLink() {
       <span v-if="groupIndex > 0" class="tvp-divider" />
 
       <template v-for="item in group" :key="item">
-        <ElTooltip v-if="item === 'undo'" content="撤销" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" aria-label="撤销" @click="ctx.commands.undo()"><Undo2 :size="18" /></ElButton>
+        <ElTooltip v-if="item === 'undo'" :content="commandLabel('undo')" placement="top" :show-after="300">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'redo'" content="重做" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" aria-label="重做" @click="ctx.commands.redo()"><Redo2 :size="18" /></ElButton>
+        <ElTooltip v-else-if="item === 'redo'" :content="commandLabel('redo')" placement="top" :show-after="300">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="18" /></ElButton>
         </ElTooltip>
 
         <ElDropdown v-else-if="item === 'heading'" trigger="click" @command="onHeading">
-          <ElButton text aria-label="标题">
+          <ElButton text :aria-label="commandLabel('heading')">
             {{ headingLabel }}
             <ChevronDown :size="14" class="tvp-caret" />
           </ElButton>
           <template #dropdown>
             <ElDropdownMenu>
-              <ElDropdownItem :command="0"><span class="tvp-heading-preview">正文</span></ElDropdownItem>
-              <ElDropdownItem :command="1"><span class="tvp-heading-preview tvp-h1">标题 1</span></ElDropdownItem>
-              <ElDropdownItem :command="2"><span class="tvp-heading-preview tvp-h2">标题 2</span></ElDropdownItem>
-              <ElDropdownItem :command="3"><span class="tvp-heading-preview tvp-h3">标题 3</span></ElDropdownItem>
-              <ElDropdownItem :command="4"><span class="tvp-heading-preview tvp-h4">标题 4</span></ElDropdownItem>
-              <ElDropdownItem :command="5"><span class="tvp-heading-preview tvp-h5">标题 5</span></ElDropdownItem>
-              <ElDropdownItem :command="6"><span class="tvp-heading-preview tvp-h6">标题 6</span></ElDropdownItem>
+              <ElDropdownItem
+                v-for="heading in TOOLBAR_HEADING_OPTIONS"
+                :key="heading.level"
+                :command="heading.level"
+              >
+                <span :class="headingPreviewClass(heading.level)">{{ heading.label }}</span>
+              </ElDropdownItem>
             </ElDropdownMenu>
           </template>
         </ElDropdown>
 
-        <ElDropdown v-else-if="item === 'fontFamily'" trigger="click" @command="(value: string) => ctx.commands.setFontFamily(value)">
-          <ElButton text aria-label="字体">
+        <ElDropdown v-else-if="item === 'fontFamily'" trigger="click" @command="(value: string) => runCommand('fontFamily', value)">
+          <ElButton text :aria-label="commandLabel('fontFamily')">
             {{ currentFontLabel }}
             <ChevronDown :size="14" class="tvp-caret" />
           </ElButton>
@@ -532,8 +515,8 @@ function confirmLink() {
           </template>
         </ElDropdown>
 
-        <ElDropdown v-else-if="item === 'fontSize'" trigger="click" @command="(value: string) => ctx.commands.setFontSize(value)">
-          <ElButton text aria-label="字号">
+        <ElDropdown v-else-if="item === 'fontSize'" trigger="click" @command="(value: string) => runCommand('fontSize', value)">
+          <ElButton text :aria-label="commandLabel('fontSize')">
             {{ currentFontSizeLabel }}
             <ChevronDown :size="14" class="tvp-caret" />
           </ElButton>
@@ -550,8 +533,8 @@ function confirmLink() {
           </template>
         </ElDropdown>
 
-        <ElDropdown v-else-if="item === 'lineHeight'" trigger="click" @command="(value: string) => ctx.commands.setLineHeight(value)">
-          <ElButton text aria-label="行高">
+        <ElDropdown v-else-if="item === 'lineHeight'" trigger="click" @command="(value: string) => runCommand('lineHeight', value)">
+          <ElButton text :aria-label="commandLabel('lineHeight')">
             {{ currentLineHeightLabel }}
             <ChevronDown :size="14" class="tvp-caret" />
           </ElButton>
@@ -568,78 +551,78 @@ function confirmLink() {
           </template>
         </ElDropdown>
 
-        <ElTooltip v-else-if="item === 'bold'" content="加粗" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'bold'" :content="commandLabel('bold')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="加粗"
-            :type="ctx.isActive('bold') ? 'primary' : 'default'"
-            @click="ctx.commands.bold()"
+            :aria-label="commandLabel('bold')"
+            :type="commandActive('bold') ? 'primary' : 'default'"
+            @click="runCommand('bold')"
           ><Bold :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'italic'" content="斜体" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'italic'" :content="commandLabel('italic')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="斜体"
-            :type="ctx.isActive('italic') ? 'primary' : 'default'"
-            @click="ctx.commands.italic()"
+            :aria-label="commandLabel('italic')"
+            :type="commandActive('italic') ? 'primary' : 'default'"
+            @click="runCommand('italic')"
           ><Italic :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'strike'" content="删除线" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'strike'" :content="commandLabel('strike')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="删除线"
-            :type="ctx.isActive('strike') ? 'primary' : 'default'"
-            @click="ctx.commands.strike()"
+            :aria-label="commandLabel('strike')"
+            :type="commandActive('strike') ? 'primary' : 'default'"
+            @click="runCommand('strike')"
           ><Strikethrough :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'underline'" content="下划线" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'underline'" :content="commandLabel('underline')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="下划线"
-            :type="ctx.isActive('underline') ? 'primary' : 'default'"
-            @click="ctx.commands.underline()"
+            :aria-label="commandLabel('underline')"
+            :type="commandActive('underline') ? 'primary' : 'default'"
+            @click="runCommand('underline')"
           ><Underline :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'code'" content="行内代码" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'code'" :content="commandLabel('code')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="行内代码"
-            :type="ctx.isActive('code') ? 'primary' : 'default'"
-            @click="ctx.commands.code()"
+            :aria-label="commandLabel('code')"
+            :type="commandActive('code') ? 'primary' : 'default'"
+            @click="runCommand('code')"
           ><Code :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'superscript'" content="上标" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'superscript'" :content="commandLabel('superscript')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="上标"
-            :type="ctx.isActive('superscript') ? 'primary' : 'default'"
-            @click="ctx.commands.superscript()"
+            :aria-label="commandLabel('superscript')"
+            :type="commandActive('superscript') ? 'primary' : 'default'"
+            @click="runCommand('superscript')"
           ><Superscript :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'subscript'" content="下标" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'subscript'" :content="commandLabel('subscript')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="下标"
-            :type="ctx.isActive('subscript') ? 'primary' : 'default'"
-            @click="ctx.commands.subscript()"
+            :aria-label="commandLabel('subscript')"
+            :type="commandActive('subscript') ? 'primary' : 'default'"
+            @click="runCommand('subscript')"
           ><Subscript :size="18" /></ElButton>
         </ElTooltip>
 
         <ElDropdown v-else-if="item === 'color'" trigger="click">
-          <ElButton text class="tvp-icon-btn" aria-label="文字颜色">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('color')">
             <Type :size="18" :style="{ color: currentColor || 'inherit' }" />
           </ElButton>
           <template #dropdown>
@@ -670,7 +653,7 @@ function confirmLink() {
         </ElDropdown>
 
         <ElDropdown v-else-if="item === 'highlight'" trigger="click">
-          <ElButton text class="tvp-icon-btn" aria-label="背景高亮">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('highlight')">
             <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
           </ElButton>
           <template #dropdown>
@@ -701,109 +684,113 @@ function confirmLink() {
         </ElDropdown>
 
         <ElDropdown v-else-if="item === 'align'" trigger="click" @command="onAlign">
-          <ElButton text class="tvp-icon-btn" aria-label="文本对齐">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('align')">
             <component :is="alignIcon" :size="16" />
           </ElButton>
           <template #dropdown>
             <ElDropdownMenu>
-              <ElDropdownItem command="left"><AlignLeft :size="16" /> 左对齐</ElDropdownItem>
-              <ElDropdownItem command="center"><AlignCenter :size="16" /> 居中</ElDropdownItem>
-              <ElDropdownItem command="right"><AlignRight :size="16" /> 右对齐</ElDropdownItem>
-              <ElDropdownItem command="justify"><AlignJustify :size="16" /> 两端对齐</ElDropdownItem>
+              <ElDropdownItem
+                v-for="align in TOOLBAR_ALIGN_OPTIONS"
+                :key="align.value"
+                :command="align.value"
+              >
+                <span class="tvp-menu-item">
+                  <component :is="alignOptionIcon(align.value)" :size="16" />{{ align.label }}
+                </span>
+              </ElDropdownItem>
             </ElDropdownMenu>
           </template>
         </ElDropdown>
 
-        <ElTooltip v-else-if="item === 'decreaseIndent'" content="减少缩进" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'decreaseIndent'" :content="commandLabel('decreaseIndent')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="减少缩进"
-            @click="ctx.commands.decreaseIndent()"
+            :aria-label="commandLabel('decreaseIndent')"
+            @click="runCommand('decreaseIndent')"
           ><IndentDecrease :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'increaseIndent'" content="增加缩进" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'increaseIndent'" :content="commandLabel('increaseIndent')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="增加缩进"
-            @click="ctx.commands.increaseIndent()"
+            :aria-label="commandLabel('increaseIndent')"
+            @click="runCommand('increaseIndent')"
           ><IndentIncrease :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'bulletList'" content="无序列表" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'bulletList'" :content="commandLabel('bulletList')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="无序列表"
-            :type="ctx.isActive('bulletList') ? 'primary' : 'default'"
-            @click="ctx.commands.bulletList()"
+            :aria-label="commandLabel('bulletList')"
+            :type="commandActive('bulletList') ? 'primary' : 'default'"
+            @click="runCommand('bulletList')"
           ><List :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'orderedList'" content="有序列表" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'orderedList'" :content="commandLabel('orderedList')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="有序列表"
-            :type="ctx.isActive('orderedList') ? 'primary' : 'default'"
-            @click="ctx.commands.orderedList()"
+            :aria-label="commandLabel('orderedList')"
+            :type="commandActive('orderedList') ? 'primary' : 'default'"
+            @click="runCommand('orderedList')"
           ><ListOrdered :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'taskList'" content="任务列表" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'taskList'" :content="commandLabel('taskList')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="任务列表"
-            :type="ctx.isActive('taskList') ? 'primary' : 'default'"
-            @click="ctx.commands.taskList()"
+            :aria-label="commandLabel('taskList')"
+            :type="commandActive('taskList') ? 'primary' : 'default'"
+            @click="runCommand('taskList')"
           ><ListChecks :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'blockquote'" content="引用" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'blockquote'" :content="commandLabel('blockquote')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="引用"
-            :type="ctx.isActive('blockquote') ? 'primary' : 'default'"
-            @click="ctx.commands.blockquote()"
+            :aria-label="commandLabel('blockquote')"
+            :type="commandActive('blockquote') ? 'primary' : 'default'"
+            @click="runCommand('blockquote')"
           ><Quote :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'codeBlock'" :content="`代码块:${currentCodeBlockLabel}`" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'codeBlock'" :content="`${commandLabel('codeBlock')}:${currentCodeBlockLabel}`" placement="top" :show-after="300">
           <ElDropdown trigger="click" @command="onCodeBlockLanguage">
             <ElButton
               text
               class="tvp-icon-btn"
-              aria-label="代码块"
-              :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
+              :aria-label="commandLabel('codeBlock')"
+              :type="commandActive('codeBlock') ? 'primary' : 'default'"
             ><Code :size="18" /></ElButton>
             <template #dropdown>
               <ElDropdownMenu>
                 <ElDropdownItem
-                  v-for="language in CODE_BLOCK_LANGUAGES"
+                  v-for="language in CODE_BLOCK_LANGUAGE_OPTIONS"
                   :key="language.value"
                   :command="language.value"
                 >
-                  <Code :size="15" />
-                  <span style="margin-left: 6px">{{ language.label }}</span>
+                  <span class="tvp-menu-item"><Code :size="15" />{{ language.label }}</span>
                 </ElDropdownItem>
               </ElDropdownMenu>
             </template>
           </ElDropdown>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'hr'" content="分割线" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" aria-label="分割线" @click="ctx.commands.hr()"><Minus :size="18" /></ElButton>
+        <ElTooltip v-else-if="item === 'hr'" :content="commandLabel('hr')" placement="top" :show-after="300">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('hr')" @click="runCommand('hr')"><Minus :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'link'" content="链接" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'link'" :content="commandLabel('link')" placement="top" :show-after="300">
           <ElButton
             text
             class="tvp-icon-btn"
-            aria-label="链接"
+            :aria-label="commandLabel('link')"
             :type="ctx.isActive('link') ? 'primary' : 'default'"
             @click="openLinkDialog"
           ><Link :size="18" /></ElButton>
@@ -818,9 +805,9 @@ function confirmLink() {
           </ElTooltip>
         </template>
 
-        <ElTooltip v-else-if="item === 'table'" content="插入表格" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'table'" :content="commandLabel('table')" placement="top" :show-after="300">
           <ElDropdown ref="tableDropdown" trigger="click" @command="onTableInsert">
-            <ElButton text class="tvp-icon-btn" aria-label="插入表格"><Table :size="18" /></ElButton>
+            <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('table')"><Table :size="18" /></ElButton>
             <template #dropdown>
               <div class="tvp-table-grid" @mouseleave="resetTableHover">
                 <div
@@ -845,24 +832,31 @@ function confirmLink() {
           </ElDropdown>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'clearFormat'" content="清除格式" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" aria-label="清除格式" @click="ctx.commands.clearFormat()"><Eraser :size="18" /></ElButton>
+        <ElTooltip v-else-if="item === 'clearFormat'" :content="commandLabel('clearFormat')" placement="top" :show-after="300">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'markdown'" content="导入 / 导出 Markdown" placement="top" :show-after="300">
+        <ElTooltip v-else-if="item === 'markdown'" :content="commandLabel('markdown')" placement="top" :show-after="300">
           <ElDropdown trigger="click" @command="onMarkdownCommand">
-            <ElButton text class="tvp-icon-btn" aria-label="导入 / 导出 Markdown"><MarkdownIcon :size="18" /></ElButton>
+            <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="18" /></ElButton>
             <template #dropdown>
               <ElDropdownMenu>
-                <ElDropdownItem command="import"><FileUp :size="15" /> 导入 Markdown</ElDropdownItem>
-                <ElDropdownItem command="export"><FileDown :size="15" /> 导出 Markdown</ElDropdownItem>
+                <ElDropdownItem
+                  v-for="option in TOOLBAR_MARKDOWN_OPTIONS"
+                  :key="option.value"
+                  :command="option.value"
+                >
+                  <span class="tvp-menu-item">
+                    <component :is="markdownOptionIcon(option.value)" :size="15" />{{ option.label }}
+                  </span>
+                </ElDropdownItem>
               </ElDropdownMenu>
             </template>
           </ElDropdown>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'print'" content="打印" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" aria-label="打印" @click="printContent"><Printer :size="18" /></ElButton>
+        <ElTooltip v-else-if="item === 'print'" :content="commandLabel('print')" placement="top" :show-after="300">
+          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="18" /></ElButton>
         </ElTooltip>
 
         <ElTooltip v-else-if="item === 'fullscreen'" :content="isFullscreen ? '退出全屏' : '全屏'" placement="top" :show-after="300">
@@ -891,7 +885,7 @@ function confirmLink() {
     <input
       ref="imageInput"
       type="file"
-      accept="image/*"
+      :accept="IMAGE_ACCEPT"
       class="tvp-image-input"
       @change="onImageSelected"
     />
@@ -911,7 +905,7 @@ function confirmLink() {
     <input
       ref="mdInput"
       type="file"
-      accept=".md,.markdown,text/markdown,text/plain"
+      :accept="MARKDOWN_IMPORT_ACCEPT"
       class="tvp-image-input"
       @change="onMdSelected"
     />
@@ -1030,6 +1024,12 @@ function confirmLink() {
   display: inline-block;
   width: 14px;
   color: var(--el-color-primary, #409eff);
+}
+
+.tvp-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* 表格网格选择器 */

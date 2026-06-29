@@ -1,21 +1,21 @@
 <script setup lang="ts">
 /**
- * tiptap-vue-pro 的 Naive UI 适配主组件。
+ * Tiptap Vue Pro 的 Naive UI 适配主组件。
  *
  * 用户用法:
  *   <ProEditorNaive v-model="content" :upload-image="upload" output="html" />
  *
- * 与 ProEditorElementPlus 功能对等:v-model 双向绑定、完整工具栏、气泡菜单、
+ * 功能覆盖:v-model 双向绑定、完整工具栏、气泡菜单、
  * 图片粘贴/拖拽、全屏、预览、暗色、Markdown 导入导出、打印。
  *
- * 关键差异(相对 EP 版):
- * 1. 暗色:用 NConfigProvider + darkTheme 注入,而非 EP 的局部 --el-* 覆盖。
+ * 关键差异:
+ * 1. 暗色:用 NConfigProvider + darkTheme 注入。
  *    好处:Naive 默认暗色已足够,不用手写一堆主题变量。
  * 2. 消息提示:Naive 的 useMessage 必须在 NMessageProvider 后代里调用,
  *    所以内部自包一层 NMessageProvider + MessageBridge 拿到 message API,
  *    再转成 notify 注入 Core。保证「开箱即用」,不强制宿主包 provider。
  *
- * active 态响应性:与 EP 版一致,用 selectionTick 在 selection/transaction
+ * active 态响应性:用 selectionTick 在 selection/transaction
  * 变化时 ++ 触发工具栏重渲染(Tiptap 的 isActive 不会自动触发 Vue 重渲染)。
  */
 import { ref, watch, computed, onMounted, onBeforeUnmount, shallowRef } from 'vue'
@@ -30,15 +30,17 @@ import {
 } from 'naive-ui'
 import { Pencil } from 'lucide-vue-next'
 import {
+  useEditorEventBridge,
+  useImageDropPaste,
   useProEditor,
-  handleImageFiles,
-  hasImageFiles,
   type UploadImage,
   type OutputFormat,
   type Extensions,
   type NotifyType,
   type ProEditorContext,
+  type ToolbarOptions,
   type ToolbarProp,
+  type EditorBehaviorOptions,
 } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
@@ -65,6 +67,10 @@ const props = withDefaults(
     showWordCount?: boolean
     /** 工具栏配置:false 隐藏内置按钮;数组控制内置按钮分组/顺序 */
     toolbar?: ToolbarProp
+    /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
+    toolbarOptions?: ToolbarOptions
+    /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
+    editorBehaviorOptions?: EditorBehaviorOptions
     /** 自定义扩展(覆盖默认) */
     extensions?: Extensions
   }>(),
@@ -76,6 +82,8 @@ const props = withDefaults(
     dark: false,
     showWordCount: true,
     toolbar: undefined,
+    toolbarOptions: undefined,
+    editorBehaviorOptions: undefined,
   },
 )
 
@@ -107,7 +115,7 @@ function handleBridgeReady() {
 // 用 Core 创建编辑器实例
 //
 // notify 注入:把 Core 的消息提示接到 Naive 的 useMessage,
-// 与 EP 版(ElMessage)对等——Core 决定「何时提示 + 文案」,adapter 决定「用什么显示」。
+// 与其他 adapter 对等——Core 决定「何时提示 + 文案」,adapter 决定「用什么显示」。
 const ctx = useProEditor({
   get content() {
     return content.value
@@ -121,6 +129,9 @@ const ctx = useProEditor({
   },
   placeholder: props.placeholder,
   uploadImage: props.uploadImage,
+  get editorBehaviorOptions() {
+    return props.editorBehaviorOptions
+  },
   editable: !props.readonly,
   extensions: props.extensions,
   notify: (msg: string, type?: NotifyType) => {
@@ -142,28 +153,10 @@ watch(
   },
 )
 
-// 工具栏 active 响应性:监听 editor 实例,绑定 selectionUpdate 触发重渲染
-const selectionTick = ref(0)
 // 是否曾获得过焦点:用于判断「用户从未点进编辑器」的场景。
 // ProseMirror 的 selection 在失焦后仍保留上次值,但点工具栏按钮时 DOM 已失焦,
 // editor.isFocused 恒为 false,无法直接区分「从未点过」和「点过后失焦」。
-let editorHasBeenFocused = false
-watch(
-  () => ctx.editor.value,
-  (ed) => {
-    if (!ed) return
-    ed.on('selectionUpdate', () => {
-      selectionTick.value++
-    })
-    ed.on('transaction', () => {
-      selectionTick.value++
-    })
-    ed.on('focus', () => {
-      editorHasBeenFocused = true
-    })
-  },
-  { immediate: true },
-)
+const { selectionTick, editorHasBeenFocused } = useEditorEventBridge(ctx.editor)
 
 // readonly 变化
 watch(
@@ -172,7 +165,7 @@ watch(
 )
 
 // ---- 全屏 / 预览 ----
-// 纯 UI 行为,状态留在 adapter 层(Core 无需感知)。与 EP 版逻辑一致。
+// 纯 UI 行为,状态留在 adapter 层(Core 无需感知)。
 const isFullscreen = ref(false)
 const isPreview = ref(false)
 // 内容滚动容器(表格抓手覆盖层相对它定位)
@@ -211,7 +204,7 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
   return {
     ...ctx,
     prepareInsert: () => {
-      if (!editorHasBeenFocused) {
+      if (!editorHasBeenFocused.value) {
         ctx.commands.ensureFocusAtEnd()
       }
     },
@@ -219,26 +212,7 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
 })
 
 // 图片粘贴/拖拽:挂到内容容器上。
-// preventDefault 必须在事件同步阶段调用(同 EP 版),先用 hasImageFiles 判断再拦。
-function onPaste(e: ClipboardEvent) {
-  if (!props.uploadImage) return
-  const files = e.clipboardData?.files
-  if (!hasImageFiles(files)) return
-  e.preventDefault()
-  void handleImageFiles(files, props.uploadImage, ctx.editor.value!, () => {
-    ctx.notify('部分图片上传失败', 'error')
-  })
-}
-
-function onDrop(e: DragEvent) {
-  if (!props.uploadImage) return
-  const files = e.dataTransfer?.files
-  if (!hasImageFiles(files)) return
-  e.preventDefault()
-  void handleImageFiles(files, props.uploadImage, ctx.editor.value!, () => {
-    ctx.notify('部分图片上传失败', 'error')
-  })
-}
+const { onPaste, onDrop } = useImageDropPaste(ctx, () => props.uploadImage)
 
 // 字数
 const wordCount = computed(() => ctx.wordCount.value)
@@ -252,7 +226,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 <template>
   <!--
     NConfigProvider:局部主题注入,实现「组件级独立暗色切换」,
-    不依赖宿主全局。与 EP 版的局部 --el-* 覆盖对等。
+    不依赖宿主全局。
     内部包 NMessageProvider + MessageBridge,拿到 message API 转 notify。
     namespace 用唯一前缀,避免与宿主可能存在的 provider 冲突。
   -->
@@ -276,6 +250,8 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           :is-preview="isPreview"
           :toggle-fullscreen="toggleFullscreen"
           :toggle-preview="togglePreview"
+          :toolbar-options="props.toolbarOptions"
+          :editor-behavior-options="props.editorBehaviorOptions"
         />
 
         <Toolbar
@@ -285,6 +261,8 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           :is-fullscreen="isFullscreen"
           :is-preview="isPreview"
           :toolbar="props.toolbar"
+          :toolbar-options="props.toolbarOptions"
+          :editor-behavior-options="props.editorBehaviorOptions"
           @toggle-fullscreen="toggleFullscreen"
           @toggle-preview="togglePreview"
         >
@@ -348,6 +326,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           :editor="ctx.editor.value"
           :ctx="toolbarCtx"
           :upload-image="props.uploadImage"
+          :editor-behavior-options="props.editorBehaviorOptions"
         />
 
         <div v-if="!readonly && !isPreview && showWordCount" class="tvp-footer">
@@ -395,7 +374,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 
 /*
  * 全屏:position:fixed 铺满视口,不接管物理屏幕。
- * z-index 取 2000,与 EP 版对齐。
+ * z-index 取 2000。
  */
 .tvp-editor.is-fullscreen {
   position: fixed;
@@ -498,7 +477,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 }
 
 /*
- * 任务列表对齐方案(三处协同),与 EP 版一致:
+ * 任务列表对齐方案(三处协同):
  *   li 显式 line-height + 清首段 margin-top + label height = line-height
  */
 .tvp-content .ProseMirror ul[data-type="taskList"] li {
@@ -638,7 +617,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 
 /*
  * 图片节点容器(自定义 NodeView):承载对齐 + 选中态 + 题注。
- * 与 element-plus 版对等,仅 CSS 变量名不同(naive 用 --n-*)。
+ * 与其他 adapter 对等,仅 CSS 变量名不同(Naive 用 --n-*)。
  */
 .tvp-content .ProseMirror .tvp-img-node {
   display: flex;
@@ -677,7 +656,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 }
 /*
  * 题注显隐(对标飞书):空题注默认不占位、不显示。
- * 仅当图片被选中 / hover / 输入框聚焦 / 已有内容时显示。详见 EP 版同名注释。
+ * 仅当图片被选中 / hover / 输入框聚焦 / 已有内容时显示。
  */
 .tvp-content .ProseMirror .tvp-img-caption-empty {
   display: none;

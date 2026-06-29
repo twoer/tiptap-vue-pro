@@ -3,6 +3,8 @@
   "include": [],
   "references": [
     { "path": "./packages/core" },
-    { "path": "./packages/element-plus" }
+    { "path": "./packages/element-plus" },
+    { "path": "./packages/naive" },
+    { "path": "./packages/ant-design-vue" }
   ]
 }

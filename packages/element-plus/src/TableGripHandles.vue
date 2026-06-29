@@ -65,6 +65,7 @@ function runAfterPopperClose(command: () => void) {
 // tableState 只跟随「当前选区」,用户纯 hover 表格时选区可能还在表格外。
 let activeTable: HTMLTableElement | null = null
 let activeCell: HTMLElement | null = null
+let activeEditor: Editor | null = null
 
 // 拿当前表格的 DOM 元素
 function getTableEl(): HTMLTableElement | null {
@@ -251,6 +252,7 @@ function setup() {
   const ed = props.editor
   scrollEl = props.scrollContainer
   if (!ed) return
+  activeEditor = ed
   ed.on('transaction', refresh)
   if (scrollEl) {
     scrollEl.addEventListener('mousemove', onContainerMouseMove)
@@ -263,8 +265,9 @@ function setup() {
 function teardown() {
   cancelHide()
   clearDestructiveTimer()
-  const ed = props.editor
+  const ed = activeEditor
   if (ed) ed.off('transaction', refresh)
+  activeEditor = null
   if (scrollEl) {
     scrollEl.removeEventListener('mousemove', onContainerMouseMove)
     scrollEl.removeEventListener('mouseleave', onContainerMouseLeave)
@@ -306,11 +309,11 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
         <span class="tvp-table-grip__icon"><GripVertical :size="14" /></span>
         <template #dropdown>
           <ElDropdownMenu>
-            <ElDropdownItem command="addUp"><Plus :size="14" /><span style="margin-left:6px">在上方插入行</span></ElDropdownItem>
-            <ElDropdownItem command="addDown"><Plus :size="14" /><span style="margin-left:6px">在下方插入行</span></ElDropdownItem>
-            <ElDropdownItem command="moveUp"><ArrowUp :size="14" /><span style="margin-left:6px">上移行</span></ElDropdownItem>
-            <ElDropdownItem command="moveDown"><ArrowDown :size="14" /><span style="margin-left:6px">下移行</span></ElDropdownItem>
-            <ElDropdownItem command="delete" divided><Trash2 :size="14" /><span style="margin-left:6px">删除行</span></ElDropdownItem>
+            <ElDropdownItem command="addUp"><span class="tvp-menu-item"><Plus :size="14" />在上方插入</span></ElDropdownItem>
+            <ElDropdownItem command="addDown"><span class="tvp-menu-item"><Plus :size="14" />在下方插入</span></ElDropdownItem>
+            <ElDropdownItem command="moveUp"><span class="tvp-menu-item"><ArrowUp :size="14" />上移</span></ElDropdownItem>
+            <ElDropdownItem command="moveDown"><span class="tvp-menu-item"><ArrowDown :size="14" />下移</span></ElDropdownItem>
+            <ElDropdownItem command="delete" divided><span class="tvp-menu-item"><Trash2 :size="14" />删除</span></ElDropdownItem>
           </ElDropdownMenu>
         </template>
       </ElDropdown>
@@ -334,11 +337,11 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
         <span class="tvp-table-grip__icon"><GripVertical :size="14" /></span>
         <template #dropdown>
           <ElDropdownMenu>
-            <ElDropdownItem command="addLeft"><Plus :size="14" /><span style="margin-left:6px">在左侧插入列</span></ElDropdownItem>
-            <ElDropdownItem command="addRight"><Plus :size="14" /><span style="margin-left:6px">在右侧插入列</span></ElDropdownItem>
-            <ElDropdownItem command="moveLeft"><ArrowUp :size="14" :style="'transform:rotate(-90deg)'" /><span style="margin-left:6px">左移列</span></ElDropdownItem>
-            <ElDropdownItem command="moveRight"><ArrowDown :size="14" :style="'transform:rotate(-90deg)'" /><span style="margin-left:6px">右移列</span></ElDropdownItem>
-            <ElDropdownItem command="delete" divided><Trash2 :size="14" /><span style="margin-left:6px">删除列</span></ElDropdownItem>
+            <ElDropdownItem command="addLeft"><span class="tvp-menu-item"><Plus :size="14" />在左侧插入</span></ElDropdownItem>
+            <ElDropdownItem command="addRight"><span class="tvp-menu-item"><Plus :size="14" />在右侧插入</span></ElDropdownItem>
+            <ElDropdownItem command="moveLeft"><span class="tvp-menu-item"><ArrowUp :size="14" :style="'transform:rotate(-90deg)'" />左移</span></ElDropdownItem>
+            <ElDropdownItem command="moveRight"><span class="tvp-menu-item"><ArrowDown :size="14" :style="'transform:rotate(-90deg)'" />右移</span></ElDropdownItem>
+            <ElDropdownItem command="delete" divided><span class="tvp-menu-item"><Trash2 :size="14" />删除</span></ElDropdownItem>
           </ElDropdownMenu>
         </template>
       </ElDropdown>
@@ -380,6 +383,13 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
 .tvp-table-grip:hover .tvp-table-grip__icon {
   color: var(--el-color-primary, #409eff);
 }
+
+.tvp-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* 行抓手:竖条状,宽度固定,高度跟随行高 */
 .tvp-table-grip--row {
   width: 22px;

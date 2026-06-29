@@ -1,4 +1,4 @@
-# tiptap-vue-pro-core
+# Tiptap Vue Pro Core
 
 UI 无关的 Tiptap v3 + Vue 3 富文本编辑器核心层。
 
@@ -6,6 +6,7 @@ UI 无关的 Tiptap v3 + Vue 3 富文本编辑器核心层。
 
 - Element Plus: `tiptap-vue-pro-element-plus`
 - Naive UI: `tiptap-vue-pro-naive`
+- Ant Design Vue: `tiptap-vue-pro-ant-design-vue`
 
 ## 能力
 
@@ -40,4 +41,17 @@ const ctx = useProEditor({
 </template>
 ```
 
-完整文档和 Demo: https://github.com/twoer/tiptap-vue-pro
+## Nuxt / SSR
+
+Core 默认以 `immediatelyRender: false` 创建 Tiptap 编辑器,适配 Nuxt / SSR 场景。Nuxt 项目中建议把开箱组件放进 `<ClientOnly>`:
+
+```vue
+<template>
+  <ClientOnly>
+    <ProEditorElementPlus v-model="content" />
+  </ClientOnly>
+</template>
+```
+
+完整文档: https://twoer.github.io/tiptap-vue-pro/
+在线 Demo: https://twoer.github.io/tiptap-vue-pro/playground/

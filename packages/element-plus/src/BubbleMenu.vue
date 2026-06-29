@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { ElButton } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import { Bold, Italic, Underline, Strikethrough, Link, Eraser } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import { useEditorPluginRegistration, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 /**
  * 气泡菜单:选中文字时浮现的小工具条。
@@ -25,7 +25,6 @@ const props = defineProps<{
 
 const rootEl = ref<HTMLElement | null>(null)
 const isVisible = ref(false)
-let extensionAdded = false
 
 const ctx = computed(() => props.ctx)
 
@@ -40,20 +39,35 @@ function openQuickLink() {
 }
 
 function confirmQuickLink() {
-  ctx.value.commands.setLink(linkUrl.value.trim())
+  const href = linkUrl.value.trim()
+  if (!href) {
+    if (props.editor?.isActive('link')) {
+      ctx.value.commands.setLink('')
+      ctx.value.notify('已移除链接', 'success')
+      linkInputVisible.value = false
+      return
+    }
+    ctx.value.notify('请填写链接地址', 'warning')
+    return
+  }
+  if (!/^(https?:|mailto:|tel:)/i.test(href) && !/\.[a-z]{2,}/i.test(href)) {
+    ctx.value.notify('链接格式不正确,请输入完整网址(如 https://example.com)', 'warning')
+    return
+  }
+  ctx.value.commands.setLink(href)
   linkInputVisible.value = false
 }
 
-function registerBubbleMenu() {
-  const ed = props.editor
-  if (!ed || !rootEl.value || extensionAdded) return
-
+useEditorPluginRegistration({
+  getEditor: () => props.editor,
+  getElement: () => rootEl.value,
+  pluginKey: 'proBubbleMenu',
   // BubbleMenuPlugin 是 ProseMirror Plugin 工厂,
   // 直接注册到 editor。扩展内部用 floating-ui 定位元素到选区附近。
-  const plugin = BubbleMenuPlugin({
+  createPlugin: (ed, element) => BubbleMenuPlugin({
     pluginKey: 'proBubbleMenu',
     editor: ed,
-    element: rootEl.value,
+    element,
     updateDelay: 100,
     shouldShow: ({ state }) => {
       // 仅在有非空选区时显示(纯光标点击不弹)
@@ -67,28 +81,7 @@ function registerBubbleMenu() {
       }
       return true
     },
-  })
-  ed.registerPlugin(plugin)
-  extensionAdded = true
-}
-
-onMounted(() => {
-  registerBubbleMenu()
-})
-
-// editor 异步就绪后注册
-watch(
-  () => props.editor,
-  (ed) => {
-    if (ed) registerBubbleMenu()
-  },
-)
-
-onBeforeUnmount(() => {
-  const ed = props.editor
-  if (ed) {
-    ed.unregisterPlugin('proBubbleMenu')
-  }
+  }),
 })
 </script>
 
@@ -98,12 +91,12 @@ onBeforeUnmount(() => {
     class="tvp-bubble"
     :class="{ 'is-visible': isVisible }"
   >
-    <ElButton text :type="ctx.isActive('bold') ? 'primary' : 'default'" @click="ctx.commands.bold()"><Bold :size="16" /></ElButton>
-    <ElButton text :type="ctx.isActive('italic') ? 'primary' : 'default'" @click="ctx.commands.italic()"><Italic :size="16" /></ElButton>
-    <ElButton text :type="ctx.isActive('underline') ? 'primary' : 'default'" @click="ctx.commands.underline()"><Underline :size="16" /></ElButton>
-    <ElButton text :type="ctx.isActive('strike') ? 'primary' : 'default'" @click="ctx.commands.strike()"><Strikethrough :size="16" /></ElButton>
-    <ElButton text @click="openQuickLink"><Link :size="16" /></ElButton>
-    <ElButton text @click="ctx.commands.clearFormat()"><Eraser :size="16" /></ElButton>
+    <ElButton text aria-label="加粗" :type="ctx.isActive('bold') ? 'primary' : 'default'" @click="ctx.commands.bold()"><Bold :size="16" /></ElButton>
+    <ElButton text aria-label="斜体" :type="ctx.isActive('italic') ? 'primary' : 'default'" @click="ctx.commands.italic()"><Italic :size="16" /></ElButton>
+    <ElButton text aria-label="下划线" :type="ctx.isActive('underline') ? 'primary' : 'default'" @click="ctx.commands.underline()"><Underline :size="16" /></ElButton>
+    <ElButton text aria-label="删除线" :type="ctx.isActive('strike') ? 'primary' : 'default'" @click="ctx.commands.strike()"><Strikethrough :size="16" /></ElButton>
+    <ElButton text aria-label="链接" @click="openQuickLink"><Link :size="16" /></ElButton>
+    <ElButton text aria-label="清除格式" @click="ctx.commands.clearFormat()"><Eraser :size="16" /></ElButton>
 
     <!-- 快速链接输入 -->
     <teleport to="body">
@@ -115,7 +108,7 @@ onBeforeUnmount(() => {
             placeholder="https://"
             @keyup.enter="confirmQuickLink"
           />
-          <ElButton size="small" type="primary" @click="confirmQuickLink">确定</ElButton>
+          <ElButton size="small" type="primary" aria-label="确定链接" @click="confirmQuickLink">确定</ElButton>
         </div>
       </div>
     </teleport>

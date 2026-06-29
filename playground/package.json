@@ -12,9 +12,11 @@
     "@tiptap/core": "3.27.1",
     "@tiptap/pm": "3.27.1",
     "@tiptap/vue-3": "3.27.1",
+    "ant-design-vue": "^4.2.0",
     "element-plus": "^2.8.0",
     "naive-ui": "^2.38.0",
     "tiptap-vue-pro-core": "workspace:*",
+    "tiptap-vue-pro-ant-design-vue": "workspace:*",
     "tiptap-vue-pro-element-plus": "workspace:*",
     "tiptap-vue-pro-naive": "workspace:*",
     "vue": "^3.5.0"
