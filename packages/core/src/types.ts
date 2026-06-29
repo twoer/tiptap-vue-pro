@@ -236,6 +236,18 @@ export interface ProEditorCommands {
   selectColumn: () => void
   hr: () => void
   clearNodes: () => void
+  /** 设置字体族;fontFamily 为空字符串则清除字体 */
+  setFontFamily: (fontFamily: string) => void
+  /** 设置字号;fontSize 为空字符串则清除字号 */
+  setFontSize: (fontSize: string) => void
+  /** 设置行高;lineHeight 为空字符串则清除行高 */
+  setLineHeight: (lineHeight: string) => void
+  /** 清除字体、字号、行高,保留颜色/高亮等其他格式 */
+  clearTypography: () => void
+  /** 增加缩进:列表中嵌套列表,普通段落/标题增加块级 margin-left */
+  increaseIndent: () => void
+  /** 减少缩进:列表中提升列表项,普通段落/标题减少块级 margin-left */
+  decreaseIndent: () => void
   /** 设置文字颜色;color 为空字符串则清除颜色 */
   setColor: (color: string) => void
   /** 切换背景高亮;color 为空则清除高亮 */

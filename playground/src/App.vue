@@ -2,10 +2,20 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import { ProEditorNaive } from 'tiptap-vue-pro-naive'
+import type { ToolbarConfig } from 'tiptap-vue-pro-core'
 // 生产级图片上传示例:XHR 真实上传 + 进度条 + 三态提示,详见文件内注释
 import { uploadImage } from './uploadImage'
 // HTML 美化:用 DOMParser 解析 + 递归序列化,把紧凑 HTML 格式化成带缩进可读形式
 import { formatHTML } from './formatHTML'
+
+// ---- hash 路由:用 location.hash 区分 UI 适配页(#/element-plus | #/naive)----
+// 选 hash 而非 history:GitHub Pages 下 history 刷新会 404,hash 天然可刷新可分享。
+type UiKey = 'element-plus' | 'naive'
+function readHashRoute(): UiKey {
+  const h = location.hash.replace(/^#\/?/, '')
+  return h === 'naive' ? 'naive' : 'element-plus'
+}
+const route = ref<UiKey>(readHashRoute())
 
 // 编辑器内容:覆盖主要能力(标题/格式化/颜色/对齐/列表/任务/引用/代码块/表格)
 function createDemoContent(uiName: string) {
@@ -26,15 +36,9 @@ function createDemoContent(uiName: string) {
   )
 }
 
-const content = ref(createDemoContent('Element Plus'))
-
-// ---- hash 路由:用 location.hash 区分 UI 适配页(#/element-plus | #/naive)----
-// 选 hash 而非 history:GitHub Pages 下 history 刷新会 404,hash 天然可刷新可分享。
-type UiKey = 'element-plus' | 'naive'
-const route = ref<UiKey>('element-plus')
+const content = ref(createDemoContent(route.value === 'naive' ? 'Naive UI' : 'Element Plus'))
 function syncRoute() {
-  const h = location.hash.replace(/^#\/?/, '')
-  route.value = h === 'naive' ? 'naive' : 'element-plus'
+  route.value = readHashRoute()
 }
 onMounted(() => {
   syncRoute()
@@ -46,11 +50,25 @@ onBeforeUnmount(() => window.removeEventListener('hashchange', syncRoute))
 const dark = ref(false)
 const readonly = ref(false)
 const showWordCount = ref(true)
+const compactToolbar = ref(false)
 const output = ref<'html' | 'json'>('html')
 const currentUiName = computed(() => (route.value === 'naive' ? 'Naive UI' : 'Element Plus'))
 const currentUiPackage = computed(() =>
   route.value === 'naive' ? 'tiptap-vue-pro-naive' : 'tiptap-vue-pro-element-plus',
 )
+const toolbarConfig = computed<ToolbarConfig | undefined>(() =>
+  compactToolbar.value
+    ? [
+        ['undo', 'redo'],
+        ['bold', 'italic', 'underline'],
+        ['link', 'image'],
+      ]
+    : undefined,
+)
+
+function resetDemoContent() {
+  content.value = createDemoContent(currentUiName.value)
+}
 
 // 暗色模式:
 // - Element Plus 版:切 html.dark,让 EP 全局暗色 + 本页暗色样式生效
@@ -133,6 +151,10 @@ async function copyOutput() {
           <input v-model="showWordCount" type="checkbox" class="toggle" />
           <span>字数</span>
         </label>
+        <label class="control control--switch">
+          <input v-model="compactToolbar" type="checkbox" class="toggle" />
+          <span>精简工具栏</span>
+        </label>
       </div>
       <div class="demo-toolbar__group demo-toolbar__group--right">
         <label class="control">
@@ -142,6 +164,9 @@ async function copyOutput() {
             <option value="json">JSON</option>
           </select>
         </label>
+        <button type="button" class="reset-btn" @click="resetDemoContent">
+          重置示例
+        </button>
       </div>
     </section>
 
@@ -164,6 +189,7 @@ async function copyOutput() {
           :dark="dark"
           :readonly="readonly"
           :show-word-count="showWordCount"
+          :toolbar="toolbarConfig"
           placeholder="开始输入..."
           :upload-image="uploadImage"
         />
@@ -174,6 +200,7 @@ async function copyOutput() {
           :dark="dark"
           :readonly="readonly"
           :show-word-count="showWordCount"
+          :toolbar="toolbarConfig"
           placeholder="开始输入..."
           :upload-image="uploadImage"
         />
@@ -479,12 +506,44 @@ html.dark .native-select {
   border-color: #414243;
 }
 
+.reset-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  color: #606266;
+  font: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.reset-btn:hover {
+  color: #409eff;
+  border-color: #c6e2ff;
+  background: #ecf5ff;
+}
+
+html.dark .reset-btn {
+  background: #1d1e1f;
+  border-color: #414243;
+  color: #cfd3dc;
+}
+
+html.dark .reset-btn:hover {
+  color: #79bbff;
+  border-color: #409eff;
+  background: #18222c;
+}
+
 .workbench {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 
 .demo {
+  min-width: 0;
   margin-bottom: 24px;
 }
 
@@ -659,11 +718,11 @@ html.dark .page__footer {
 
 @media (min-width: 1180px) {
   .page {
-    max-width: 1180px;
+    max-width: 1280px;
   }
 
   .workbench {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 460px);
     align-items: start;
   }
 
@@ -680,8 +739,19 @@ html.dark .page__footer {
 /* —— xl ≥1280px:大屏,上限封顶避免过宽 —— */
 @media (min-width: 1280px) {
   .page {
-    max-width: 1180px;
+    max-width: 1440px;
     padding: 56px 32px 72px;
+  }
+}
+
+/* —— 2xl ≥1600px:充分利用大屏,但仍保留阅读宽度上限 —— */
+@media (min-width: 1600px) {
+  .page {
+    max-width: 1600px;
+  }
+
+  .workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 520px);
   }
 }
 </style>

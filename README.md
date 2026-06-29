@@ -40,6 +40,7 @@
 - ✅ Vue 3 + TypeScript
 - ✅ `v-model` 双向绑定,HTML / JSON 输出
 - ✅ 完整工具栏:标题、加粗/斜体/删除线/**下划线**、行内代码、上标/下标、引用、代码块语言选择、分割线
+- ✅ **排版控制**:字体、字号、行高、段落/标题缩进、列表层级缩进
 - ✅ **文字颜色 / 背景高亮**(预设色板)
 - ✅ **文本对齐**(左/中/右/两端)
 - ✅ **清除格式**(一键去除所有样式)
@@ -164,7 +165,54 @@ const ctx = useProEditor({
 | `uploadImage` | `(file: File) => Promise<string \| null>` | — | 图片上传函数,传入后支持上传/粘贴/拖拽 |
 | `readonly` | `boolean` | `false` | 只读模式 |
 | `dark` | `boolean` | `false` | 暗色模式(组件级独立切换,不依赖全局 class) |
+| `toolbar` | `ToolbarConfig \| false` | 默认完整工具栏 | 工具栏配置。传 `false` 隐藏内置按钮;传二维数组控制内置按钮分组和顺序 |
 | `extensions` | `Extensions` | 默认扩展包 | 自定义 Tiptap 扩展(覆盖默认) |
+
+## 自定义工具栏
+
+`toolbar` prop 用二维数组描述内置按钮分组。数组顺序就是渲染顺序:
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { ElButton } from 'element-plus'
+import { ProEditorElementPlus, type ToolbarConfig } from 'tiptap-vue-pro-element-plus'
+
+const content = ref('<p>hello world</p>')
+const toolbar: ToolbarConfig = [
+  ['undo', 'redo'],
+  ['bold', 'italic', 'underline'],
+  ['link', 'image'],
+]
+</script>
+
+<template>
+  <ProEditorElementPlus v-model="content" :toolbar="toolbar">
+    <template #toolbar-after="{ ctx }">
+      <ElButton text @click="ctx.commands.hr()">分割线</ElButton>
+    </template>
+  </ProEditorElementPlus>
+</template>
+```
+
+传 `:toolbar="false"` 可以隐藏所有内置按钮。需要完全自绘时使用 `toolbar` slot:
+
+```vue
+<ProEditorElementPlus v-model="content">
+  <template #toolbar="{ ctx }">
+    <div class="my-toolbar">
+      <button @click="ctx.commands.bold()">Bold</button>
+      <button @click="ctx.commands.setImage('https://example.com/a.png')">Image</button>
+    </div>
+  </template>
+</ProEditorElementPlus>
+```
+
+| 插槽 | 说明 |
+| --- | --- |
+| `toolbar` | 完全替换内置工具栏 |
+| `toolbar-before` | 插入到内置工具栏按钮前 |
+| `toolbar-after` | 插入到内置工具栏按钮后 |
 
 ## 工具栏能力一览
 
@@ -173,6 +221,7 @@ const ctx = useProEditor({
 | 撤销/重做 | 撤销、重做 |
 | 标题 | 正文 / H1-H6 |
 | 格式化 | 加粗、斜体、删除线、**下划线**、行内代码、上标、下标 |
+| 排版 | 字体、字号、行高、减少缩进、增加缩进 |
 | 颜色 | **文字颜色**(12 预设色)、**背景高亮**(8 预设色) |
 | 对齐 | **左 / 中 / 右 / 两端** |
 | 列表 | 无序列表、有序列表、引用、代码块语言选择、分割线 |
@@ -180,6 +229,8 @@ const ctx = useProEditor({
 | 清理 | **清除格式** |
 | Markdown | **导入 `.md` / 导出 `.md`** |
 | 气泡菜单 | 选中文字浮现:加粗/斜体/下划线/删除线/链接/清除格式 |
+
+> 字体、字号、行高、缩进属于 HTML 样式能力;导出 Markdown 时可能丢失,导出 HTML / JSON 可保留。
 
 ## 架构
 

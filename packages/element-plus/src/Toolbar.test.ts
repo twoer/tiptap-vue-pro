@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { nextTick, ref } from 'vue'
+import { h, nextTick, ref } from 'vue'
 import Toolbar from './Toolbar.vue'
 import type { ProEditorContext } from 'tiptap-vue-pro-core'
 
@@ -35,6 +35,12 @@ function createCtx(editor?: ReturnType<typeof createEditor>) {
       subscript: vi.fn(),
       codeBlock: vi.fn(),
       insertTable: vi.fn(),
+      setFontFamily: vi.fn(),
+      setFontSize: vi.fn(),
+      setLineHeight: vi.fn(),
+      clearTypography: vi.fn(),
+      increaseIndent: vi.fn(),
+      decreaseIndent: vi.fn(),
     },
     getHTML: vi.fn(() => '<p>hello</p>'),
     getMarkdown: vi.fn(() => '# hello'),
@@ -153,6 +159,110 @@ describe('Element Plus Toolbar', () => {
     expect(ctx.commands.code).toHaveBeenCalledTimes(1)
     expect(ctx.commands.superscript).toHaveBeenCalledTimes(1)
     expect(ctx.commands.subscript).toHaveBeenCalledTimes(1)
+  })
+
+  it('仅渲染配置的内置工具栏项', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        toolbar: [['bold', 'italic'], ['link']],
+      },
+    })
+
+    expect(wrapper.find('button[aria-label="加粗"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="斜体"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="链接"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="网络图片"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="标题"]').exists()).toBe(false)
+  })
+
+  it('toolbar=false 时隐藏所有内置工具栏按钮', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, toolbar: false },
+    })
+
+    expect(wrapper.find('.tvp-toolbar').exists()).toBe(true)
+    expect(wrapper.findAll('.tvp-toolbar > button')).toHaveLength(0)
+    expect(wrapper.find('button[aria-label]').exists()).toBe(false)
+  })
+
+  it('在配置分组前后渲染 before / after 插槽', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        isFullscreen: true,
+        isPreview: true,
+        toolbar: [['bold']],
+      },
+      slots: {
+        before: (slotProps) =>
+          h(
+            'button',
+            {
+              'data-testid': 'before',
+              'data-fullscreen': String(slotProps.isFullscreen),
+              onClick: slotProps.toggleFullscreen,
+            },
+            'Before',
+          ),
+        after: (slotProps) =>
+          h(
+            'button',
+            {
+              'data-testid': 'after',
+              'data-preview': String(slotProps.isPreview),
+              onClick: slotProps.togglePreview,
+            },
+            'After',
+          ),
+      },
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].attributes('data-testid')).toBe('before')
+    expect(buttons[buttons.length - 1].attributes('data-testid')).toBe('after')
+    expect(wrapper.find('[data-testid="before"]').attributes('data-fullscreen')).toBe('true')
+    expect(wrapper.find('[data-testid="after"]').attributes('data-preview')).toBe('true')
+  })
+
+  it('字体、字号、行高下拉会分别调用对应命令', async () => {
+    const ctx = createCtx(createEditor())
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="字体"]').trigger('click')
+    await clickBodyText('Arial')
+    expect(ctx.commands.setFontFamily).toHaveBeenCalledWith('Arial')
+
+    await wrapper.find('button[aria-label="字号"]').trigger('click')
+    await clickBodyText('96px')
+    expect(ctx.commands.setFontSize).toHaveBeenCalledWith('96px')
+
+    await wrapper.find('button[aria-label="行高"]').trigger('click')
+    await clickBodyText('1.6')
+    expect(ctx.commands.setLineHeight).toHaveBeenCalledWith('1.6')
+  })
+
+  it('缩进按钮会调用 increaseIndent / decreaseIndent', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="减少缩进"]').trigger('click')
+    await wrapper.find('button[aria-label="增加缩进"]').trigger('click')
+
+    expect(ctx.commands.decreaseIndent).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.increaseIndent).toHaveBeenCalledTimes(1)
   })
 
   it('代码块语言菜单会用所选语言创建代码块', async () => {

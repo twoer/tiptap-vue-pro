@@ -35,9 +35,21 @@ describe('createDefaultExtensions', () => {
     expect(names).toContain('textStyle')
   })
 
+  it('包含字体、字号与行高扩展(FontFamily / FontSize / LineHeight)', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).toContain('fontFamily')
+    expect(names).toContain('fontSize')
+    expect(names).toContain('lineHeight')
+  })
+
   it('包含文本对齐(textAlign)', () => {
     const names = createDefaultExtensions().map((e: any) => e.name)
     expect(names).toContain('textAlign')
+  })
+
+  it('包含块级缩进扩展(blockIndent)', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).toContain('blockIndent')
   })
 
   it('包含上标与下标(superscript / subscript)', () => {

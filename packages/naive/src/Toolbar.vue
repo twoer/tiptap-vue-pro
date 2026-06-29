@@ -30,6 +30,7 @@ import {
   Superscript, Subscript,
   Type, Highlighter,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  IndentDecrease, IndentIncrease,
   List, ListOrdered, ListChecks,
   Quote, Code, Minus,
   Link, ImagePlus, Link2, Table,
@@ -37,8 +38,8 @@ import {
   Eraser, Printer,
   Maximize2, Minimize2, Eye, Pencil,
 } from 'lucide-vue-next'
-import { CODE_BLOCK_LANGUAGES, codeBlockLanguageLabel } from 'tiptap-vue-pro-core'
-import type { CodeBlockLanguage, ProEditorContext, UploadImage } from 'tiptap-vue-pro-core'
+import { CODE_BLOCK_LANGUAGES, DEFAULT_TOOLBAR, codeBlockLanguageLabel, normalizeToolbarConfig } from 'tiptap-vue-pro-core'
+import type { CodeBlockLanguage, ProEditorContext, ToolbarConfig, ToolbarProp, UploadImage } from 'tiptap-vue-pro-core'
 
 /**
  * Markdown 官方 logo。与 EP 版一致,内联 SVG,暴露 size 属性。
@@ -73,22 +74,56 @@ const MarkdownIcon = markRaw(
   }),
 )
 
-const props = defineProps<{
-  ctx: ProEditorContext & { prepareInsert?: () => void }
-  /** 图片上传函数。传入则显示「上传图片」按钮 */
-  uploadImage?: UploadImage
-  /** 是否全屏 */
-  isFullscreen?: boolean
-  /** 是否预览态 */
-  isPreview?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    ctx: ProEditorContext & { prepareInsert?: () => void }
+    /** 图片上传函数。传入则显示「上传图片」按钮 */
+    uploadImage?: UploadImage
+    /** 是否全屏 */
+    isFullscreen?: boolean
+    /** 是否预览态 */
+    isPreview?: boolean
+    /** 工具栏配置。false 表示不渲染内置按钮 */
+    toolbar?: ToolbarProp
+  }>(),
+  {
+    toolbar: undefined,
+  },
+)
 
 const emit = defineEmits<{
   'toggle-fullscreen': []
   'toggle-preview': []
 }>()
 
+function toggleFullscreen() {
+  emit('toggle-fullscreen')
+}
+
+function togglePreview() {
+  emit('toggle-preview')
+}
+
 const ctx = computed(() => props.ctx)
+const FALLBACK_TOOLBAR: ToolbarConfig = [
+  ['undo', 'redo'],
+  ['heading', 'fontFamily', 'fontSize', 'lineHeight'],
+  ['bold', 'italic', 'strike', 'underline', 'code', 'superscript', 'subscript'],
+  ['color', 'highlight'],
+  ['align', 'decreaseIndent', 'increaseIndent'],
+  ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock', 'hr'],
+  ['link', 'image', 'table'],
+  ['clearFormat'],
+  ['markdown', 'print', 'fullscreen', 'preview'],
+]
+const toolbarGroups = computed(() => {
+  if (props.toolbar === false) return []
+  const source = props.toolbar ?? (DEFAULT_TOOLBAR.length > 0 ? DEFAULT_TOOLBAR : FALLBACK_TOOLBAR)
+  const normalized = normalizeToolbarConfig(source)
+  return normalized.length > 0 || source.length === 0
+    ? normalized
+    : source.map((group) => [...group])
+})
 
 /**
  * 插入类操作前的预处理:若编辑器从未获得焦点,先把光标定位到文档末尾。
@@ -244,16 +279,26 @@ const headingOptions: DropdownOption[] = [
   { label: '标题 5', key: 5 },
   { label: '标题 6', key: 6 },
 ]
+const HEADING_PREVIEW_STYLES: Record<number, { fontSize: string; fontWeight: number }> = {
+  0: { fontSize: '13px', fontWeight: 400 },
+  1: { fontSize: '15px', fontWeight: 700 },
+  2: { fontSize: '14px', fontWeight: 700 },
+  3: { fontSize: '13px', fontWeight: 600 },
+  4: { fontSize: '13px', fontWeight: 600 },
+  5: { fontSize: '12px', fontWeight: 600 },
+  6: { fontSize: '12px', fontWeight: 500 },
+}
+function headingPreviewStyle(level: number | string) {
+  return HEADING_PREVIEW_STYLES[Number(level)] ?? HEADING_PREVIEW_STYLES[0]
+}
 function renderHeadingLabel(opt: DropdownOption) {
   const level = opt.key as number
-  if (level === 0) return h('span', { class: 'tvp-heading-preview' }, '正文')
-  const cls = `tvp-heading-preview tvp-h${level}`
-  return h('span', { class: cls }, `标题 ${level}`)
+  const style = headingPreviewStyle(level)
+  return h('span', { class: `tvp-heading-preview tvp-h${level}`, style }, opt.label as string)
 }
 function onHeadingSelect(key: string | number) {
-  ctx.value.commands.toggleHeading(key as 0 | 1 | 2 | 3 | 4 | 5 | 6)
+  ctx.value.commands.toggleHeading(Number(key) as 0 | 1 | 2 | 3 | 4 | 5 | 6)
 }
-
 // ---- 颜色选择器(复刻 EP 预设色板)----
 const PRESET_COLORS = [
   '#000000', '#434343', '#666666', '#999999', '#b7b7b7', '#cccccc', '#d9d9d9', '#efefef',
@@ -276,9 +321,28 @@ const PRESET_HIGHLIGHTS = [
   '#fcc2d7', '#faa2c1', '#f783ac', '#d6336c',
   '#fff0f6', '#ffdeeb', '#fcc2d7', '#e64980',
 ]
+const FONT_FAMILIES = [
+  { label: '默认字体', value: '' },
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Inter', value: 'Inter' },
+  { label: 'Helvetica', value: 'Helvetica' },
+  { label: 'Times New Roman', value: '"Times New Roman"' },
+  { label: 'Georgia', value: 'Georgia' },
+  { label: 'Monospace', value: 'monospace' },
+]
+const FONT_SIZES = ['', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '40px', '48px', '64px', '72px', '96px']
+const LINE_HEIGHTS = ['', '1', '1.2', '1.4', '1.6', '1.8', '2']
 
 const currentColor = computed(
   () => (ctx.value.editor.value?.getAttributes('textStyle') as { color?: string })?.color ?? '',
+)
+const currentTextStyle = computed(
+  () =>
+    (ctx.value.editor.value?.getAttributes('textStyle') as {
+      fontFamily?: string
+      fontSize?: string
+      lineHeight?: string
+    }) ?? {},
 )
 const currentHighlight = computed(
   () => (ctx.value.editor.value?.getAttributes('highlight') as { color?: string })?.color ?? '',
@@ -334,6 +398,38 @@ function renderAlignLabel(opt: DropdownOption) {
 }
 function onAlignSelect(key: string | number) {
   ctx.value.commands.align(key as 'left' | 'center' | 'right' | 'justify')
+}
+
+const currentFontLabel = computed(
+  () => FONT_FAMILIES.find((font) => font.value === currentTextStyle.value.fontFamily)?.label ?? '字体',
+)
+const currentFontSizeLabel = computed(() => currentTextStyle.value.fontSize || '字号')
+const currentLineHeightLabel = computed(() => currentTextStyle.value.lineHeight || '行高')
+
+const fontFamilyOptions: DropdownOption[] = FONT_FAMILIES.map((font) => ({
+  label: font.label,
+  key: font.value,
+  fontFamily: font.value,
+}))
+const fontSizeOptions: DropdownOption[] = FONT_SIZES.map((size) => ({
+  label: size || '默认字号',
+  key: size,
+}))
+const lineHeightOptions: DropdownOption[] = LINE_HEIGHTS.map((lineHeight) => ({
+  label: lineHeight || '默认行高',
+  key: lineHeight,
+}))
+function renderFontFamilyLabel(opt: DropdownOption) {
+  return h('span', { style: { fontFamily: (opt.fontFamily as string) || undefined } }, opt.label as string)
+}
+function onFontFamilySelect(key: string | number) {
+  ctx.value.commands.setFontFamily(String(key))
+}
+function onFontSizeSelect(key: string | number) {
+  ctx.value.commands.setFontSize(String(key))
+}
+function onLineHeightSelect(key: string | number) {
+  ctx.value.commands.setLineHeight(String(key))
 }
 
 // ---- Markdown dropdown ----
@@ -418,330 +514,525 @@ function confirmLink() {
 
 <template>
   <div class="tvp-toolbar">
-    <!-- 撤销/重做 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" @click="ctx.commands.undo()"><Undo2 :size="18" /></NButton>
-      </template>
-      撤销
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" @click="ctx.commands.redo()"><Redo2 :size="18" /></NButton>
-      </template>
-      重做
-    </NTooltip>
+    <slot
+      name="before"
+      :ctx="ctx"
+      :is-fullscreen="isFullscreen"
+      :is-preview="isPreview"
+      :toggle-fullscreen="toggleFullscreen"
+      :toggle-preview="togglePreview"
+    />
 
-    <span class="tvp-divider" />
+    <template v-for="(group, groupIndex) in toolbarGroups" :key="groupIndex">
+      <span v-if="groupIndex > 0" class="tvp-divider" />
 
-    <!-- 标题级别 dropdown -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <span class="tvp-tooltip-trigger">
-          <NDropdown
-            trigger="click"
-            :options="headingOptions"
-            :render-label="renderHeadingLabel"
-            @select="onHeadingSelect"
-          >
-            <NButton text aria-label="标题">
-              {{ headingLabel }}
-              <ChevronDown :size="14" class="tvp-caret" />
-            </NButton>
-          </NDropdown>
-        </span>
-      </template>
-      标题
-    </NTooltip>
+      <template v-for="item in group" :key="item">
+        <NTooltip v-if="item === 'undo'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" aria-label="撤销" @click="ctx.commands.undo()"><Undo2 :size="18" /></NButton>
+          </template>
+          撤销
+        </NTooltip>
 
-    <span class="tvp-divider" />
+        <NTooltip v-else-if="item === 'redo'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" aria-label="重做" @click="ctx.commands.redo()"><Redo2 :size="18" /></NButton>
+          </template>
+          重做
+        </NTooltip>
 
-    <!-- 格式化 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('bold') ? 'primary' : 'default'"
-          @click="ctx.commands.bold()"
-        ><Bold :size="18" /></NButton>
-      </template>
-      加粗
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('italic') ? 'primary' : 'default'"
-          @click="ctx.commands.italic()"
-        ><Italic :size="18" /></NButton>
-      </template>
-      斜体
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('strike') ? 'primary' : 'default'"
-          @click="ctx.commands.strike()"
-        ><Strikethrough :size="18" /></NButton>
-      </template>
-      删除线
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('underline') ? 'primary' : 'default'"
-          @click="ctx.commands.underline()"
-        ><Underline :size="18" /></NButton>
-      </template>
-      下划线
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          aria-label="行内代码"
-          :type="ctx.isActive('code') ? 'primary' : 'default'"
-          @click="ctx.commands.code()"
-        ><Code :size="18" /></NButton>
-      </template>
-      行内代码
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          aria-label="上标"
-          :type="ctx.isActive('superscript') ? 'primary' : 'default'"
-          @click="ctx.commands.superscript()"
-        ><Superscript :size="18" /></NButton>
-      </template>
-      上标
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          aria-label="下标"
-          :type="ctx.isActive('subscript') ? 'primary' : 'default'"
-          @click="ctx.commands.subscript()"
-        ><Subscript :size="18" /></NButton>
-      </template>
-      下标
-    </NTooltip>
-
-    <!-- 文字颜色:NPopover + 自绘色板 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <span class="tvp-tooltip-trigger">
-          <NPopover trigger="click" placement="bottom" :width="260">
-            <template #trigger>
-              <NButton text class="tvp-icon-btn" aria-label="文字颜色">
-                <Type :size="18" :style="{ color: currentColor || 'inherit' }" />
-              </NButton>
-            </template>
-            <div class="tvp-color-panel">
-              <div
-                class="tvp-color-clear"
-                :class="{ 'is-active': currentColor === '' }"
-                @click="selectColor('')"
-              >默认</div>
-              <div
-                v-for="c in PRESET_COLORS"
-                :key="c"
-                class="tvp-color-swatch"
-                :class="{ 'is-active': currentColor === c }"
-                :style="{ background: c }"
-                @click="selectColor(c)"
-              />
-              <div class="tvp-color-custom">
-                <input
-                  v-model="customColor"
-                  class="tvp-hex-input"
-                  placeholder="#000000"
-                  @keyup.enter="applyCustomColor"
-                />
-              </div>
-            </div>
-          </NPopover>
-        </span>
-      </template>
-      文字颜色
-    </NTooltip>
-
-    <!-- 背景高亮:NPopover + 自绘色板 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <span class="tvp-tooltip-trigger">
-          <NPopover trigger="click" placement="bottom" :width="260">
-            <template #trigger>
-              <NButton text class="tvp-icon-btn" aria-label="背景高亮">
-                <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
-              </NButton>
-            </template>
-            <div class="tvp-color-panel">
-              <div
-                class="tvp-color-clear"
-                :class="{ 'is-active': currentHighlight === '' }"
-                @click="selectHighlight('')"
-              >无</div>
-              <div
-                v-for="c in PRESET_HIGHLIGHTS"
-                :key="c"
-                class="tvp-color-swatch"
-                :class="{ 'is-active': currentHighlight === c }"
-                :style="{ background: c }"
-                @click="selectHighlight(c)"
-              />
-              <div class="tvp-color-custom">
-                <input
-                  v-model="customHighlight"
-                  class="tvp-hex-input"
-                  placeholder="#ffff00"
-                  @keyup.enter="applyCustomHighlight"
-                />
-              </div>
-            </div>
-          </NPopover>
-        </span>
-      </template>
-      背景高亮
-    </NTooltip>
-
-    <!-- 文本对齐 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <span class="tvp-tooltip-trigger">
-          <NDropdown
-            trigger="click"
-            :options="alignOptions"
-            :render-label="renderAlignLabel"
-            @select="onAlignSelect"
-          >
-            <NButton text class="tvp-icon-btn" aria-label="文本对齐">
-              <component :is="alignIcon" :size="16" />
-            </NButton>
-          </NDropdown>
-        </span>
-      </template>
-      文本对齐
-    </NTooltip>
-
-    <span class="tvp-divider" />
-
-    <!-- 列表 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('bulletList') ? 'primary' : 'default'"
-          @click="ctx.commands.bulletList()"
-        ><List :size="18" /></NButton>
-      </template>
-      无序列表
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('orderedList') ? 'primary' : 'default'"
-          @click="ctx.commands.orderedList()"
-        ><ListOrdered :size="18" /></NButton>
-      </template>
-      有序列表
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('taskList') ? 'primary' : 'default'"
-          @click="ctx.commands.taskList()"
-        ><ListChecks :size="18" /></NButton>
-      </template>
-      任务列表
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          :type="ctx.isActive('blockquote') ? 'primary' : 'default'"
-          @click="ctx.commands.blockquote()"
-        ><Quote :size="18" /></NButton>
-      </template>
-      引用
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <span class="tvp-tooltip-trigger">
-          <NPopover v-model:show="codeBlockPopover" trigger="click" placement="bottom" :show-arrow="false">
-            <template #trigger>
-              <NButton
-                text
-                class="tvp-icon-btn"
-                aria-label="代码块"
-                :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
-              ><Code :size="18" /></NButton>
-            </template>
-            <div class="tvp-code-language-menu">
-              <button
-                v-for="language in CODE_BLOCK_LANGUAGES"
-                :key="language.value"
-                type="button"
-                class="tvp-code-language-menu__item"
-                :class="{ 'is-active': currentCodeBlockLanguage === language.value }"
-                @click="onCodeBlockSelect(language.value)"
+        <NTooltip v-else-if="item === 'heading'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NDropdown
+                trigger="click"
+                :options="headingOptions"
+                :render-label="renderHeadingLabel"
+                @select="onHeadingSelect"
               >
-                <Code :size="15" />
-                <span>{{ language.label }}</span>
-              </button>
-            </div>
-          </NPopover>
-        </span>
-      </template>
-      代码块: {{ currentCodeBlockLabel }}
-    </NTooltip>
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" @click="ctx.commands.hr()"><Minus :size="18" /></NButton>
-      </template>
-      分割线
-    </NTooltip>
+                <NButton text class="tvp-select-btn tvp-select-btn--heading" aria-label="标题">
+                  {{ headingLabel }}
+                  <ChevronDown :size="14" class="tvp-caret" />
+                </NButton>
+              </NDropdown>
+            </span>
+          </template>
+          标题
+        </NTooltip>
 
-    <span class="tvp-divider" />
+        <NTooltip v-else-if="item === 'fontFamily'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NDropdown
+                trigger="click"
+                :options="fontFamilyOptions"
+                :render-label="renderFontFamilyLabel"
+                @select="onFontFamilySelect"
+              >
+                <NButton text class="tvp-select-btn tvp-select-btn--font" aria-label="字体">
+                  {{ currentFontLabel }}
+                  <ChevronDown :size="14" class="tvp-caret" />
+                </NButton>
+              </NDropdown>
+            </span>
+          </template>
+          字体
+        </NTooltip>
 
-    <!-- 链接 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton
-          text
-          class="tvp-icon-btn"
-          aria-label="链接"
-          :type="ctx.isActive('link') ? 'primary' : 'default'"
-          @click="openLinkDialog"
-        ><Link :size="18" /></NButton>
-      </template>
-      链接
-    </NTooltip>
+        <NTooltip v-else-if="item === 'fontSize'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NDropdown
+                trigger="click"
+                :options="fontSizeOptions"
+                @select="onFontSizeSelect"
+              >
+                <NButton text class="tvp-select-btn tvp-select-btn--size" aria-label="字号">
+                  {{ currentFontSizeLabel }}
+                  <ChevronDown :size="14" class="tvp-caret" />
+                </NButton>
+              </NDropdown>
+            </span>
+          </template>
+          字号
+        </NTooltip>
 
-    <!-- 图片上传 -->
-    <NTooltip v-if="uploadImage" placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" aria-label="上传图片" @click="triggerImageUpload"><ImagePlus :size="18" /></NButton>
+        <NTooltip v-else-if="item === 'lineHeight'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NDropdown
+                trigger="click"
+                :options="lineHeightOptions"
+                @select="onLineHeightSelect"
+              >
+                <NButton text class="tvp-select-btn tvp-select-btn--line-height" aria-label="行高">
+                  {{ currentLineHeightLabel }}
+                  <ChevronDown :size="14" class="tvp-caret" />
+                </NButton>
+              </NDropdown>
+            </span>
+          </template>
+          行高
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'bold'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="加粗"
+              :type="ctx.isActive('bold') ? 'primary' : 'default'"
+              @click="ctx.commands.bold()"
+            ><Bold :size="18" /></NButton>
+          </template>
+          加粗
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'italic'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="斜体"
+              :type="ctx.isActive('italic') ? 'primary' : 'default'"
+              @click="ctx.commands.italic()"
+            ><Italic :size="18" /></NButton>
+          </template>
+          斜体
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'strike'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="删除线"
+              :type="ctx.isActive('strike') ? 'primary' : 'default'"
+              @click="ctx.commands.strike()"
+            ><Strikethrough :size="18" /></NButton>
+          </template>
+          删除线
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'underline'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="下划线"
+              :type="ctx.isActive('underline') ? 'primary' : 'default'"
+              @click="ctx.commands.underline()"
+            ><Underline :size="18" /></NButton>
+          </template>
+          下划线
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'code'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="行内代码"
+              :type="ctx.isActive('code') ? 'primary' : 'default'"
+              @click="ctx.commands.code()"
+            ><Code :size="18" /></NButton>
+          </template>
+          行内代码
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'superscript'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="上标"
+              :type="ctx.isActive('superscript') ? 'primary' : 'default'"
+              @click="ctx.commands.superscript()"
+            ><Superscript :size="18" /></NButton>
+          </template>
+          上标
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'subscript'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="下标"
+              :type="ctx.isActive('subscript') ? 'primary' : 'default'"
+              @click="ctx.commands.subscript()"
+            ><Subscript :size="18" /></NButton>
+          </template>
+          下标
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'color'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NPopover trigger="click" placement="bottom" :width="260">
+                <template #trigger>
+                  <NButton text class="tvp-icon-btn" aria-label="文字颜色">
+                    <Type :size="18" :style="{ color: currentColor || 'inherit' }" />
+                  </NButton>
+                </template>
+                <div class="tvp-color-panel">
+                  <div
+                    class="tvp-color-clear"
+                    :class="{ 'is-active': currentColor === '' }"
+                    @click="selectColor('')"
+                  >默认</div>
+                  <div
+                    v-for="c in PRESET_COLORS"
+                    :key="c"
+                    class="tvp-color-swatch"
+                    :class="{ 'is-active': currentColor === c }"
+                    :style="{ background: c }"
+                    @click="selectColor(c)"
+                  />
+                  <div class="tvp-color-custom">
+                    <input
+                      v-model="customColor"
+                      class="tvp-hex-input"
+                      placeholder="#000000"
+                      @keyup.enter="applyCustomColor"
+                    />
+                  </div>
+                </div>
+              </NPopover>
+            </span>
+          </template>
+          文字颜色
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'highlight'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NPopover trigger="click" placement="bottom" :width="260">
+                <template #trigger>
+                  <NButton text class="tvp-icon-btn" aria-label="背景高亮">
+                    <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
+                  </NButton>
+                </template>
+                <div class="tvp-color-panel">
+                  <div
+                    class="tvp-color-clear"
+                    :class="{ 'is-active': currentHighlight === '' }"
+                    @click="selectHighlight('')"
+                  >无</div>
+                  <div
+                    v-for="c in PRESET_HIGHLIGHTS"
+                    :key="c"
+                    class="tvp-color-swatch"
+                    :class="{ 'is-active': currentHighlight === c }"
+                    :style="{ background: c }"
+                    @click="selectHighlight(c)"
+                  />
+                  <div class="tvp-color-custom">
+                    <input
+                      v-model="customHighlight"
+                      class="tvp-hex-input"
+                      placeholder="#ffff00"
+                      @keyup.enter="applyCustomHighlight"
+                    />
+                  </div>
+                </div>
+              </NPopover>
+            </span>
+          </template>
+          背景高亮
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'align'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NDropdown
+                trigger="click"
+                :options="alignOptions"
+                :render-label="renderAlignLabel"
+                @select="onAlignSelect"
+              >
+                <NButton text class="tvp-icon-btn" aria-label="文本对齐">
+                  <component :is="alignIcon" :size="16" />
+                </NButton>
+              </NDropdown>
+            </span>
+          </template>
+          文本对齐
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'decreaseIndent'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="减少缩进"
+              @click="ctx.commands.decreaseIndent()"
+            ><IndentDecrease :size="18" /></NButton>
+          </template>
+          减少缩进
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'increaseIndent'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="增加缩进"
+              @click="ctx.commands.increaseIndent()"
+            ><IndentIncrease :size="18" /></NButton>
+          </template>
+          增加缩进
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'bulletList'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="无序列表"
+              :type="ctx.isActive('bulletList') ? 'primary' : 'default'"
+              @click="ctx.commands.bulletList()"
+            ><List :size="18" /></NButton>
+          </template>
+          无序列表
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'orderedList'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="有序列表"
+              :type="ctx.isActive('orderedList') ? 'primary' : 'default'"
+              @click="ctx.commands.orderedList()"
+            ><ListOrdered :size="18" /></NButton>
+          </template>
+          有序列表
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'taskList'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="任务列表"
+              :type="ctx.isActive('taskList') ? 'primary' : 'default'"
+              @click="ctx.commands.taskList()"
+            ><ListChecks :size="18" /></NButton>
+          </template>
+          任务列表
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'blockquote'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="引用"
+              :type="ctx.isActive('blockquote') ? 'primary' : 'default'"
+              @click="ctx.commands.blockquote()"
+            ><Quote :size="18" /></NButton>
+          </template>
+          引用
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'codeBlock'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NPopover v-model:show="codeBlockPopover" trigger="click" placement="bottom" :show-arrow="false">
+                <template #trigger>
+                  <NButton
+                    text
+                    class="tvp-icon-btn"
+                    aria-label="代码块"
+                    :type="ctx.isActive('codeBlock') ? 'primary' : 'default'"
+                  ><Code :size="18" /></NButton>
+                </template>
+                <div class="tvp-code-language-menu">
+                  <button
+                    v-for="language in CODE_BLOCK_LANGUAGES"
+                    :key="language.value"
+                    type="button"
+                    class="tvp-code-language-menu__item"
+                    :class="{ 'is-active': currentCodeBlockLanguage === language.value }"
+                    @click="onCodeBlockSelect(language.value)"
+                  >
+                    <Code :size="15" />
+                    <span>{{ language.label }}</span>
+                  </button>
+                </div>
+              </NPopover>
+            </span>
+          </template>
+          代码块: {{ currentCodeBlockLabel }}
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'hr'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" aria-label="分割线" @click="ctx.commands.hr()"><Minus :size="18" /></NButton>
+          </template>
+          分割线
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'link'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              aria-label="链接"
+              :type="ctx.isActive('link') ? 'primary' : 'default'"
+              @click="openLinkDialog"
+            ><Link :size="18" /></NButton>
+          </template>
+          链接
+        </NTooltip>
+
+        <template v-else-if="item === 'image'">
+          <NTooltip v-if="uploadImage" placement="top" :show-arrow="false">
+            <template #trigger>
+              <NButton text class="tvp-icon-btn" aria-label="上传图片" @click="triggerImageUpload"><ImagePlus :size="18" /></NButton>
+            </template>
+            上传图片
+          </NTooltip>
+          <NTooltip placement="top" :show-arrow="false">
+            <template #trigger>
+              <NButton text class="tvp-icon-btn" aria-label="网络图片" @click="openUrlDialog"><Link2 :size="18" /></NButton>
+            </template>
+            网络图片
+          </NTooltip>
+        </template>
+
+        <NTooltip v-else-if="item === 'table'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NPopover v-model:show="tablePopover" trigger="click" placement="bottom">
+                <template #trigger>
+                  <NButton text class="tvp-icon-btn" aria-label="插入表格"><Table :size="18" /></NButton>
+                </template>
+                <div class="tvp-table-grid" @mouseleave="resetTableHover">
+                  <div
+                    v-for="r in TABLE_MAX_ROWS"
+                    :key="r"
+                    class="tvp-table-grid__row"
+                  >
+                    <div
+                      v-for="c in TABLE_MAX_COLS"
+                      :key="c"
+                      class="tvp-table-grid__cell"
+                      :class="{ 'is-active': r <= tableHover.rows && c <= tableHover.cols }"
+                      @mouseenter="tableHover.rows = r; tableHover.cols = c"
+                      @click="onTableInsert()"
+                    />
+                  </div>
+                  <div class="tvp-table-grid__label">
+                    {{ tableHover.rows }} × {{ tableHover.cols }}
+                  </div>
+                </div>
+              </NPopover>
+            </span>
+          </template>
+          插入表格
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'clearFormat'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" aria-label="清除格式" @click="ctx.commands.clearFormat()"><Eraser :size="18" /></NButton>
+          </template>
+          清除格式
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'markdown'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <span class="tvp-tooltip-trigger">
+              <NDropdown
+                trigger="click"
+                :options="mdOptions"
+                :render-label="renderMdLabel"
+                @select="onMdSelect"
+              >
+                <NButton text class="tvp-icon-btn" aria-label="导入 / 导出 Markdown"><MarkdownIcon :size="18" /></NButton>
+              </NDropdown>
+            </span>
+          </template>
+          导入 / 导出 Markdown
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'print'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" aria-label="打印" @click="printContent"><Printer :size="18" /></NButton>
+          </template>
+          打印
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'fullscreen'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" :aria-label="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">
+              <component :is="isFullscreen ? Minimize2 : Maximize2" :size="18" />
+            </NButton>
+          </template>
+          {{ isFullscreen ? '退出全屏' : '全屏' }}
+        </NTooltip>
+
+        <NTooltip v-else-if="item === 'preview'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" :aria-label="isPreview ? '编辑' : '预览'" @click="togglePreview">
+              <component :is="isPreview ? Pencil : Eye" :size="18" />
+            </NButton>
+          </template>
+          {{ isPreview ? '编辑' : '预览' }}
+        </NTooltip>
       </template>
-      上传图片
-    </NTooltip>
+    </template>
+
+    <slot
+      name="after"
+      :ctx="ctx"
+      :is-fullscreen="isFullscreen"
+      :is-preview="isPreview"
+      :toggle-fullscreen="toggleFullscreen"
+      :toggle-preview="togglePreview"
+    />
+
     <input
       ref="imageInput"
       type="file"
@@ -750,13 +1041,6 @@ function confirmLink() {
       @change="onImageSelected"
     />
 
-    <!-- 网络图片:输入 URL 插入 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" aria-label="网络图片" @click="openUrlDialog"><Link2 :size="18" /></NButton>
-      </template>
-      网络图片
-    </NTooltip>
     <NModal
       v-model:show="urlModalVisible"
       preset="dialog"
@@ -773,73 +1057,6 @@ function confirmLink() {
       />
     </NModal>
 
-    <!-- 表格(网格选择器)-->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <span class="tvp-tooltip-trigger">
-          <NPopover v-model:show="tablePopover" trigger="click" placement="bottom">
-            <template #trigger>
-              <NButton text class="tvp-icon-btn" aria-label="插入表格"><Table :size="18" /></NButton>
-            </template>
-            <div class="tvp-table-grid" @mouseleave="resetTableHover">
-              <div
-                v-for="r in TABLE_MAX_ROWS"
-                :key="r"
-                class="tvp-table-grid__row"
-              >
-                <div
-                  v-for="c in TABLE_MAX_COLS"
-                  :key="c"
-                  class="tvp-table-grid__cell"
-                  :class="{ 'is-active': r <= tableHover.rows && c <= tableHover.cols }"
-                  @mouseenter="tableHover.rows = r; tableHover.cols = c"
-                  @click="onTableInsert()"
-                />
-              </div>
-              <div class="tvp-table-grid__label">
-                {{ tableHover.rows }} × {{ tableHover.cols }}
-              </div>
-            </div>
-          </NPopover>
-        </span>
-      </template>
-      插入表格
-    </NTooltip>
-
-    <!-- 清除格式 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" @click="ctx.commands.clearFormat()"><Eraser :size="18" /></NButton>
-      </template>
-      清除格式
-    </NTooltip>
-
-    <span class="tvp-divider" />
-
-    <!-- 打印 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" @click="printContent"><Printer :size="18" /></NButton>
-      </template>
-      打印
-    </NTooltip>
-
-    <!-- Markdown:导入 / 导出 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <span class="tvp-tooltip-trigger">
-          <NDropdown
-            trigger="click"
-            :options="mdOptions"
-            :render-label="renderMdLabel"
-            @select="onMdSelect"
-          >
-            <NButton text class="tvp-icon-btn" aria-label="导入 / 导出 Markdown"><MarkdownIcon :size="18" /></NButton>
-          </NDropdown>
-        </span>
-      </template>
-      导入 / 导出 Markdown
-    </NTooltip>
     <input
       ref="mdInput"
       type="file"
@@ -847,28 +1064,6 @@ function confirmLink() {
       class="tvp-image-input"
       @change="onMdSelected"
     />
-
-    <span class="tvp-divider" />
-
-    <!-- 预览(只读切换)-->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" :aria-label="isPreview ? '编辑' : '预览'" @click="emit('toggle-preview')">
-          <component :is="isPreview ? Pencil : Eye" :size="18" />
-        </NButton>
-      </template>
-      {{ isPreview ? '编辑' : '预览' }}
-    </NTooltip>
-
-    <!-- 全屏 -->
-    <NTooltip placement="top" :show-arrow="false">
-      <template #trigger>
-        <NButton text class="tvp-icon-btn" :aria-label="isFullscreen ? '退出全屏' : '全屏'" @click="emit('toggle-fullscreen')">
-          <component :is="isFullscreen ? Minimize2 : Maximize2" :size="18" />
-        </NButton>
-      </template>
-      {{ isFullscreen ? '退出全屏' : '全屏' }}
-    </NTooltip>
 
     <!-- 链接弹窗(NModal)-->
     <NModal
@@ -926,8 +1121,35 @@ function confirmLink() {
   align-items: center;
 }
 
+.tvp-toolbar .tvp-select-btn {
+  height: 32px;
+  min-width: 0;
+  padding: 0 4px;
+  font-size: 14px;
+}
+
+.tvp-toolbar .tvp-select-btn--heading {
+  width: 50px;
+}
+
+.tvp-toolbar .tvp-select-btn--font,
+.tvp-toolbar .tvp-select-btn--size,
+.tvp-toolbar .tvp-select-btn--line-height {
+  width: 58px;
+}
+
+.tvp-select-btn :deep(.n-button__content) {
+  min-width: 0;
+  gap: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .tvp-toolbar {
   display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   flex-wrap: nowrap;
   overflow-x: auto;
   align-items: center;

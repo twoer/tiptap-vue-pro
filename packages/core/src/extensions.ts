@@ -4,7 +4,12 @@ import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import { ImageExtended as Image } from './extensions/image'
-import { TextStyle } from '@tiptap/extension-text-style'
+import {
+  TextStyle,
+  FontFamily,
+  FontSize,
+  LineHeight,
+} from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
 import { TextAlign } from '@tiptap/extension-text-align'
@@ -14,6 +19,7 @@ import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Markdown as MarkdownExtension } from '@tiptap/markdown'
 import type { Extensions } from '@tiptap/core'
 import { codeBlockLowlight } from './codeBlock'
+import { BlockIndent } from './extensions/blockIndent'
 
 export type { Extensions } from '@tiptap/core'
 
@@ -32,13 +38,14 @@ export type { Extensions } from '@tiptap/core'
  *   2. CharacterCount —— 字数统计
  *   3. Image —— 图片插入(配合上传)
  *   4. TableKit —— 表格(Table/Row/Cell/Header 一站式,v3 合并包)
- *   5. TextStyle + Color —— 文字颜色(Color 依赖 TextStyle 提供的 mark)
+ *   5. TextStyle + FontFamily + FontSize + LineHeight + Color —— 行内文字样式
  *   6. Highlight —— 文字背景高亮(multicolor 支持多色)
  *   7. TaskList + TaskItem —— 任务列表(checkbox),来自 @tiptap/extension-list
  *      (v3 中 TaskList/TaskItem 都在 extension-list,不是独立的 task-list 包)
  *   8. CodeBlockLowlight —— 带语言 class 与语法高亮的代码块。
  *   9. Superscript + Subscript —— 上标 / 下标,用于公式、脚注、化学式等。
- *   10. Markdown —— 官方 @tiptap/markdown,提供导入/导出 MD 能力。
+ *   10. BlockIndent —— 段落/标题块级缩进,列表缩进走原生 list item 命令。
+ *   11. Markdown —— 官方 @tiptap/markdown,提供导入/导出 MD 能力。
  *      无对应 MD 语法的样式(颜色/高亮/对齐)在导出时会被丢弃——这是
  *      Markdown 格式本身的局限,非本组件能力缺失。
  *
@@ -68,13 +75,18 @@ export function createDefaultExtensions(placeholder?: string): Extensions {
     TableKit.configure({
       table: { resizable: true },
     }),
-    // 文字颜色:Color 依赖 TextStyle,两者成对引入
+    // 行内文字样式:字体/字号/行高/颜色均依赖 TextStyle mark
     TextStyle,
+    FontFamily.configure({ types: ['textStyle'] }),
+    FontSize.configure({ types: ['textStyle'] }),
+    LineHeight.configure({ types: ['textStyle'] }),
     Color,
     // 背景高亮:multicolor 允许多种颜色共存
     Highlight.configure({ multicolor: true }),
     // 文本对齐:作用于段落和标题
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    // 段落/标题缩进:列表缩进由 sink/liftListItem 维护嵌套结构
+    BlockIndent,
     // 代码块:替换 StarterKit 的纯文本 CodeBlock,增加 lowlight 高亮
     CodeBlockLowlight.configure({
       lowlight: codeBlockLowlight,

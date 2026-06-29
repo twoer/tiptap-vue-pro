@@ -23,7 +23,10 @@ const props = defineProps<{
 }>()
 
 const rootEl = ref<HTMLElement | null>(null)
+const moreMenuShow = ref(false)
 let extensionAdded = false
+let destructiveTimer: number | null = null
+const RUN_AFTER_POPPER_CLOSE_MS = 240
 
 type TableOp =
   | 'mergeCells' | 'splitCell'
@@ -52,8 +55,25 @@ function renderMoreLabel(opt: DropdownOption): VNode {
     opt.label as string,
   ])
 }
+function clearDestructiveTimer() {
+  if (destructiveTimer != null) {
+    window.clearTimeout(destructiveTimer)
+    destructiveTimer = null
+  }
+}
+
 function onMoreSelect(key: string | number) {
-  props.ctx.commands[key as TableOp]()
+  const op = key as TableOp
+  moreMenuShow.value = false
+  if (op === 'deleteTable') {
+    clearDestructiveTimer()
+    destructiveTimer = window.setTimeout(() => {
+      props.ctx.commands.deleteTable()
+      destructiveTimer = null
+    }, RUN_AFTER_POPPER_CLOSE_MS)
+    return
+  }
+  props.ctx.commands[op]()
 }
 
 function registerTableBubble() {
@@ -98,6 +118,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  clearDestructiveTimer()
   const ed = props.editor
   if (ed) {
     ed.unregisterPlugin('proTableBubble')
@@ -116,6 +137,7 @@ onBeforeUnmount(() => {
     <!-- 低频操作:表头/删除整表(始终可用,收进下拉)-->
     <NDropdown
       trigger="click"
+      v-model:show="moreMenuShow"
       :options="moreOptions"
       :render-label="renderMoreLabel"
       @select="onMoreSelect"

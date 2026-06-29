@@ -28,6 +28,33 @@ export default defineConfig({
         /^@tiptap\//,
         'lowlight',
       ],
+      output: {
+        globals: (id) => {
+          const globals: Record<string, string> = {
+            vue: 'Vue',
+            '@tiptap/core': 'TiptapCore',
+            '@tiptap/pm': 'TiptapPM',
+            '@tiptap/vue-3': 'TiptapVue3',
+            '@tiptap/pm/tables': 'TiptapPMTables',
+            '@tiptap/starter-kit': 'TiptapStarterKit',
+            '@tiptap/extension-character-count': 'TiptapCharacterCount',
+            '@tiptap/extension-code-block-lowlight': 'TiptapCodeBlockLowlight',
+            '@tiptap/extension-placeholder': 'TiptapPlaceholder',
+            '@tiptap/extension-table': 'TiptapTable',
+            '@tiptap/extension-image': 'TiptapImage',
+            '@tiptap/extension-text-style': 'TiptapTextStyle',
+            '@tiptap/extension-color': 'TiptapColor',
+            '@tiptap/extension-highlight': 'TiptapHighlight',
+            '@tiptap/extension-text-align': 'TiptapTextAlign',
+            '@tiptap/extension-subscript': 'TiptapSubscript',
+            '@tiptap/extension-superscript': 'TiptapSuperscript',
+            '@tiptap/extension-list': 'TiptapList',
+            '@tiptap/markdown': 'TiptapMarkdown',
+            lowlight: 'lowlight',
+          }
+          return globals[id] ?? 'Tiptap'
+        },
+      },
     },
   },
 })

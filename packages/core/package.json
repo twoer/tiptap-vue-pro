@@ -1,6 +1,6 @@
 {
   "name": "tiptap-vue-pro-core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "tiptap-vue-pro 的 UI 无关核心层:封装 Tiptap v3,提供 composable 与类型契约",
   "author": "twoer",
   "license": "MIT",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ElButton, ElTooltip, ElDivider } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import {
@@ -102,7 +102,10 @@ watch(
   () => registerBubbleMenu(),
 )
 
-onBeforeUnmount(() => unregisterBubbleMenu())
+onBeforeUnmount(() => {
+  if (removeTimer) window.clearTimeout(removeTimer)
+  unregisterBubbleMenu()
+})
 
 // ---- 操作 ----
 function setAlign(align: ImageAlign) {
@@ -134,6 +137,10 @@ function focusCaption() {
 
 // 替换图片:隐藏 input 选文件 → 走 uploadImage → setImage 换 src(保留尺寸/对齐)
 const replaceInput = ref<HTMLInputElement | null>(null)
+const deleteTooltipVisible = ref(false)
+const DELETE_AFTER_TOOLTIP_MS = 240
+let removeTimer: number | null = null
+
 function triggerReplace() {
   replaceInput.value?.click()
 }
@@ -162,8 +169,14 @@ async function onReplaceSelected(e: Event) {
   }
 }
 
-function remove() {
-  props.ctx.commands.removeImage()
+async function remove() {
+  deleteTooltipVisible.value = false
+  await nextTick()
+  if (removeTimer) window.clearTimeout(removeTimer)
+  removeTimer = window.setTimeout(() => {
+    props.ctx.commands.removeImage()
+    removeTimer = null
+  }, DELETE_AFTER_TOOLTIP_MS)
 }
 </script>
 
@@ -211,8 +224,8 @@ function remove() {
     <ElTooltip v-if="uploadImage" content="替换图片" placement="top" :show-after="300">
       <ElButton text aria-label="替换图片" @click="triggerReplace"><ImagePlus :size="16" /></ElButton>
     </ElTooltip>
-    <ElTooltip content="删除图片" placement="top" :show-after="300">
-      <ElButton text aria-label="删除图片" @click="remove"><Trash2 :size="16" /></ElButton>
+    <ElTooltip v-model:visible="deleteTooltipVisible" content="删除图片" placement="top" :show-after="300" :persistent="false">
+      <ElButton text aria-label="删除图片" @mousedown.prevent.stop="deleteTooltipVisible = false" @click="remove"><Trash2 :size="16" /></ElButton>
     </ElTooltip>
 
     <input
@@ -231,24 +244,45 @@ function remove() {
   align-items: center;
   gap: 2px;
   padding: 4px;
-  background: var(--el-bg-color, #fff);
-  border: 1px solid var(--el-border-color, #dcdfe6);
+  background: var(--el-bg-color-overlay, var(--el-bg-color, #fff));
+  border: 1px solid var(--el-border-color-light, var(--el-border-color, #dcdfe6));
   border-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--el-box-shadow-light, 0 2px 12px rgba(0, 0, 0, 0.12));
+  color: var(--el-text-color-regular, #606266);
   /* 位置变化(图片加载完尺寸稳定后重定位)平滑过渡,避免「先下面后跳上面」的突兀感 */
   transition: top 0.15s ease-out, left 0.15s ease-out;
 }
 
+.tvp-img-bubble :deep(.el-button) {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  color: var(--el-text-color-regular, #606266);
+}
+
+.tvp-img-bubble :deep(.el-button.is-text:not(.is-disabled):hover),
+.tvp-img-bubble :deep(.el-button.is-text:not(.is-disabled):focus) {
+  color: var(--el-color-primary, #409eff);
+  background: var(--el-color-primary-light-9, #ecf5ff);
+}
+
+.tvp-img-bubble :deep(.el-button--primary.is-text),
+.tvp-img-bubble :deep(.el-button--primary.is-text:not(.is-disabled):hover),
+.tvp-img-bubble :deep(.el-button--primary.is-text:not(.is-disabled):focus) {
+  color: var(--el-color-primary, #409eff);
+  background: var(--el-color-primary-light-9, #ecf5ff);
+}
+
 /* 尺寸预设用文字按钮,稍紧凑 */
 .tvp-img-bubble :deep(.tvp-img-bubble__label) {
-  padding: 0 6px;
+  min-width: 28px;
   font-size: 13px;
-  height: 28px;
 }
 
 /* 分隔符留出间距 */
 .tvp-img-bubble :deep(.el-divider--vertical) {
   margin: 0 4px;
+  border-left-color: var(--el-border-color-light, #e4e7ed);
 }
 
 /* 隐藏的文件选择 input */

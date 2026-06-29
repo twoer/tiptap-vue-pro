@@ -43,6 +43,23 @@ const hasEditor = computed(() => !!props.editor && !!props.scrollContainer)
 // 抓手尺寸 + 与表格的间隙(飞书贴边风格:2px 间隙,几乎贴着表格边缘)
 const GRIP_SIZE = 22
 const GRIP_GAP = 2
+const RUN_AFTER_POPPER_CLOSE_MS = 240
+let destructiveTimer: number | null = null
+
+function clearDestructiveTimer() {
+  if (destructiveTimer != null) {
+    window.clearTimeout(destructiveTimer)
+    destructiveTimer = null
+  }
+}
+
+function runAfterPopperClose(command: () => void) {
+  clearDestructiveTimer()
+  destructiveTimer = window.setTimeout(() => {
+    command()
+    destructiveTimer = null
+  }, RUN_AFTER_POPPER_CLOSE_MS)
+}
 
 // 当前鼠标悬停的表格/单元格。不要依赖 tableState.tablePos:
 // tableState 只跟随「当前选区」,用户纯 hover 表格时选区可能还在表格外。
@@ -197,7 +214,12 @@ function runRowCmd(op: string) {
   const c = props.ctx.commands
   if (op === 'addUp') c.addRowBefore()
   else if (op === 'addDown') c.addRowAfter()
-  else if (op === 'delete') c.deleteRow()
+  else if (op === 'delete') {
+    rowMenuShow.value = false
+    clearHover()
+    runAfterPopperClose(() => c.deleteRow())
+    return
+  }
   else if (op === 'moveUp') c.moveRowUp()
   else if (op === 'moveDown') c.moveRowDown()
   rowMenuShow.value = false
@@ -207,7 +229,12 @@ function runColCmd(op: string) {
   const c = props.ctx.commands
   if (op === 'addLeft') c.addColumnBefore()
   else if (op === 'addRight') c.addColumnAfter()
-  else if (op === 'delete') c.deleteColumn()
+  else if (op === 'delete') {
+    colMenuShow.value = false
+    clearHover()
+    runAfterPopperClose(() => c.deleteColumn())
+    return
+  }
   else if (op === 'moveLeft') c.moveColumnLeft()
   else if (op === 'moveRight') c.moveColumnRight()
   colMenuShow.value = false
@@ -235,6 +262,7 @@ function setup() {
 }
 function teardown() {
   cancelHide()
+  clearDestructiveTimer()
   const ed = props.editor
   if (ed) ed.off('transaction', refresh)
   if (scrollEl) {

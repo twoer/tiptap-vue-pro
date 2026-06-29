@@ -61,6 +61,10 @@ function buttonByText(wrapper: VueWrapper, text: string) {
   return button!
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 describe('Naive ImageBubbleMenu', () => {
   let wrapper: VueWrapper | undefined
 
@@ -119,6 +123,7 @@ describe('Naive ImageBubbleMenu', () => {
     await buttonByText(wrapper, '小').trigger('click')
     await wrapper.find('button[aria-label="右对齐"]').trigger('click')
     await wrapper.find('button[aria-label="删除图片"]').trigger('click')
+    await wait(260)
 
     expect(ctx.commands.setImageSize).toHaveBeenCalledWith('small')
     expect(ctx.commands.setImageAlign).toHaveBeenCalledWith('right')

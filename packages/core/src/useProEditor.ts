@@ -40,7 +40,6 @@ import type {
 export function useProEditor(options: ProEditorOptions): ProEditorContext {
   const {
     content,
-    output = 'html',
     extensions,
     placeholder,
     uploadImage,
@@ -50,12 +49,13 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   } = options
 
   const exts = extensions ?? createDefaultExtensions(placeholder)
+  const getOutput = () => options.output ?? 'html'
 
   // ---- 通过官方 useEditor 创建实例 ----
   // 注意:useEditor 内部用 Vue 生命周期管理 Editor,返回 Ref<Editor | undefined>
   const editor = useEditor({
     extensions: exts,
-    content: typeof content === 'string' ? content : JSON.stringify(content),
+    content: content as never,
     editable,
     editorProps: editorProps ?? {},
     onUpdate: ({ editor: ed }) => {
@@ -94,6 +94,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
 
   // ---- v-model 双向绑定 ----
   function emitValue(ed: CoreEditor) {
+    const output = getOutput()
     const val = output === 'html' ? ed.getHTML() : ed.getJSON()
     // 通过 setter 回写(由 adapter 组件把 content setter 接到 v-model)
     options.content = val
@@ -113,6 +114,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       }
       const ed = editor.value
       if (!ed) return
+      const output = getOutput()
       const incoming =
         output === 'json' ? JSON.stringify(next ?? null) : (next as string)
       const current =
@@ -127,6 +129,23 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   // ---- 命令聚合 ----
   function cmd(): Editor | undefined {
     return editor.value
+  }
+
+  type TypographyChain = ReturnType<Editor['chain']> & {
+    setFontFamily: (value: string) => TypographyChain
+    unsetFontFamily: () => TypographyChain
+    setFontSize: (value: string) => TypographyChain
+    unsetFontSize: () => TypographyChain
+    setLineHeight: (value: string) => TypographyChain
+    unsetLineHeight: () => TypographyChain
+  }
+
+  function typographyChain(): TypographyChain | undefined {
+    return cmd()?.chain().focus() as TypographyChain | undefined
+  }
+
+  function inList(ed: Editor | CoreEditor) {
+    return ed.isActive('bulletList') || ed.isActive('orderedList') || ed.isActive('taskList')
   }
 
   // ---- 表格几何解析(飞书式抓手/移动/选区命令共用)----
@@ -269,6 +288,28 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     },
     bulletList: () => cmd()?.chain().focus().toggleBulletList().run(),
     orderedList: () => cmd()?.chain().focus().toggleOrderedList().run(),
+    increaseIndent: () => {
+      const ed = cmd()
+      if (!ed) return
+      if (inList(ed)) {
+        const chain = ed.chain().focus() as any
+        if (ed.isActive('taskList')) chain.sinkListItem('taskItem').run()
+        else chain.sinkListItem('listItem').run()
+        return
+      }
+      ;(ed.chain().focus() as any).increaseBlockIndent().run()
+    },
+    decreaseIndent: () => {
+      const ed = cmd()
+      if (!ed) return
+      if (inList(ed)) {
+        const chain = ed.chain().focus() as any
+        if (ed.isActive('taskList')) chain.liftListItem('taskItem').run()
+        else chain.liftListItem('listItem').run()
+        return
+      }
+      ;(ed.chain().focus() as any).decreaseBlockIndent().run()
+    },
     blockquote: () => cmd()?.chain().focus().toggleBlockquote().run(),
     codeBlock: (language) => {
       const chain = cmd()?.chain().focus()
@@ -423,6 +464,27 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     selectColumn: () => selectLine('col'),
     hr: () => cmd()?.chain().focus().setHorizontalRule().run(),
     clearNodes: () => cmd()?.chain().focus().clearNodes().run(),
+    setFontFamily: (fontFamily) => {
+      const chain = typographyChain()
+      if (!chain) return
+      if (fontFamily) chain.setFontFamily(fontFamily).run()
+      else chain.unsetFontFamily().run()
+    },
+    setFontSize: (fontSize) => {
+      const chain = typographyChain()
+      if (!chain) return
+      if (fontSize) chain.setFontSize(fontSize).run()
+      else chain.unsetFontSize().run()
+    },
+    setLineHeight: (lineHeight) => {
+      const chain = typographyChain()
+      if (!chain) return
+      if (lineHeight) chain.setLineHeight(lineHeight).run()
+      else chain.unsetLineHeight().run()
+    },
+    clearTypography: () => {
+      typographyChain()?.unsetFontFamily().unsetFontSize().unsetLineHeight().run()
+    },
     setColor: (color) =>
       cmd()?.chain().focus().setColor(color).run(),
     toggleHighlight: (color) =>

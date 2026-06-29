@@ -6,7 +6,7 @@
  * shouldShow 判断当前是否「选中图片节点」,文字选区不弹、图片选中才弹。
  * 工具条:[小][中][大][原始] | [左][中][右] | [题注] [替换] [删除]
  */
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { NButton, NTooltip, NDivider } from 'naive-ui'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import {
@@ -88,7 +88,10 @@ watch(
   () => registerBubbleMenu(),
 )
 
-onBeforeUnmount(() => unregisterBubbleMenu())
+onBeforeUnmount(() => {
+  if (removeTimer) window.clearTimeout(removeTimer)
+  unregisterBubbleMenu()
+})
 
 function setAlign(align: ImageAlign) {
   props.ctx.commands.setImageAlign(align)
@@ -116,6 +119,10 @@ function focusCaption() {
 }
 
 const replaceInput = ref<HTMLInputElement | null>(null)
+const deleteTooltipVisible = ref(false)
+const DELETE_AFTER_TOOLTIP_MS = 240
+let removeTimer: number | null = null
+
 function triggerReplace() {
   replaceInput.value?.click()
 }
@@ -138,8 +145,14 @@ async function onReplaceSelected(e: Event) {
   }
 }
 
-function remove() {
-  props.ctx.commands.removeImage()
+async function remove() {
+  deleteTooltipVisible.value = false
+  await nextTick()
+  if (removeTimer) window.clearTimeout(removeTimer)
+  removeTimer = window.setTimeout(() => {
+    props.ctx.commands.removeImage()
+    removeTimer = null
+  }, DELETE_AFTER_TOOLTIP_MS)
 }
 </script>
 
@@ -215,9 +228,9 @@ function remove() {
       </template>
       替换图片
     </NTooltip>
-    <NTooltip trigger="hover" placement="top">
+    <NTooltip v-model:show="deleteTooltipVisible" trigger="hover" placement="top">
       <template #trigger>
-        <NButton text aria-label="删除图片" @click="remove"><Trash2 :size="16" /></NButton>
+        <NButton text aria-label="删除图片" @mousedown.prevent.stop="deleteTooltipVisible = false" @click="remove"><Trash2 :size="16" /></NButton>
       </template>
       删除图片
     </NTooltip>
@@ -238,10 +251,11 @@ function remove() {
   align-items: center;
   gap: 2px;
   padding: 4px;
-  background: var(--n-color, #fff);
+  background: var(--n-popover-color, var(--n-color, #fff));
   border: 1px solid var(--n-border-color, #efeff5);
   border-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--n-box-shadow, 0 2px 12px rgba(0, 0, 0, 0.12));
+  color: var(--n-text-color-2, #303133);
   /* 位置变化平滑过渡,避免图片加载完重定位时的突兀跳动 */
   transition: top 0.15s ease-out, left 0.15s ease-out;
 }
@@ -255,10 +269,25 @@ function remove() {
   height: 28px;
   min-width: 28px;
   padding: 0;
+  color: var(--n-text-color-2, #303133);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
+
+.tvp-img-bubble :deep(.n-button:hover),
+.tvp-img-bubble :deep(.n-button:focus) {
+  color: var(--n-primary-color, #18a058);
+  background: var(--n-color-hover, rgba(24, 160, 88, 0.1));
+}
+
+.tvp-img-bubble :deep(.n-button.n-button--primary-type),
+.tvp-img-bubble :deep(.n-button.n-button--primary-type:hover),
+.tvp-img-bubble :deep(.n-button.n-button--primary-type:focus) {
+  color: var(--n-primary-color, #18a058);
+  background: var(--n-primary-color-suppl, rgba(24, 160, 88, 0.12));
+}
+
 /* 文字按钮(尺寸预设)略宽,容下两个汉字,但仍保持 28px 高度对齐 */
 .tvp-img-bubble :deep(.n-button .n-button__content) {
   font-size: 13px;

@@ -32,7 +32,10 @@ const props = defineProps<{
 }>()
 
 const rootEl = ref<HTMLElement | null>(null)
+const moreMenuShow = ref(false)
 let extensionAdded = false
+let destructiveTimer: number | null = null
+const RUN_AFTER_POPPER_CLOSE_MS = 240
 
 // 更多操作下拉的命令类型
 type TableOp =
@@ -40,7 +43,23 @@ type TableOp =
   | 'toggleHeaderRow' | 'toggleHeaderColumn'
   | 'deleteTable'
 
+function clearDestructiveTimer() {
+  if (destructiveTimer != null) {
+    window.clearTimeout(destructiveTimer)
+    destructiveTimer = null
+  }
+}
+
 function run(op: TableOp) {
+  moreMenuShow.value = false
+  if (op === 'deleteTable') {
+    clearDestructiveTimer()
+    destructiveTimer = window.setTimeout(() => {
+      props.ctx.commands.deleteTable()
+      destructiveTimer = null
+    }, RUN_AFTER_POPPER_CLOSE_MS)
+    return
+  }
   props.ctx.commands[op]()
 }
 
@@ -98,6 +117,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  clearDestructiveTimer()
   const ed = props.editor
   if (ed) {
     ed.unregisterPlugin('proTableBubble')
@@ -118,7 +138,7 @@ onBeforeUnmount(() => {
     <span v-if="tableState.canMerge || tableState.canSplit" class="tvp-table-bubble__sep" />
 
     <!-- 低频操作:表头/删除整表(始终可用,收进下拉)-->
-    <ElDropdown trigger="click" @command="run">
+    <ElDropdown v-model:visible="moreMenuShow" trigger="click" @command="run">
       <ElButton text class="tvp-icon-btn tvp-table-bubble__more">
         <ElIcon><TableProperties :size="15" /></ElIcon>
       </ElButton>

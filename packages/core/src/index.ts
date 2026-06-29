@@ -18,6 +18,16 @@ export {
   getMarkdown,
   importMarkdown,
 } from './markdown'
+export {
+  DEFAULT_TOOLBAR,
+  normalizeToolbarConfig,
+} from './toolbar'
+export type {
+  ToolbarBuiltinKey,
+  ToolbarConfig,
+  ToolbarGroupConfig,
+  ToolbarProp,
+} from './toolbar'
 
 export type {
   ProEditorOptions,

@@ -29,6 +29,16 @@ export default defineConfig({
         'tiptap-vue-pro-core',
       ],
       output: {
+        exports: 'named',
+        globals: {
+          vue: 'Vue',
+          'element-plus': 'ElementPlus',
+          '@tiptap/core': 'TiptapCore',
+          '@tiptap/pm': 'TiptapPM',
+          '@tiptap/vue-3': 'TiptapVue3',
+          '@tiptap/extension-bubble-menu': 'TiptapBubbleMenu',
+          'tiptap-vue-pro-core': 'TiptapVueProCore',
+        },
         // 单独导出一个 style.css
         assetFileNames: 'style.css',
       },

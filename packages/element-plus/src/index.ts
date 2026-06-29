@@ -10,6 +10,10 @@ export type {
   Extensions,
   ProEditorContext,
   ProEditorCommands,
+  ToolbarBuiltinKey,
+  ToolbarConfig,
+  ToolbarGroupConfig,
+  ToolbarProp,
 } from 'tiptap-vue-pro-core'
 
 export default ProEditorElementPlus

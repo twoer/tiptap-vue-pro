@@ -267,6 +267,50 @@ describe('useProEditor — 命令产出真实 HTML', () => {
     expect(ed.getHTML()).toMatch(/color:\s*#ff0000/i)
   })
 
+  it('setFontFamily → font-family style', async () => {
+    const { ctx } = mountEditor({ content: '<p>font</p>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.setFontFamily('Arial')
+    await nextTick()
+    expect(ed.getHTML()).toMatch(/font-family:\s*Arial/i)
+  })
+
+  it('setFontSize → font-size style', async () => {
+    const { ctx } = mountEditor({ content: '<p>size</p>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.setFontSize('16px')
+    await nextTick()
+    expect(ed.getHTML()).toMatch(/font-size:\s*16px/i)
+  })
+
+  it('setLineHeight → line-height style', async () => {
+    const { ctx } = mountEditor({ content: '<p>line</p>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.setLineHeight('1.6')
+    await nextTick()
+    expect(ed.getHTML()).toMatch(/line-height:\s*1\.6/i)
+  })
+
+  it('clearTypography → 移除字体、字号与行高', async () => {
+    const { ctx } = mountEditor({ content: '<p>style</p>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.setFontFamily('Arial')
+    ctx.commands.setFontSize('16px')
+    ctx.commands.setLineHeight('1.6')
+    await nextTick()
+
+    ctx.commands.clearTypography()
+    await nextTick()
+    const html = ed.getHTML()
+    expect(html).not.toMatch(/font-family/i)
+    expect(html).not.toMatch(/font-size/i)
+    expect(html).not.toMatch(/line-height/i)
+  })
+
   it('toggleHighlight → <mark>', async () => {
     const { ctx } = mountEditor({ content: '<p>hi</p>' })
     const ed = await ready(ctx)
@@ -283,6 +327,56 @@ describe('useProEditor — 命令产出真实 HTML', () => {
     ctx.commands.align('center')
     await nextTick()
     expect(ed.getHTML()).toMatch(/text-align:\s*center/i)
+  })
+
+  it('increaseIndent / decreaseIndent → paragraph margin-left', async () => {
+    const { ctx } = mountEditor({ content: '<p>indent</p>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+
+    ctx.commands.increaseIndent()
+    await nextTick()
+    expect(ed.getHTML()).toMatch(/margin-left:\s*2em/i)
+
+    ctx.commands.increaseIndent()
+    await nextTick()
+    expect(ed.getHTML()).toMatch(/margin-left:\s*4em/i)
+
+    ctx.commands.decreaseIndent()
+    await nextTick()
+    expect(ed.getHTML()).toMatch(/margin-left:\s*2em/i)
+
+    ctx.commands.decreaseIndent()
+    await nextTick()
+    expect(ed.getHTML()).not.toMatch(/margin-left/i)
+  })
+
+  it('increaseIndent 支持标题节点', async () => {
+    const { ctx } = mountEditor({ content: '<h2>title</h2>' })
+    const ed = await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.increaseIndent()
+    await nextTick()
+    expect(ed.getHTML()).toMatch(/<h2[^>]*style="[^"]*margin-left:\s*2em/i)
+  })
+
+  it('increaseIndent / decreaseIndent 在列表中使用嵌套列表结构', async () => {
+    const { ctx } = mountEditor({ content: '<ul><li><p>a</p></li><li><p>b</p></li></ul>' })
+    const ed = await ready(ctx)
+    // 把光标放到第二个 list item 内,使 sinkListItem 有前一个 sibling 可嵌套。
+    const positions: number[] = []
+    ed.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'paragraph') positions.push(pos)
+    })
+    ed.chain().focus().setTextSelection(positions[1] + 1).run()
+
+    ctx.commands.increaseIndent()
+    await nextTick()
+    expect(ed.getHTML()).toContain('<ul><li><p>a</p><ul>')
+
+    ctx.commands.decreaseIndent()
+    await nextTick()
+    expect(ed.getHTML()).not.toContain('<ul><li><p>a</p><ul>')
   })
 
   it('clearFormat → 移除 marks', async () => {

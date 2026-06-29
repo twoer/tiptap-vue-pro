@@ -3,7 +3,7 @@ import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { ElButton, ElTooltip, ElMessage } from 'element-plus'
 import { Pencil } from 'lucide-vue-next'
-import { useProEditor, handleImageFiles, hasImageFiles, type UploadImage, type OutputFormat, type Extensions, type NotifyType } from 'tiptap-vue-pro-core'
+import { useProEditor, handleImageFiles, hasImageFiles, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarProp } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
@@ -41,6 +41,8 @@ const props = withDefaults(
     dark?: boolean
     /** 是否显示底部字数统计,默认 true */
     showWordCount?: boolean
+    /** 工具栏配置:false 隐藏内置按钮;数组控制内置按钮分组/顺序 */
+    toolbar?: ToolbarProp
     /** 自定义扩展(覆盖默认) */
     extensions?: Extensions
   }>(),
@@ -51,6 +53,7 @@ const props = withDefaults(
     readonly: false,
     dark: false,
     showWordCount: true,
+    toolbar: undefined,
   },
 )
 
@@ -81,7 +84,9 @@ const ctx = useProEditor({
     content.value = v
     emit('update:modelValue', v)
   },
-  output: props.output,
+  get output() {
+    return props.output
+  },
   placeholder: props.placeholder,
   uploadImage: props.uploadImage,
   editable: !props.readonly,
@@ -93,6 +98,15 @@ const ctx = useProEditor({
     else ElMessage.info(msg)
   },
 } as any)
+
+watch(
+  () => props.output,
+  (format) => {
+    const next = format === 'json' ? ctx.getJSON() : ctx.getHTML()
+    content.value = next
+    emit('update:modelValue', next)
+  },
+)
 
 // 工具栏 active 响应性:监听 editor 实例,绑定 selectionUpdate 触发重渲染
 const selectionTick = ref(0)
@@ -161,7 +175,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 // 把 ctx 喂给工具栏,绑定 selectionTick 让其响应;
 // 并注入 prepareInsert:工具栏的「插入类」按钮(链接/图片/表格)在操作前调用,
 // 若用户从未点进编辑器,先把光标移到文档末尾,避免内容插到开头用户看不到。
-const toolbarCtx = computed(() => {
+const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(() => {
   // 读取 selectionTick 以建立依赖
   void selectionTick.value
   return {
@@ -207,7 +221,7 @@ const wordCount = computed(() => ctx.wordCount.value)
 
 <template>
   <div
-    class="tvp-editor"
+    class="tvp-editor tvp-editor--element-plus"
     :class="{
       'tvp-editor--readonly': readonly,
       'tvp-editor--dark': props.dark,
@@ -215,15 +229,33 @@ const wordCount = computed(() => ctx.wordCount.value)
       'is-preview': isPreview,
     }"
   >
+    <slot
+      v-if="!readonly && !isPreview && $slots.toolbar"
+      name="toolbar"
+      :ctx="toolbarCtx"
+      :is-fullscreen="isFullscreen"
+      :is-preview="isPreview"
+      :toggle-fullscreen="toggleFullscreen"
+      :toggle-preview="togglePreview"
+    />
+
     <Toolbar
-      v-if="!readonly && !isPreview"
+      v-else-if="!readonly && !isPreview"
       :ctx="toolbarCtx"
       :upload-image="props.uploadImage"
       :is-fullscreen="isFullscreen"
       :is-preview="isPreview"
+      :toolbar="props.toolbar"
       @toggle-fullscreen="toggleFullscreen"
       @toggle-preview="togglePreview"
-    />
+    >
+      <template #before="slotProps">
+        <slot name="toolbar-before" v-bind="slotProps" />
+      </template>
+      <template #after="slotProps">
+        <slot name="toolbar-after" v-bind="slotProps" />
+      </template>
+    </Toolbar>
 
     <!-- 预览态:隐藏工具栏,顶部只留一个「返回编辑」条 -->
     <div v-if="isPreview" class="tvp-preview-bar">
@@ -285,6 +317,9 @@ const wordCount = computed(() => ctx.wordCount.value)
 <style>
 /* 编辑器容器 */
 .tvp-editor {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--el-border-color, #dcdfe6);
   border-radius: 4px;
   background: var(--el-bg-color, #fff);
@@ -394,6 +429,7 @@ const wordCount = computed(() => ctx.wordCount.value)
 
 .tvp-content-wrap {
   position: relative; /* 表格抓手覆盖层的定位锚点 */
+  min-width: 0;
   min-height: 200px;
   max-height: 600px;
   overflow-y: auto;
@@ -401,6 +437,7 @@ const wordCount = computed(() => ctx.wordCount.value)
 
 /* ProseMirror 编辑区基础样式 —— 全局(非 scoped),因为内容是动态注入的 */
 .tvp-content .ProseMirror {
+  min-width: 0;
   min-height: 200px;
   padding: 12px 16px;
   outline: none;
@@ -608,7 +645,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 }
 
 /* 选中态:蓝色描边(ProseMirror 给选中节点加 ProseMirror-selectednode 类) */
-.tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode {
+.tvp-editor--element-plus .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode {
   outline: 2px solid var(--el-color-primary, #409eff);
   outline-offset: 2px;
   border-radius: 4px;
@@ -628,7 +665,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   color: var(--el-text-color-secondary, #909399);
   outline: none;
 }
-.tvp-content .ProseMirror .tvp-img-caption:focus {
+.tvp-editor--element-plus .tvp-content .ProseMirror .tvp-img-caption:focus {
   border-bottom-color: var(--el-color-primary, #409eff);
 }
 /*
