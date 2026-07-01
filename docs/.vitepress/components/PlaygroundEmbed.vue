@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useData } from 'vitepress'
 
 const props = withDefaults(
   defineProps<{
@@ -8,11 +9,14 @@ const props = withDefaults(
   }>(),
   {
     compact: false,
-    title: '在线体验',
   },
 )
 
+const { lang } = useData()
+const isEnglish = computed(() => lang.value === 'en-US')
 const playgroundUrl = computed(() => `${import.meta.env.BASE_URL}playground/`)
+const displayTitle = computed(() => props.title ?? (isEnglish.value ? 'Live Demo' : '在线体验'))
+const openLabel = computed(() => isEnglish.value ? 'Open fullscreen' : '全屏打开')
 </script>
 
 <template>
@@ -24,10 +28,10 @@ const playgroundUrl = computed(() => `${import.meta.env.BASE_URL}playground/`)
         <span />
       </div>
       <div class="playground-embed__title">
-        {{ title }}
+        {{ displayTitle }}
       </div>
       <a class="playground-embed__open" :href="playgroundUrl" target="_blank" rel="noreferrer">
-        全屏打开
+        {{ openLabel }}
       </a>
     </div>
     <iframe

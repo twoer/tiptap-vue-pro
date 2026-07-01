@@ -1,3 +1,5 @@
+import { resolveLocale } from './locale'
+import type { LocaleProp, LocaleTranslate } from './locale'
 import type { NotifyFn } from './types'
 
 export interface MarkdownActionContext {
@@ -9,13 +11,16 @@ export interface MarkdownActionContext {
 export interface PrintActionOptions {
   title?: string
   cleanupDelay?: number
+  locale?: LocaleProp
+  t?: LocaleTranslate
 }
 
 export interface ExportMarkdownOptions {
   filename?: string | (() => string)
+  locale?: LocaleProp
+  t?: LocaleTranslate
 }
 
-const DEFAULT_PRINT_TITLE = '打印'
 const DEFAULT_PRINT_CLEANUP_DELAY = 500
 const PRINT_STYLES = 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;padding:24px;line-height:1.6}img{max-width:100%}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px 10px}pre{background:#f5f7fa;padding:12px;border-radius:4px;overflow-x:auto}code{background:#f5f7fa;padding:1px 4px;border-radius:3px}blockquote{border-left:3px solid #ddd;padding-left:1em;color:#666}'
 
@@ -28,13 +33,16 @@ function resolveExportMarkdownFilename(filename: ExportMarkdownOptions['filename
 export async function importMarkdownFile(
   ctx: Pick<MarkdownActionContext, 'importMarkdown' | 'notify'>,
   file: File,
+  options: { locale?: LocaleProp; t?: LocaleTranslate } = {},
 ) {
+  const { t: fallbackT } = resolveLocale(options.locale)
+  const t = options.t ?? fallbackT
   try {
     const text = await file.text()
     ctx.importMarkdown(text)
-    ctx.notify('已导入 Markdown', 'success')
+    ctx.notify(t('notify.markdownImportSuccess'), 'success')
   } catch {
-    ctx.notify('导入失败:无法读取该文件', 'error')
+    ctx.notify(t('notify.markdownImportReadFailed'), 'error')
   }
 }
 
@@ -42,9 +50,11 @@ export function exportMarkdownFile(
   ctx: Pick<MarkdownActionContext, 'getMarkdown' | 'notify'>,
   options: ExportMarkdownOptions = {},
 ): boolean {
+  const { t: fallbackT } = resolveLocale(options.locale)
+  const t = options.t ?? fallbackT
   const md = ctx.getMarkdown()
   if (!md) {
-    ctx.notify('当前未启用 Markdown 能力,无法导出', 'warning')
+    ctx.notify(t('notify.markdownExportUnavailable'), 'warning')
     return false
   }
   const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
@@ -61,6 +71,8 @@ export function printEditorContent(
   html: string,
   options: PrintActionOptions = {},
 ): HTMLIFrameElement {
+  const { t: fallbackT } = resolveLocale(options.locale)
+  const t = options.t ?? fallbackT
   const iframe = document.createElement('iframe')
   iframe.style.position = 'fixed'
   iframe.style.right = '0'
@@ -77,7 +89,7 @@ export function printEditorContent(
   }
 
   doc.open()
-  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${options.title ?? DEFAULT_PRINT_TITLE}</title>
+  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${options.title ?? t('print.defaultTitle')}</title>
 <style>${PRINT_STYLES}</style>
 </head><body>${html}</body></html>`)
   doc.close()

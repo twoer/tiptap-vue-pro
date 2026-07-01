@@ -33,7 +33,7 @@ import type { UploadImage } from 'tiptap-vue-pro-core'
  */
 const UPLOAD_URL = ''
 /** 单图大小上限,超过直接拒,省得传一半才 413。 */
-const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
+export const IMAGE_UPLOAD_MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
 /**
  * 进度提示条内联组件。
@@ -128,7 +128,7 @@ export const uploadImage: UploadImage = async (file) => {
     ElMessage.error('只支持图片文件')
     return null
   }
-  if (file.size > MAX_SIZE) {
+  if (file.size > IMAGE_UPLOAD_MAX_SIZE) {
     ElMessage.error(`图片过大(${(file.size / 1024 / 1024).toFixed(1)} MB),上限 10 MB`)
     return null
   }

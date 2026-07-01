@@ -6,6 +6,9 @@ export { default as BubbleMenu } from './BubbleMenu.vue'
 
 export type {
   UploadImage,
+  UploadAsset,
+  UploadAssetKind,
+  UploadedAsset,
   OutputFormat,
   Extensions,
   ProEditorContext,
@@ -25,6 +28,11 @@ export type {
   EditorLinkBehaviorOptions,
   EditorTableBehaviorOptions,
   EditorImageBehaviorOptions,
+  LocaleCode,
+  LocaleKey,
+  LocaleMessageOverrides,
+  LocaleOptions,
+  LocaleProp,
 } from 'tiptap-vue-pro-core'
 
 export default ProEditorAntDesignVue

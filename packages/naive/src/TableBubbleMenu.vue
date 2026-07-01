@@ -49,8 +49,8 @@ function renderMoreLabel(opt: DropdownOption): VNode {
   const op = opt.key as TableOp
   // 下拉项只有表头/删除,图标都在 moreOpIcons 里;fallback 用 TableProperties 兜类型防御
   const Icon = moreOpIcons[op] ?? TableProperties
-  return h('span', { style: 'display:inline-flex;align-items:center;gap:6px;' }, [
-    h(Icon, { size: 15 }),
+  return h('span', { style: 'display:inline-flex;align-items:center;gap:6px;line-height:1;vertical-align:middle;' }, [
+    h(Icon, { size: 15, style: 'display:block;flex:0 0 auto;' }),
     opt.label as string,
   ])
 }

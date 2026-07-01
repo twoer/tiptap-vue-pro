@@ -69,6 +69,13 @@ describe('createDefaultExtensions', () => {
     expect(names).toContain('tableKit')
   })
 
+  it('包含视频、音频和文件附件扩展', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).toContain('video')
+    expect(names).toContain('audio')
+    expect(names).toContain('fileAttachment')
+  })
+
   it('包含字数统计(characterCount)', () => {
     const names = createDefaultExtensions().map((e: any) => e.name)
     expect(names).toContain('characterCount')
@@ -96,5 +103,13 @@ describe('createDefaultExtensions', () => {
   it('包含 Markdown 扩展(导入/导出 MD)', () => {
     const names = createDefaultExtensions().map((e: any) => e.name)
     expect(names).toContain('markdown')
+  })
+
+  it('使用增强 horizontalRule 扩展承载分割线样式', () => {
+    const exts = createDefaultExtensions()
+    const horizontalRule: any = exts.find((e: any) => e.name === 'horizontalRule')
+
+    expect(horizontalRule).toBeTruthy()
+    expect(horizontalRule.config.addAttributes).toBeTypeOf('function')
   })
 })

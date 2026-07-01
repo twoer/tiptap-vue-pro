@@ -6,8 +6,8 @@ import TableGripHandles from './TableGripHandles.vue'
 import type { ProEditorContext } from 'tiptap-vue-pro-core'
 
 type GripVm = {
-  onRowMenuShow: (visible: boolean) => void
-  onColMenuShow: (visible: boolean) => void
+  onRowMenuShow: (visible: boolean, index?: number) => void
+  onColMenuShow: (visible: boolean, index?: number) => void
   runRowCmd: (op: string) => void
   runColCmd: (op: string) => void
   rowOptions: Array<{ label?: string }>
@@ -91,10 +91,17 @@ function createEnv() {
   chainApi.run.mockReturnValue(true)
 
   const editor = {
+    state: {
+      doc: {
+        content: { size: 100 },
+        resolve: vi.fn(() => ({ parent: { inlineContent: true } })),
+      },
+    },
     view: {
       dom: root,
       nodeDOM: vi.fn(() => table),
       posAtCoords: vi.fn(() => ({ pos: 8 })),
+      posAtDOM: vi.fn(() => 8),
     },
     chain: vi.fn(() => chainApi),
     on: vi.fn(),
@@ -184,6 +191,31 @@ describe('Naive UI TableGripHandles', () => {
     expect(ctx.commands.deleteColumn).toHaveBeenCalledTimes(1)
   })
 
+  it('删除命令使用抓手锁定的行列索引', async () => {
+    vi.useFakeTimers()
+    const ctx = createCtx()
+    const { scroll, cells, editor } = createEnv()
+    wrapper = mount(TableGripHandles, {
+      attachTo: document.body,
+      props: { editor: editor as never, ctx, scrollContainer: scroll },
+    })
+    const vm = wrapper.vm as unknown as GripVm
+
+    await hoverCell(cells[3])
+    vm.onRowMenuShow(true, 1)
+    vm.runRowCmd('delete')
+    vi.advanceTimersByTime(240)
+    expect(ctx.commands.selectRow).toHaveBeenLastCalledWith(1)
+    expect(ctx.commands.deleteRow).toHaveBeenLastCalledWith(1)
+
+    await hoverCell(cells[3])
+    vm.onColMenuShow(true, 1)
+    vm.runColCmd('delete')
+    vi.advanceTimersByTime(240)
+    expect(ctx.commands.selectColumn).toHaveBeenLastCalledWith(1)
+    expect(ctx.commands.deleteColumn).toHaveBeenLastCalledWith(1)
+  })
+
   it('editor 切换时从旧实例解绑 transaction 监听并绑定新实例', async () => {
     const ctx = createCtx()
     const { scroll, editor } = createEnv()
@@ -227,5 +259,7 @@ describe('Naive UI TableGripHandles', () => {
       '删除',
     ])
     expect(source).toContain('gap:6px')
+    expect(source).toContain('.tvp-table-grip--col:hover')
+    expect(source).toContain('background: transparent')
   })
 })

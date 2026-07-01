@@ -4,6 +4,7 @@ import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import { ImageExtended as Image } from './extensions/image'
+import { AudioExtended, FileAttachment, VideoExtended, type FileAttachmentOptions } from './extensions/media'
 import {
   TextStyle,
   FontFamily,
@@ -20,6 +21,8 @@ import { Markdown as MarkdownExtension } from '@tiptap/markdown'
 import type { Extensions } from '@tiptap/core'
 import { codeBlockLowlight } from './codeBlock'
 import { BlockIndent } from './extensions/blockIndent'
+import { HorizontalRuleExtended } from './extensions/horizontalRule'
+import { RangeSelectionDecorations } from './extensions/rangeSelection'
 import type { EditorExtensionConfig } from './extensionRegistry'
 
 export type { Extensions } from '@tiptap/core'
@@ -46,7 +49,8 @@ export type { Extensions } from '@tiptap/core'
  *   8. CodeBlockLowlight —— 带语言 class 与语法高亮的代码块。
  *   9. Superscript + Subscript —— 上标 / 下标,用于公式、脚注、化学式等。
  *   10. BlockIndent —— 段落/标题块级缩进,列表缩进走原生 list item 命令。
- *   11. Markdown —— 官方 @tiptap/markdown,提供导入/导出 MD 能力。
+ *   11. Video / Audio / FileAttachment —— 视频、音频、文件附件节点。
+ *   12. Markdown —— 官方 @tiptap/markdown,提供导入/导出 MD 能力。
  *      无对应 MD 语法的样式(颜色/高亮/对齐)在导出时会被丢弃——这是
  *      Markdown 格式本身的局限,非本组件能力缺失。
  *
@@ -56,6 +60,9 @@ export type { Extensions } from '@tiptap/core'
 export function createDefaultExtensions(
   placeholder?: string,
   config: EditorExtensionConfig = {},
+  options: {
+    fileAttachment?: FileAttachmentOptions
+  } = {},
 ): Extensions {
   const enabled = {
     placeholder: true,
@@ -70,6 +77,8 @@ export function createDefaultExtensions(
     codeBlock: true,
     script: true,
     taskList: true,
+    media: true,
+    rangeSelection: true,
     markdown: true,
     ...config,
   }
@@ -80,6 +89,7 @@ export function createDefaultExtensions(
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         codeBlock: false,
+        horizontalRule: false,
         link: {
           openOnClick: false,
           autolink: true,
@@ -91,6 +101,7 @@ export function createDefaultExtensions(
         },
       }),
     )
+    extensions.push(HorizontalRuleExtended)
   }
 
   if (enabled.placeholder) {
@@ -162,6 +173,18 @@ export function createDefaultExtensions(
   if (enabled.taskList) {
     // 任务列表:TaskList 需要 TaskItem 提供 checkbox 行为
     extensions.push(TaskList, TaskItem.configure({ nested: true }))
+  }
+
+  if (enabled.media) {
+    extensions.push(
+      VideoExtended,
+      AudioExtended,
+      options.fileAttachment ? FileAttachment.configure(options.fileAttachment) : FileAttachment,
+    )
+  }
+
+  if (enabled.rangeSelection) {
+    extensions.push(RangeSelectionDecorations)
   }
 
   if (enabled.markdown) {

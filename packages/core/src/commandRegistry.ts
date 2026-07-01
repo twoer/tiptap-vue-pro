@@ -1,6 +1,7 @@
 import { DEFAULT_TOOLBAR } from './toolbar'
 import type { ProEditorContext } from './types'
 import type { CodeBlockLanguage } from './codeBlock'
+import type { HorizontalRuleVariant } from './extensions/horizontalRule'
 import type { ToolbarBuiltinKey, ToolbarConfig } from './toolbar'
 
 export type ToolbarCommandPayload =
@@ -41,6 +42,10 @@ function payloadAlign(payload?: ToolbarCommandPayload) {
 
 function payloadHeadingLevel(payload?: ToolbarCommandPayload) {
   return payloadNumber(payload) as 0 | 1 | 2 | 3 | 4 | 5 | 6
+}
+
+function payloadHorizontalRuleVariant(payload?: ToolbarCommandPayload) {
+  return payload == null ? undefined : payloadString(payload) as HorizontalRuleVariant
 }
 
 export const COMMAND_REGISTRY: Record<ToolbarBuiltinKey, CommandMeta> = {
@@ -93,9 +98,10 @@ export const COMMAND_REGISTRY: Record<ToolbarBuiltinKey, CommandMeta> = {
     execute: (ctx, payload) => ctx.commands.codeBlock(payload == null ? undefined : payloadString(payload) as CodeBlockLanguage),
     isActive: (ctx) => ctx.isActive('codeBlock'),
   },
-  hr: { id: 'hr', label: '分割线', icon: 'Minus', group: 'insert', execute: (ctx) => ctx.commands.hr() },
+  hr: { id: 'hr', label: '分割线', icon: 'Minus', group: 'insert', execute: (ctx, payload) => ctx.commands.hr(payloadHorizontalRuleVariant(payload)) },
   link: { id: 'link', label: '链接', icon: 'Link', group: 'insert' },
   image: { id: 'image', label: '图片', icon: 'ImagePlus', group: 'insert' },
+  attachment: { id: 'attachment', label: '上传', icon: 'Upload', group: 'insert' },
   table: { id: 'table', label: '插入表格', icon: 'Table', group: 'insert' },
   clearFormat: { id: 'clearFormat', label: '清除格式', icon: 'Eraser', group: 'utility', execute: (ctx) => ctx.commands.clearFormat() },
   markdown: { id: 'markdown', label: '导入 / 导出 Markdown', icon: 'Markdown', group: 'utility' },

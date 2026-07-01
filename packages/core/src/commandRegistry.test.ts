@@ -108,6 +108,7 @@ describe('command registry', () => {
     runToolbarCommand(ctx, 'color', '#111111')
     runToolbarCommand(ctx, 'highlight', '#eeeeee')
     runToolbarCommand(ctx, 'codeBlock', 'typescript')
+    runToolbarCommand(ctx, 'hr', 'dashed')
 
     expect(ctx.commands.toggleHeading).toHaveBeenCalledWith(2)
     expect(ctx.commands.setFontFamily).toHaveBeenCalledWith('Arial')
@@ -117,14 +118,26 @@ describe('command registry', () => {
     expect(ctx.commands.setColor).toHaveBeenCalledWith('#111111')
     expect(ctx.commands.toggleHighlight).toHaveBeenCalledWith('#eeeeee')
     expect(ctx.commands.codeBlock).toHaveBeenCalledWith('typescript')
+    expect(ctx.commands.hr).toHaveBeenCalledWith('dashed')
   })
 
   it('returns false for commands that are adapter-owned UI actions', () => {
     const ctx = createCtx()
 
     expect(runToolbarCommand(ctx, 'link')).toBe(false)
+    expect(runToolbarCommand(ctx, 'attachment')).toBe(false)
     expect(runToolbarCommand(ctx, 'markdown')).toBe(false)
     expect(runToolbarCommand(ctx, 'fullscreen')).toBe(false)
+  })
+
+  it('registers attachment as an insert command without direct execute', () => {
+    expect(getCommandMeta('attachment')).toMatchObject({
+      id: 'attachment',
+      label: '上传',
+      icon: 'Upload',
+      group: 'insert',
+    })
+    expect(getCommandMeta('attachment').execute).toBeUndefined()
   })
 
   it('reports active inline, heading, list, and alignment states', () => {

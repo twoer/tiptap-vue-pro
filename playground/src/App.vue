@@ -3,9 +3,10 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import { ProEditorNaive } from 'tiptap-vue-pro-naive'
 import { ProEditorAntDesignVue } from 'tiptap-vue-pro-ant-design-vue'
-import type { ToolbarConfig } from 'tiptap-vue-pro-core'
+import type { EditorBehaviorOptions, LocaleCode, ToolbarConfig } from 'tiptap-vue-pro-core'
 // 生产级图片上传示例:XHR 真实上传 + 进度条 + 三态提示,详见文件内注释
-import { uploadImage } from './uploadImage'
+import { IMAGE_UPLOAD_MAX_SIZE, uploadImage } from './uploadImage'
+import { MEDIA_UPLOAD_MAX_SIZE, uploadAsset } from './uploadAsset'
 // HTML 美化:用 DOMParser 解析 + 递归序列化,把紧凑 HTML 格式化成带缩进可读形式
 import { formatHTML } from './formatHTML'
 
@@ -60,6 +61,41 @@ const readonly = ref(false)
 const showWordCount = ref(true)
 const compactToolbar = ref(false)
 const output = ref<'html' | 'json'>('html')
+const locale = ref<LocaleCode>('zh-CN')
+const playgroundText = computed(() => {
+  if (locale.value === 'en-US') {
+    return {
+      dark: 'Dark',
+      readonly: 'Read only',
+      wordCount: 'Word count',
+      compactToolbar: 'Compact toolbar',
+      language: 'Language',
+      output: 'Output',
+      reset: 'Reset demo',
+      editor: 'Editor',
+      copied: 'Copied',
+      copy: 'Copy',
+      readonlyBadge: 'Read only',
+      placeholder: 'Start typing...',
+      footer: 'MIT · Community package based on Tiptap v3',
+    }
+  }
+  return {
+    dark: '暗色',
+    readonly: '只读',
+    wordCount: '字数',
+    compactToolbar: '精简工具栏',
+    language: '语言',
+    output: '输出',
+    reset: '重置示例',
+    editor: '编辑器',
+    copied: '已复制',
+    copy: '复制',
+    readonlyBadge: '只读',
+    placeholder: '开始输入...',
+    footer: 'MIT · 基于 Tiptap v3 的社区封装',
+  }
+})
 const currentUiName = computed(() => {
   if (route.value === 'naive') return 'Naive UI'
   if (route.value === 'ant-design-vue') return 'Ant Design Vue'
@@ -77,10 +113,49 @@ const toolbarConfig = computed<ToolbarConfig | undefined>(() =>
     ? [
         ['undo', 'redo'],
         ['bold', 'italic', 'underline'],
-        ['link', 'image'],
+        ['link', 'image', 'attachment'],
       ]
     : undefined,
 )
+const editorBehaviorOptions: EditorBehaviorOptions = {
+  image: { maxSize: IMAGE_UPLOAD_MAX_SIZE },
+  media: {
+    video: {
+      maxSize: MEDIA_UPLOAD_MAX_SIZE,
+      render: {
+        displayMode: 'player',
+        controls: true,
+        muted: false,
+        playsInline: true,
+        allowFullscreen: true,
+        allowDownload: true,
+        allowPictureInPicture: true,
+      },
+    },
+    audio: {
+      maxSize: MEDIA_UPLOAD_MAX_SIZE,
+      render: {
+        displayMode: 'player',
+        controls: true,
+        allowDownload: true,
+      },
+    },
+    file: {
+      maxSize: MEDIA_UPLOAD_MAX_SIZE,
+      render: {
+        showIcon: true,
+        iconMode: 'auto',
+        showName: true,
+        showSize: true,
+        showMimeType: true,
+        showUploadedAt: true,
+        showDuration: true,
+        openInNewTab: true,
+        download: true,
+      },
+    },
+  },
+}
 
 function resetDemoContent() {
   content.value = createDemoContent(currentUiName.value)
@@ -160,31 +235,38 @@ async function copyOutput() {
       <div class="demo-toolbar__group">
         <label class="control control--switch">
           <input v-model="dark" type="checkbox" class="toggle" />
-          <span>暗色</span>
+          <span>{{ playgroundText.dark }}</span>
         </label>
         <label class="control control--switch">
           <input v-model="readonly" type="checkbox" class="toggle" />
-          <span>只读</span>
+          <span>{{ playgroundText.readonly }}</span>
         </label>
         <label class="control control--switch">
           <input v-model="showWordCount" type="checkbox" class="toggle" />
-          <span>字数</span>
+          <span>{{ playgroundText.wordCount }}</span>
         </label>
         <label class="control control--switch">
           <input v-model="compactToolbar" type="checkbox" class="toggle" />
-          <span>精简工具栏</span>
+          <span>{{ playgroundText.compactToolbar }}</span>
         </label>
       </div>
       <div class="demo-toolbar__group demo-toolbar__group--right">
         <label class="control">
-          <span>输出</span>
-          <select v-model="output" class="native-select">
+          <span>{{ playgroundText.language }}</span>
+          <select v-model="locale" class="native-select native-select--locale">
+            <option value="zh-CN">简体中文</option>
+            <option value="en-US">English</option>
+          </select>
+        </label>
+        <label class="control">
+          <span>{{ playgroundText.output }}</span>
+          <select v-model="output" class="native-select native-select--output">
             <option value="html">HTML</option>
             <option value="json">JSON</option>
           </select>
         </label>
         <button type="button" class="reset-btn" @click="resetDemoContent">
-          重置示例
+          {{ playgroundText.reset }}
         </button>
       </div>
     </section>
@@ -192,8 +274,8 @@ async function copyOutput() {
     <main class="workbench">
       <section class="demo demo--editor">
         <div class="demo__head">
-          <h3>编辑器</h3>
-          <span v-if="readonly" class="state-badge">只读</span>
+          <h3>{{ playgroundText.editor }}</h3>
+          <span v-if="readonly" class="state-badge">{{ playgroundText.readonlyBadge }}</span>
         </div>
         <!--
           三个 UI 适配各占一个「页面」,用 hash 路由切换。
@@ -209,8 +291,11 @@ async function copyOutput() {
           :readonly="readonly"
           :show-word-count="showWordCount"
           :toolbar="toolbarConfig"
-          placeholder="开始输入..."
+          :locale="locale"
+          :placeholder="playgroundText.placeholder"
           :upload-image="uploadImage"
+          :upload-asset="uploadAsset"
+          :editor-behavior-options="editorBehaviorOptions"
         />
         <ProEditorNaive
           v-else-if="route === 'naive'"
@@ -220,8 +305,11 @@ async function copyOutput() {
           :readonly="readonly"
           :show-word-count="showWordCount"
           :toolbar="toolbarConfig"
-          placeholder="开始输入..."
+          :locale="locale"
+          :placeholder="playgroundText.placeholder"
           :upload-image="uploadImage"
+          :upload-asset="uploadAsset"
+          :editor-behavior-options="editorBehaviorOptions"
         />
         <ProEditorAntDesignVue
           v-else
@@ -231,16 +319,19 @@ async function copyOutput() {
           :readonly="readonly"
           :show-word-count="showWordCount"
           :toolbar="toolbarConfig"
-          placeholder="开始输入..."
+          :locale="locale"
+          :placeholder="playgroundText.placeholder"
           :upload-image="uploadImage"
+          :upload-asset="uploadAsset"
+          :editor-behavior-options="editorBehaviorOptions"
         />
       </section>
 
       <section class="demo demo--output">
         <div class="demo__head">
-          <h3>输出 · {{ output.toUpperCase() }}</h3>
+          <h3>{{ playgroundText.output }} · {{ output.toUpperCase() }}</h3>
           <button class="copy-btn" @click="copyOutput">
-            {{ copied ? '已复制' : '复制' }}
+            {{ copied ? playgroundText.copied : playgroundText.copy }}
           </button>
         </div>
         <pre class="output">{{ outputPreview }}</pre>
@@ -248,7 +339,7 @@ async function copyOutput() {
     </main>
 
     <footer class="page__footer">
-      MIT · 基于 Tiptap v3 的社区封装
+      {{ playgroundText.footer }}
     </footer>
   </div>
 </template>
@@ -506,7 +597,7 @@ html.dark .toggle {
 
 /* 原生 select:去默认箭头画一个,跟整体风格统一 */
 .native-select {
-  width: 160px;
+  width: 136px;
   padding: 6px 10px;
   font-size: 14px;
   color: #606266;
@@ -524,6 +615,14 @@ html.dark .toggle {
   padding-right: 32px;
   cursor: pointer;
   outline: none;
+}
+
+.native-select--locale {
+  width: 124px;
+}
+
+.native-select--output {
+  width: 92px;
 }
 
 .native-select:focus {

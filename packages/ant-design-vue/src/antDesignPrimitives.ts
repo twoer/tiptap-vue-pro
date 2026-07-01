@@ -65,23 +65,29 @@ export const AntTooltip = defineComponent({
     title: String,
     placement: String,
     showAfter: Number,
-    visible: Boolean,
+    visible: {
+      type: Boolean,
+      default: undefined,
+    },
     persistent: Boolean,
   },
   emits: ['update:visible'],
   setup(props, { attrs, emit, slots }) {
-    return () =>
-      h(
-        Tooltip,
-        {
-          ...attrs,
-          title: props.title ?? props.content,
-          placement: props.placement,
-          open: props.visible,
-          'onUpdate:open': (v: boolean) => emit('update:visible', v),
-        } as VNodeProps & Record<string, unknown>,
-        slots,
-      )
+    return () => {
+      const tooltipProps: VNodeProps & Record<string, unknown> = {
+        ...attrs,
+        title: props.title ?? props.content,
+        placement: props.placement,
+        mouseEnterDelay: props.showAfter ? props.showAfter / 1000 : undefined,
+      }
+
+      if (typeof props.visible === 'boolean') {
+        tooltipProps.open = props.visible
+        tooltipProps['onUpdate:open'] = (v: boolean) => emit('update:visible', v)
+      }
+
+      return h(Tooltip, tooltipProps, slots)
+    }
   },
 })
 

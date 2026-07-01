@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
+  formatFileSize,
+  validateImageFile,
   isImageFile,
   hasImageFiles,
   handleImageFiles,
@@ -47,6 +49,10 @@ function makeEditorMock() {
 
 function file(name: string, type: string): File {
   return new File(['x'], name, { type })
+}
+
+function fileWithSize(name: string, type: string, size: number): File {
+  return new File([new Uint8Array(size)], name, { type })
 }
 
 describe('isImageFile', () => {
@@ -97,6 +103,35 @@ describe('hasImageFiles', () => {
       item: (_i: number) => file('a.png', 'image/png'),
     } as unknown as FileList
     expect(hasImageFiles(list)).toBe(true)
+  })
+})
+
+describe('validateImageFile', () => {
+  it('accepts image files within the configured size limit', () => {
+    expect(validateImageFile(fileWithSize('a.png', 'image/png', 512), { maxSize: 1024 })).toBeNull()
+  })
+
+  it('rejects non-image files', () => {
+    expect(validateImageFile(file('a.txt', 'text/plain'))).toEqual({
+      reason: 'invalid-type',
+      file: expect.any(File),
+    })
+  })
+
+  it('rejects image files larger than maxSize', () => {
+    const f = fileWithSize('a.png', 'image/png', 2048)
+    expect(validateImageFile(f, { maxSize: 1024 })).toEqual({
+      reason: 'too-large',
+      file: f,
+      size: 2048,
+      maxSize: 1024,
+    })
+  })
+
+  it('formats file sizes for user-facing messages', () => {
+    expect(formatFileSize(512)).toBe('512 B')
+    expect(formatFileSize(1536)).toBe('1.5 KB')
+    expect(formatFileSize(10 * 1024 * 1024)).toBe('10 MB')
   })
 })
 
@@ -190,6 +225,30 @@ describe('handleImageFiles', () => {
     expect(result).toBe(true)
     expect(upload).toHaveBeenCalledTimes(1)
     expect(setImageSpy).toHaveBeenCalledWith({ src: 'https://cdn/x.png' })
+  })
+
+  it('图片超过 maxSize 时不上传并触发 onError', async () => {
+    const upload = vi.fn().mockResolvedValue('https://cdn/a.png')
+    const { editor, setImageSpy } = makeEditorMock()
+    const onError = vi.fn()
+    const f = fileWithSize('a.png', 'image/png', 2048)
+    const result = await handleImageFiles(
+      [f],
+      upload,
+      editor,
+      onError,
+      { maxSize: 1024 },
+    )
+
+    expect(result).toBe(true)
+    expect(upload).not.toHaveBeenCalled()
+    expect(setImageSpy).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith(f, {
+      reason: 'too-large',
+      file: f,
+      size: 2048,
+      maxSize: 1024,
+    })
   })
 
   it('返回值是 Promise<boolean>(验证修复 onPaste 误用的根因)', async () => {

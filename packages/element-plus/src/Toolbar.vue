@@ -11,6 +11,7 @@ import {
   List, ListOrdered, ListChecks,
   Quote, Code, Minus,
   Link, ImagePlus, Link2, Table,
+  Video, File,
   FileDown, FileUp,
   Eraser, Printer,
   Maximize2, Minimize2, Eye, Pencil,
@@ -20,12 +21,14 @@ import {
   codeBlockLanguageLabel,
   exportMarkdownFile,
   getActiveHeadingLevel,
+  getActiveLinkRange,
   getActiveTextAlign,
   getCommandLabel,
   importMarkdownFile,
   isToolbarCommandActive,
   normalizeToolbarConfig,
   printEditorContent,
+  resolveLocale,
   resolveEditorBehaviorOptions,
   resolveToolbarOptions,
   runToolbarCommand,
@@ -35,17 +38,22 @@ import {
 } from 'tiptap-vue-pro-core'
 import type {
   CodeBlockLanguage,
+  HorizontalRuleVariant,
   ProEditorContext,
   ToolbarBuiltinKey,
   ToolbarCommandPayload,
   ToolbarConfig,
   ToolbarHeadingLevel,
+  ToolbarHorizontalRuleOption,
   ToolbarMarkdownAction,
   ToolbarOptions,
   ToolbarProp,
   ToolbarTextAlign,
+  UploadAsset,
   UploadImage,
   EditorBehaviorOptions,
+  LocaleKey,
+  ProEditorDebugLogFn,
 } from 'tiptap-vue-pro-core'
 
 /**
@@ -103,6 +111,8 @@ const props = withDefaults(
     ctx: ProEditorContext & { prepareInsert?: () => void }
     /** 图片上传函数。传入则显示「上传图片」按钮 */
     uploadImage?: UploadImage
+    /** 视频、音频、文件上传函数。传入则显示「上传」菜单 */
+    uploadAsset?: UploadAsset
     /** 是否全屏(控制全屏图标切换) */
     isFullscreen?: boolean
     /** 是否预览态(控制预览图标切换) */
@@ -113,6 +123,8 @@ const props = withDefaults(
     toolbarOptions?: ToolbarOptions
     /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
     editorBehaviorOptions?: EditorBehaviorOptions
+    /** adapter 层开发者诊断日志 */
+    debugLog?: ProEditorDebugLogFn
   }>(),
   {
     toolbar: undefined,
@@ -135,25 +147,30 @@ function togglePreview() {
 }
 
 const ctx = computed(() => props.ctx)
+const fallbackT = resolveLocale().t
+function t(key: LocaleKey, paramsOrFallback?: Record<string, string | number> | string) {
+  return ctx.value.t?.(key, paramsOrFallback) ?? fallbackT(key, paramsOrFallback)
+}
 function commandLabel(id: ToolbarBuiltinKey) {
-  return getCommandLabel(id)
+  return t(`command.${id}` as LocaleKey, getCommandLabel(id))
 }
 function commandActive(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
   return isToolbarCommandActive(ctx.value, id, payload)
 }
 function runCommand(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
+  props.debugLog?.('adapter', 'toolbar-click', { command: id })
   runToolbarCommand(ctx.value, id, payload)
 }
 const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['undo', 'redo'],
   ['heading', 'fontFamily', 'fontSize', 'lineHeight'],
-  ['bold', 'italic', 'strike', 'underline', 'code', 'superscript', 'subscript'],
-  ['color', 'highlight'],
+  ['bold', 'italic', 'underline', 'strike', 'code', 'superscript', 'subscript'],
+  ['color', 'highlight', 'clearFormat'],
   ['align', 'decreaseIndent', 'increaseIndent'],
-  ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock', 'hr'],
-  ['link', 'image', 'table'],
-  ['clearFormat'],
-  ['markdown', 'print', 'fullscreen', 'preview'],
+  ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
+  ['link', 'image', 'attachment', 'table', 'hr'],
+  ['markdown', 'print'],
+  ['preview', 'fullscreen'],
 ]
 const toolbarGroups = computed(() => {
   if (props.toolbar === false) return []
@@ -180,12 +197,61 @@ function triggerImageUpload() {
 }
 function onImageSelected(e: Event) {
   const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) {
-    ctx.value.commands.uploadAndInsertImage(file)
-  }
+  void uploadSelectedFiles(input, IMAGE_MULTIPLE.value, ctx.value.commands.uploadAndInsertImage)
   // 清空 value,允许重复选同一文件
   input.value = ''
+}
+
+const videoInput = ref<HTMLInputElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function triggerVideoUpload() {
+  prepareInsert()
+  videoInput.value?.click()
+}
+
+function triggerFileUpload() {
+  prepareInsert()
+  fileInput.value?.click()
+}
+
+function onVideoSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  void uploadSelectedFiles(input, VIDEO_MULTIPLE.value, ctx.value.commands.uploadAndInsertVideo)
+  input.value = ''
+}
+
+function onFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  void uploadSelectedFiles(input, FILE_MULTIPLE.value, ctx.value.commands.uploadAndInsertFile)
+  input.value = ''
+}
+
+function selectedFiles(input: HTMLInputElement, multiple: boolean) {
+  const files = Array.from(input.files ?? [])
+  return multiple ? files : files.slice(0, 1)
+}
+
+async function uploadSelectedFiles(
+  input: HTMLInputElement,
+  multiple: boolean,
+  upload: (file: File) => Promise<void>,
+) {
+  for (const file of selectedFiles(input, multiple)) {
+    await upload(file)
+  }
+}
+
+function onAttachmentCommand(command: string | number | object) {
+  props.debugLog?.('adapter', 'dropdown-command', { menu: 'attachment', command })
+  if (command === 'video') triggerVideoUpload()
+  else if (command === 'file') triggerFileUpload()
+}
+
+function onImageCommand(command: string | number | object) {
+  props.debugLog?.('adapter', 'dropdown-command', { menu: 'image', command })
+  if (command === 'upload') triggerImageUpload()
+  else if (command === 'url') openUrlDialog()
 }
 
 // 网络图片:弹窗输入 URL → setImage 插入(对标飞书「网络图片」入口)
@@ -203,15 +269,17 @@ function openUrlDialog() {
   prepareInsert()
   imageUrl.value = ''
   urlDialogVisible.value = true
+  props.debugLog?.('adapter', 'dialog-open', { dialog: 'image-url' })
 }
 function confirmUrlImage() {
+  props.debugLog?.('adapter', 'dialog-confirm', { dialog: 'image-url' })
   const url = imageUrl.value.trim()
   if (!url) {
     urlDialogVisible.value = false
     return
   }
   if (!isSupportedImageUrl(url)) {
-    ctx.value.notify('请输入有效的图片地址', 'warning')
+    ctx.value.notify(t('notify.invalidImageUrl'), 'warning')
     return
   }
   ctx.value.commands.setImage(url)
@@ -231,12 +299,13 @@ async function onMdSelected(e: Event) {
   const file = input.files?.[0]
   input.value = '' // 允许重复选同一文件
   if (!file) return
-  await importMarkdownFile(ctx.value, file)
+  await importMarkdownFile(ctx.value, file, { t: ctx.value.t })
 }
 
 function exportMarkdown() {
   exportMarkdownFile(ctx.value, {
     filename: resolvedToolbarOptions.value.markdown.exportFilename,
+    t: ctx.value.t,
   })
 }
 
@@ -251,7 +320,11 @@ function onMarkdownCommand(cmd: string) {
 // iframe 卸载时机:load 后调 print();print() 返回后(用户已确认/取消)再移除。
 // 兼容 Safari:用 onload 触发 print,而非 setTimeout;部分引擎要 setTimeout 才稳定,二者并用。
 function printContent() {
-  printEditorContent(ctx.value.getHTML(), resolvedToolbarOptions.value.print)
+  printEditorContent(ctx.value.getHTML(), {
+    ...resolvedToolbarOptions.value.print,
+    t: ctx.value.t,
+    title: resolvedToolbarOptions.value.print.title ?? t('print.defaultTitle'),
+  })
 }
 
 // ---- 表格网格选择器 ----
@@ -280,10 +353,19 @@ function onCodeBlockLanguage(language: string) {
   runCommand('codeBlock', language as CodeBlockLanguage)
 }
 
+function horizontalRuleLabel(option: ToolbarHorizontalRuleOption) {
+  return t(`toolbar.hr.${option.value}` as LocaleKey, option.label)
+}
+
+function onHorizontalRule(variant: string) {
+  prepareInsert()
+  runCommand('hr', variant as HorizontalRuleVariant)
+}
+
 // 当前标题级别(用于 dropdown 显示)
 const headingLabel = computed(() => {
   const level = getActiveHeadingLevel(ctx.value)
-  return level > 0 ? `H${level}` : '正文'
+  return level > 0 ? `H${level}` : t('toolbar.heading.body')
 })
 
 // 标题 dropdown 命令
@@ -298,15 +380,31 @@ function headingPreviewClass(level: ToolbarHeadingLevel) {
 const resolvedToolbarOptions = computed(() => resolveToolbarOptions(props.toolbarOptions))
 const PRESET_COLORS = computed(() => resolvedToolbarOptions.value.colors)
 const PRESET_HIGHLIGHTS = computed(() => resolvedToolbarOptions.value.highlights)
-const FONT_FAMILIES = computed(() => resolvedToolbarOptions.value.fontFamilies)
+const FONT_FAMILIES = computed(() =>
+  resolvedToolbarOptions.value.fontFamilies.map((font) =>
+    font.value === ''
+      ? { ...font, label: t('toolbar.fontFamily.default') }
+      : font,
+  ),
+)
 const FONT_SIZES = computed(() => resolvedToolbarOptions.value.fontSizes)
 const LINE_HEIGHTS = computed(() => resolvedToolbarOptions.value.lineHeights)
 const CODE_BLOCK_LANGUAGE_OPTIONS = computed(() => resolvedToolbarOptions.value.codeBlockLanguages)
+const HORIZONTAL_RULE_OPTIONS = computed(() => resolvedToolbarOptions.value.horizontalRules)
 const TABLE_MAX_ROWS = computed(() => resolvedToolbarOptions.value.tableGrid.maxRows)
 const TABLE_MAX_COLS = computed(() => resolvedToolbarOptions.value.tableGrid.maxCols)
 const MARKDOWN_IMPORT_ACCEPT = computed(() => resolvedToolbarOptions.value.markdown.importAccept)
 const resolvedEditorBehaviorOptions = computed(() => resolveEditorBehaviorOptions(props.editorBehaviorOptions))
 const IMAGE_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.image.accept)
+const IMAGE_MULTIPLE = computed(() => resolvedEditorBehaviorOptions.value.image.multiple)
+const IMAGE_ALLOW_URL = computed(() => resolvedEditorBehaviorOptions.value.image.allowUrl)
+const HAS_IMAGE_UPLOAD = computed(() => Boolean(props.uploadImage))
+const SHOW_IMAGE_BUTTON = computed(() => HAS_IMAGE_UPLOAD.value || IMAGE_ALLOW_URL.value)
+const SHOW_IMAGE_DROPDOWN = computed(() => HAS_IMAGE_UPLOAD.value && IMAGE_ALLOW_URL.value)
+const VIDEO_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.media.video.accept)
+const VIDEO_MULTIPLE = computed(() => resolvedEditorBehaviorOptions.value.media.video.multiple)
+const FILE_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.media.file.accept)
+const FILE_MULTIPLE = computed(() => resolvedEditorBehaviorOptions.value.media.file.multiple)
 const LINK_DEFAULT_TARGET = computed(() => resolvedEditorBehaviorOptions.value.link.defaultTarget)
 
 // 当前文字色(从选区的 textStyle mark 读取)
@@ -371,12 +469,32 @@ function alignOptionIcon(align: ToolbarTextAlign) {
 function markdownOptionIcon(action: ToolbarMarkdownAction) {
   return action === 'import' ? FileUp : FileDown
 }
+const HEADING_OPTIONS = computed(() =>
+  TOOLBAR_HEADING_OPTIONS.map((heading) => ({
+    ...heading,
+    label: heading.level === 0
+      ? t('toolbar.heading.body')
+      : t('toolbar.heading.level', { level: heading.level }),
+  })),
+)
+const ALIGN_OPTIONS = computed(() =>
+  TOOLBAR_ALIGN_OPTIONS.map((align) => ({
+    ...align,
+    label: t(`toolbar.align.${align.value}` as LocaleKey),
+  })),
+)
+const MARKDOWN_OPTIONS = computed(() =>
+  TOOLBAR_MARKDOWN_OPTIONS.map((option) => ({
+    ...option,
+    label: t(`toolbar.markdown.${option.value}` as LocaleKey),
+  })),
+)
 
 const currentFontLabel = computed(
-  () => FONT_FAMILIES.value.find((font) => font.value === currentTextStyle.value.fontFamily)?.label ?? '字体',
+  () => FONT_FAMILIES.value.find((font) => font.value === currentTextStyle.value.fontFamily)?.label ?? commandLabel('fontFamily'),
 )
-const currentFontSizeLabel = computed(() => currentTextStyle.value.fontSize || '字号')
-const currentLineHeightLabel = computed(() => currentTextStyle.value.lineHeight || '行高')
+const currentFontSizeLabel = computed(() => currentTextStyle.value.fontSize || commandLabel('fontSize'))
+const currentLineHeightLabel = computed(() => currentTextStyle.value.lineHeight || commandLabel('lineHeight'))
 
 // 链接弹窗
 // 根因:弹窗打开/确认时编辑器已失焦,ProseMirror 的 selection 在 v3 失焦后
@@ -397,6 +515,7 @@ let savedInLink = false
 function openLinkDialog() {
   const ed = ctx.value.editor.value
   if (!ed) return
+  props.debugLog?.('adapter', 'dialog-open', { dialog: 'link' })
   // 用户从未点进编辑器时,先把光标移到文档末尾,否则会插到开头
   prepareInsert()
   // 快照当前 selection 的绝对位置
@@ -405,19 +524,32 @@ function openLinkDialog() {
   savedTo = to
   savedEmpty = empty
   savedInLink = ed.isActive('link')
-  const attrs = ed.getAttributes('link') as { href?: string } | undefined
-  linkUrl.value = attrs?.href ?? ''
-  // 选区有文字时,预填进「文字」框;光标状态留空
-  linkText.value = !empty
-    ? ed.state.doc.textBetween(from, to, ' ')
-    : ''
-  linkNewTab.value = LINK_DEFAULT_TARGET.value === '_blank'
+  const activeLink = getActiveLinkRange(ed)
+  if (activeLink) {
+    savedFrom = activeLink.from
+    savedTo = activeLink.to
+    savedEmpty = false
+    linkUrl.value = activeLink.href
+    linkText.value = activeLink.text
+    linkNewTab.value = activeLink.target
+      ? activeLink.target === '_blank'
+      : LINK_DEFAULT_TARGET.value === '_blank'
+  } else {
+    const attrs = ed.getAttributes('link') as { href?: string } | undefined
+    linkUrl.value = attrs?.href ?? ''
+    // 选区有文字时,预填进「文字」框;光标状态留空
+    linkText.value = !empty
+      ? ed.state.doc.textBetween(from, to, ' ')
+      : ''
+    linkNewTab.value = LINK_DEFAULT_TARGET.value === '_blank'
+  }
   linkDialogVisible.value = true
 }
 
 function confirmLink() {
   const ed = ctx.value.editor.value
   if (!ed) return
+  props.debugLog?.('adapter', 'dialog-confirm', { dialog: 'link' })
   const href = linkUrl.value.trim()
   const text = linkText.value.trim()
   const target = linkNewTab.value ? '_blank' : '_self'
@@ -428,10 +560,10 @@ function confirmLink() {
     if (savedInLink) {
       // 当前在链接上 → 移除
       ctx.value.commands.setLink('', { target, range })
-      ctx.value.notify('已移除链接', 'success')
+      ctx.value.notify(t('notify.linkRemoved'), 'success')
     } else {
       // 既没填链接、也没选中已有链接 → 提示用户
-      ctx.value.notify('请填写链接地址', 'warning')
+      ctx.value.notify(t('notify.linkEmpty'), 'warning')
       return
     }
     linkDialogVisible.value = false
@@ -440,7 +572,7 @@ function confirmLink() {
 
   // 简单校验:带协议(http/https/mailto/tel)或明显的域名
   if (!/^(https?:|mailto:|tel:)/i.test(href) && !/\.[a-z]{2,}/i.test(href)) {
-    ctx.value.notify('链接格式不正确,请输入完整网址(如 https://example.com)', 'warning')
+    ctx.value.notify(t('notify.linkInvalid'), 'warning')
     return
   }
 
@@ -486,7 +618,7 @@ function confirmLink() {
           <template #dropdown>
             <ElDropdownMenu>
               <ElDropdownItem
-                v-for="heading in TOOLBAR_HEADING_OPTIONS"
+                v-for="heading in HEADING_OPTIONS"
                 :key="heading.level"
                 :command="heading.level"
               >
@@ -527,7 +659,7 @@ function confirmLink() {
                 :key="size || 'default-size'"
                 :command="size"
               >
-                {{ size || '默认字号' }}
+                {{ size || t('toolbar.fontSize.default') }}
               </ElDropdownItem>
             </ElDropdownMenu>
           </template>
@@ -545,7 +677,7 @@ function confirmLink() {
                 :key="lineHeight || 'default-line-height'"
                 :command="lineHeight"
               >
-                {{ lineHeight || '默认行高' }}
+                {{ lineHeight || t('toolbar.lineHeight.default') }}
               </ElDropdownItem>
             </ElDropdownMenu>
           </template>
@@ -631,7 +763,7 @@ function confirmLink() {
                 class="tvp-color-clear"
                 :class="{ 'is-active': currentColor === '' }"
                 @click="selectColor('')"
-              >默认</div>
+              >{{ t('toolbar.color.default') }}</div>
               <div
                 v-for="c in PRESET_COLORS"
                 :key="c"
@@ -662,7 +794,7 @@ function confirmLink() {
                 class="tvp-color-clear"
                 :class="{ 'is-active': currentHighlight === '' }"
                 @click="selectHighlight('')"
-              >无</div>
+              >{{ t('toolbar.highlight.none') }}</div>
               <div
                 v-for="c in PRESET_HIGHLIGHTS"
                 :key="c"
@@ -690,7 +822,7 @@ function confirmLink() {
           <template #dropdown>
             <ElDropdownMenu>
               <ElDropdownItem
-                v-for="align in TOOLBAR_ALIGN_OPTIONS"
+                v-for="align in ALIGN_OPTIONS"
                 :key="align.value"
                 :command="align.value"
               >
@@ -783,7 +915,23 @@ function confirmLink() {
         </ElTooltip>
 
         <ElTooltip v-else-if="item === 'hr'" :content="commandLabel('hr')" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('hr')" @click="runCommand('hr')"><Minus :size="18" /></ElButton>
+          <ElDropdown trigger="click" @command="onHorizontalRule">
+            <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('hr')"><Minus :size="18" /></ElButton>
+            <template #dropdown>
+              <ElDropdownMenu>
+                <ElDropdownItem
+                  v-for="option in HORIZONTAL_RULE_OPTIONS"
+                  :key="option.value"
+                  :command="option.value"
+                >
+                  <span class="tvp-hr-menu-item">
+                    <span class="tvp-hr-menu-item__preview" :data-variant="option.value" />
+                    {{ horizontalRuleLabel(option) }}
+                  </span>
+                </ElDropdownItem>
+              </ElDropdownMenu>
+            </template>
+          </ElDropdown>
         </ElTooltip>
 
         <ElTooltip v-else-if="item === 'link'" :content="commandLabel('link')" placement="top" :show-after="300">
@@ -796,14 +944,45 @@ function confirmLink() {
           ><Link :size="18" /></ElButton>
         </ElTooltip>
 
-        <template v-else-if="item === 'image'">
-          <ElTooltip v-if="uploadImage" content="上传图片" placement="top" :show-after="300">
-            <ElButton text class="tvp-icon-btn" aria-label="上传图片" @click="triggerImageUpload"><ImagePlus :size="18" /></ElButton>
-          </ElTooltip>
-          <ElTooltip content="网络图片" placement="top" :show-after="300">
-            <ElButton text class="tvp-icon-btn" aria-label="网络图片" @click="openUrlDialog"><Link2 :size="18" /></ElButton>
-          </ElTooltip>
-        </template>
+        <ElTooltip v-else-if="item === 'image' && SHOW_IMAGE_DROPDOWN" :content="commandLabel('image')" placement="top" :show-after="300">
+          <ElDropdown trigger="click" @command="onImageCommand">
+            <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('image')"><ImagePlus :size="18" /></ElButton>
+            <template #dropdown>
+              <ElDropdownMenu>
+                <ElDropdownItem v-if="uploadImage" command="upload">
+                  <span class="tvp-menu-item"><ImagePlus :size="15" />{{ t('toolbar.image.upload') }}</span>
+                </ElDropdownItem>
+                <ElDropdownItem command="url">
+                  <span class="tvp-menu-item"><Link2 :size="15" />{{ t('toolbar.image.url') }}</span>
+                </ElDropdownItem>
+              </ElDropdownMenu>
+            </template>
+          </ElDropdown>
+        </ElTooltip>
+        <ElTooltip v-else-if="item === 'image' && SHOW_IMAGE_BUTTON" :content="HAS_IMAGE_UPLOAD ? t('toolbar.image.upload') : t('toolbar.image.url')" placement="top" :show-after="300">
+          <ElButton
+            text
+            class="tvp-icon-btn"
+            :aria-label="HAS_IMAGE_UPLOAD ? t('toolbar.image.upload') : t('toolbar.image.url')"
+            @click="HAS_IMAGE_UPLOAD ? triggerImageUpload() : openUrlDialog()"
+          ><ImagePlus :size="18" /></ElButton>
+        </ElTooltip>
+
+        <ElTooltip v-else-if="item === 'attachment' && uploadAsset" :content="commandLabel('attachment')" placement="top" :show-after="300">
+          <ElDropdown trigger="click" @command="onAttachmentCommand">
+            <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('attachment')"><File :size="18" /></ElButton>
+            <template #dropdown>
+              <ElDropdownMenu>
+                <ElDropdownItem command="video">
+                  <span class="tvp-menu-item"><Video :size="15" />{{ t('toolbar.attachment.video') }}</span>
+                </ElDropdownItem>
+                <ElDropdownItem command="file">
+                  <span class="tvp-menu-item"><File :size="15" />{{ t('toolbar.attachment.file') }}</span>
+                </ElDropdownItem>
+              </ElDropdownMenu>
+            </template>
+          </ElDropdown>
+        </ElTooltip>
 
         <ElTooltip v-else-if="item === 'table'" :content="commandLabel('table')" placement="top" :show-after="300">
           <ElDropdown ref="tableDropdown" trigger="click" @command="onTableInsert">
@@ -842,7 +1021,7 @@ function confirmLink() {
             <template #dropdown>
               <ElDropdownMenu>
                 <ElDropdownItem
-                  v-for="option in TOOLBAR_MARKDOWN_OPTIONS"
+                  v-for="option in MARKDOWN_OPTIONS"
                   :key="option.value"
                   :command="option.value"
                 >
@@ -859,14 +1038,14 @@ function confirmLink() {
           <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="18" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'fullscreen'" :content="isFullscreen ? '退出全屏' : '全屏'" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">
+        <ElTooltip v-else-if="item === 'fullscreen'" :content="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" placement="top" :show-after="300">
+          <ElButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">
             <component :is="isFullscreen ? Minimize2 : Maximize2" :size="18" />
           </ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'preview'" :content="isPreview ? '编辑' : '预览'" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="isPreview ? '编辑' : '预览'" @click="togglePreview">
+        <ElTooltip v-else-if="item === 'preview'" :content="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')" placement="top" :show-after="300">
+          <ElButton text class="tvp-icon-btn" :aria-label="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')" @click="togglePreview">
             <component :is="isPreview ? Pencil : Eye" :size="18" />
           </ElButton>
         </ElTooltip>
@@ -886,19 +1065,38 @@ function confirmLink() {
       ref="imageInput"
       type="file"
       :accept="IMAGE_ACCEPT"
+      :multiple="IMAGE_MULTIPLE"
       class="tvp-image-input"
       @change="onImageSelected"
     />
 
-    <ElDialog v-model="urlDialogVisible" title="插入网络图片" width="420px" append-to-body>
+    <input
+      ref="videoInput"
+      type="file"
+      :accept="VIDEO_ACCEPT"
+      :multiple="VIDEO_MULTIPLE"
+      class="tvp-image-input"
+      @change="onVideoSelected"
+    />
+
+    <input
+      ref="fileInput"
+      type="file"
+      :accept="FILE_ACCEPT"
+      :multiple="FILE_MULTIPLE"
+      class="tvp-image-input"
+      @change="onFileSelected"
+    />
+
+    <ElDialog v-model="urlDialogVisible" :title="t('toolbar.image.urlDialogTitle')" width="420px" append-to-body>
       <ElInput
         v-model="imageUrl"
-        placeholder="请输入图片地址 https://..."
+        :placeholder="t('toolbar.image.urlPlaceholder')"
         @keyup.enter="confirmUrlImage"
       />
       <template #footer>
-        <ElButton @click="urlDialogVisible = false">取消</ElButton>
-        <ElButton type="primary" @click="confirmUrlImage">确定</ElButton>
+        <ElButton @click="urlDialogVisible = false">{{ t('toolbar.action.cancel') }}</ElButton>
+        <ElButton type="primary" @click="confirmUrlImage">{{ t('toolbar.action.confirm') }}</ElButton>
       </template>
     </ElDialog>
 
@@ -913,22 +1111,22 @@ function confirmLink() {
     <!-- 链接弹窗(ElDialog) -->
     <ElDialog
       v-model="linkDialogVisible"
-      title="插入链接"
+      :title="t('toolbar.link.dialogTitle')"
       width="440px"
       append-to-body
       :close-on-click-modal="true"
     >
       <div class="tvp-link-form">
         <div class="tvp-link-form__row">
-          <label class="tvp-link-form__label">文字</label>
+          <label class="tvp-link-form__label">{{ t('toolbar.link.textLabel') }}</label>
           <ElInput
             v-model="linkText"
-            placeholder="显示的文字(留空则用链接地址)"
+            :placeholder="t('toolbar.link.textPlaceholder')"
             clearable
           />
         </div>
         <div class="tvp-link-form__row">
-          <label class="tvp-link-form__label">链接</label>
+          <label class="tvp-link-form__label">{{ t('toolbar.link.hrefLabel') }}</label>
           <ElInput
             v-model="linkUrl"
             placeholder="https://example.com"
@@ -937,12 +1135,12 @@ function confirmLink() {
           />
         </div>
         <div class="tvp-link-form__row tvp-link-form__row--check">
-          <ElCheckbox v-model="linkNewTab">在新窗口打开</ElCheckbox>
+          <ElCheckbox v-model="linkNewTab">{{ t('toolbar.link.openInNewWindow') }}</ElCheckbox>
         </div>
       </div>
       <template #footer>
-        <ElButton @click="linkDialogVisible = false">取消</ElButton>
-        <ElButton type="primary" @click="confirmLink">确定</ElButton>
+        <ElButton @click="linkDialogVisible = false">{{ t('toolbar.action.cancel') }}</ElButton>
+        <ElButton type="primary" @click="confirmLink">{{ t('toolbar.action.confirm') }}</ElButton>
       </template>
     </ElDialog>
   </div>
@@ -1030,6 +1228,13 @@ function confirmLink() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.tvp-menu-item svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 /* 表格网格选择器 */
@@ -1153,9 +1358,36 @@ function confirmLink() {
 }
 
 .tvp-caret {
-  margin-left: 4px;
+  margin-left: 6px;
   font-size: 10px;
   opacity: 0.6;
+}
+
+.tvp-hr-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 98px;
+  line-height: 1;
+}
+
+.tvp-hr-menu-item__preview {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 42px;
+  border-top: 1.5px solid var(--el-text-color-secondary, #606266);
+}
+
+.tvp-hr-menu-item__preview[data-variant='thick'] {
+  border-top-width: 3px;
+}
+
+.tvp-hr-menu-item__preview[data-variant='dashed'] {
+  border-top-style: dashed;
+}
+
+.tvp-hr-menu-item__preview[data-variant='dotted'] {
+  border-top-style: dotted;
 }
 
 /* 链接弹窗表单 */

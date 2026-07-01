@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
+import { readFileSync } from 'node:fs'
 import ProEditorNaive from './ProEditorNaive.vue'
 import { useProEditor } from 'tiptap-vue-pro-core'
 import type { EditorBehaviorOptions, ProEditorContext, ToolbarOptions } from 'tiptap-vue-pro-core'
@@ -65,6 +66,25 @@ const childStubs = {
     `,
   },
   BubbleMenu: { template: '<div data-testid="bubble-menu" />' },
+  LinkBubbleMenu: {
+    name: 'LinkBubbleMenu',
+    props: ['editorBehaviorOptions'],
+    template: '<div data-testid="link-bubble-menu" />',
+  },
+  FileBubbleMenu: {
+    name: 'FileBubbleMenu',
+    props: ['editorBehaviorOptions'],
+    template: '<div data-testid="file-bubble-menu" />',
+  },
+  MediaBubbleMenu: {
+    name: 'MediaBubbleMenu',
+    props: ['editorBehaviorOptions'],
+    template: '<div data-testid="media-bubble-menu" />',
+  },
+  HorizontalRuleBubbleMenu: {
+    name: 'HorizontalRuleBubbleMenu',
+    template: '<div data-testid="hr-bubble-menu" />',
+  },
   TableBubbleMenu: { template: '<div data-testid="table-bubble-menu" />' },
   ImageBubbleMenu: {
     name: 'ImageBubbleMenu',
@@ -89,6 +109,21 @@ describe('ProEditorNaive', () => {
     vi.restoreAllMocks()
   })
 
+  it('透传 developer diagnostics 配置到 core', () => {
+    const debugLogger = vi.fn()
+    const debug = { channels: ['adapter' as const] }
+    wrapper = mount(ProEditorNaive, {
+      attachTo: document.body,
+      props: { debug, debugLogger },
+      global: { stubs: childStubs },
+    })
+
+    expect(vi.mocked(useProEditor).mock.calls[0][0]).toMatchObject({
+      debug,
+      debugLogger,
+    })
+  })
+
   it('readonly=true 时隐藏工具栏和所有浮层入口', () => {
     wrapper = mount(ProEditorNaive, {
       attachTo: document.body,
@@ -98,6 +133,10 @@ describe('ProEditorNaive', () => {
 
     expect(wrapper.find('[data-testid="toolbar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="link-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="file-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="media-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="hr-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-grip-handles"]').exists()).toBe(false)
@@ -113,12 +152,36 @@ describe('ProEditorNaive', () => {
 
     expect(wrapper.find('[data-testid="toolbar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="link-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="file-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="media-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="hr-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('预览模式(只读)')
     expect(wrapper.find('.tvp-preview-bar__edit-btn').exists()).toBe(true)
     expect(wrapper.find('.tvp-preview-bar__edit-btn').text()).toContain('编辑')
     expect(mockState.ctx!.setEditable).toHaveBeenCalledWith(false)
+  })
+
+  it('预览编辑按钮保持图标和文字水平居中且间距一致', () => {
+    const source = readFileSync('src/ProEditorNaive.vue', 'utf8')
+
+    expect(source).toContain('.tvp-preview-bar__edit-btn :deep(.n-button__content)')
+    expect(source).toContain('gap: 6px;')
+    expect(source).toContain('.tvp-preview-bar__edit-btn :deep(svg)')
+  })
+
+  it('contextual bubble 根节点默认不可见,避免插件接管前裸露在文档流中', () => {
+    for (const [file, className] of [
+      ['src/LinkBubbleMenu.vue', 'tvp-link-bubble'],
+      ['src/FileBubbleMenu.vue', 'tvp-file-bubble'],
+      ['src/MediaBubbleMenu.vue', 'tvp-media-bubble'],
+      ['src/HorizontalRuleBubbleMenu.vue', 'tvp-hr-bubble'],
+    ]) {
+      const source = readFileSync(file, 'utf8')
+      expect(source).toMatch(new RegExp(`\\.${className} \\{[\\s\\S]*?visibility: hidden;`))
+    }
   })
 
   it('output 动态切换到 json 时立即按 JSON 更新 v-model', async () => {
@@ -183,7 +246,7 @@ describe('ProEditorNaive', () => {
     expect(toolbar.props('toolbarOptions')).toEqual(toolbarOptions)
   })
 
-  it('把 editorBehaviorOptions 配置传给 core、Toolbar 和 ImageBubbleMenu', () => {
+  it('把 editorBehaviorOptions 配置传给 core、Toolbar、LinkBubbleMenu、MediaBubbleMenu 和 ImageBubbleMenu', () => {
     const editorBehaviorOptions: EditorBehaviorOptions = {
       link: { defaultTarget: '_self' },
       table: { withHeaderRow: false },
@@ -196,11 +259,15 @@ describe('ProEditorNaive', () => {
     })
 
     const toolbar = wrapper.findComponent({ name: 'Toolbar' })
+    const linkBubbleMenu = wrapper.findComponent({ name: 'LinkBubbleMenu' })
+    const mediaBubbleMenu = wrapper.findComponent({ name: 'MediaBubbleMenu' })
     const imageBubbleMenu = wrapper.findComponent({ name: 'ImageBubbleMenu' })
     const useProEditorCalls = vi.mocked(useProEditor).mock.calls
     const useProEditorOptions = useProEditorCalls[useProEditorCalls.length - 1]?.[0]
     expect(useProEditorOptions?.editorBehaviorOptions).toEqual(editorBehaviorOptions)
     expect(toolbar.props('editorBehaviorOptions')).toEqual(editorBehaviorOptions)
+    expect(linkBubbleMenu.props('editorBehaviorOptions')).toEqual(editorBehaviorOptions)
+    expect(mediaBubbleMenu.props('editorBehaviorOptions')).toEqual(editorBehaviorOptions)
     expect(imageBubbleMenu.props('editorBehaviorOptions')).toEqual(editorBehaviorOptions)
   })
 
@@ -274,5 +341,13 @@ describe('ProEditorNaive', () => {
     })
 
     expect(uploadImage).not.toHaveBeenCalled()
+  })
+
+  it('元素 BubbleMenu 层级高于编辑器工具栏', () => {
+    const source = readFileSync(`${process.cwd()}/src/ProEditorNaive.vue`, 'utf8')
+
+    expect(source).toContain('.tvp-img-bubble')
+    expect(source).toContain('.tvp-media-bubble')
+    expect(source).toContain('z-index: 2100;')
   })
 })

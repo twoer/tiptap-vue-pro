@@ -10,6 +10,7 @@ interface ToolbarOptions {
   colors?: string[]
   highlights?: string[]
   codeBlockLanguages?: ToolbarCodeBlockLanguageOption[]
+  horizontalRules?: ToolbarHorizontalRuleOption[]
   tableGrid?: ToolbarTableGridOptions
   markdown?: ToolbarMarkdownOptions
   print?: ToolbarPrintOptions
@@ -50,6 +51,23 @@ const toolbarOptions: ToolbarOptions = {
   ],
 }
 ```
+
+## 分割线样式
+
+`horizontalRules` 控制工具栏中「分割线」下拉菜单显示哪些样式。内置样式为 `solid`、`thick`、`dashed`、`dotted`。
+
+```ts
+const toolbarOptions: ToolbarOptions = {
+  horizontalRules: [
+    { label: '实线', value: 'solid' },
+    { label: '粗线', value: 'thick' },
+    { label: '虚线', value: 'dashed' },
+    { label: '点线', value: 'dotted' },
+  ],
+}
+```
+
+分割线样式会写入 HTML/JSON,例如 `<hr data-hr-variant="dashed">`。Markdown 标准语法不包含分割线样式,导出 Markdown 时会降级为普通 `---`。
 
 ## 表格、Markdown、打印
 

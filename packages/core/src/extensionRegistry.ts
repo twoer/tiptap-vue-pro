@@ -15,6 +15,8 @@ export interface EditorExtensionConfig {
   codeBlock?: boolean
   script?: boolean
   taskList?: boolean
+  media?: boolean
+  rangeSelection?: boolean
   markdown?: boolean
 }
 
@@ -33,6 +35,8 @@ export const DEFAULT_EXTENSION_CONFIG: Required<
   codeBlock: true,
   script: true,
   taskList: true,
+  media: true,
+  rangeSelection: true,
   markdown: true,
 }
 

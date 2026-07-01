@@ -19,7 +19,7 @@ const toolbar: ToolbarConfig = [
 <template>
   <ProEditorElementPlus v-model="content" :toolbar="toolbar">
     <template #toolbar-after="{ ctx }">
-      <ElButton text @click="ctx.commands.hr()">分割线</ElButton>
+      <ElButton text @click="ctx.commands.hr('dashed')">虚线</ElButton>
     </template>
   </ProEditorElementPlus>
 </template>
@@ -50,14 +50,25 @@ const toolbar: ToolbarConfig = [
 
 | 分组 | 功能 |
 | --- | --- |
-| 撤销/重做 | 撤销、重做 |
-| 标题 | 正文 / H1-H6 |
-| 格式化 | 加粗、斜体、删除线、下划线、行内代码、上标、下标 |
-| 排版 | 字体、字号、行高、减少缩进、增加缩进 |
-| 颜色 | 文字颜色、背景高亮 |
-| 对齐 | 左 / 中 / 右 / 两端 |
-| 列表 | 无序列表、有序列表、任务列表、引用、代码块语言选择、分割线 |
-| 媒体 | 链接、图片上传、表格 |
-| 清理 | 清除格式 |
-| Markdown | 导入 `.md` / 导出 `.md` |
-| 视图 | 预览、全屏、打印 |
+| 历史 | 撤销、重做 |
+| 段落与字体 | 正文 / H1-H6、字体、字号、行高 |
+| 行内格式 | 加粗、斜体、下划线、删除线、行内代码、上标、下标 |
+| 颜色与清理 | 文字颜色、背景高亮、清除格式 |
+| 对齐与缩进 | 左 / 中 / 右 / 两端、减少缩进、增加缩进 |
+| 列表与块 | 无序列表、有序列表、任务列表、引用、代码块语言选择 |
+| 插入 | 链接、图片(上传 / 网络图片,按配置合并)、附件上传、表格、分割线样式 |
+| 文档工具 | Markdown 导入 / 导出、打印 |
+| 视图 | 预览、全屏 |
+
+## 分割线样式
+
+内置 `hr` 按钮会渲染为下拉菜单,可插入实线、粗线、虚线、点线。自定义工具栏也可以直接传入样式:
+
+```ts
+ctx.commands.hr('solid')
+ctx.commands.hr('thick')
+ctx.commands.hr('dashed')
+ctx.commands.hr('dotted')
+```
+
+样式会保存在 HTML/JSON 中;Markdown 导出会按标准语法降级为普通 `---`。

@@ -18,7 +18,12 @@ import type {
   ImageSizePreset,
   EditorBehaviorOptions,
 } from 'tiptap-vue-pro-core'
-import { resolveEditorBehaviorOptions, useEditorPluginRegistration } from 'tiptap-vue-pro-core'
+import {
+  notifyImageFileValidationFailure,
+  resolveEditorBehaviorOptions,
+  useEditorPluginRegistration,
+  validateImageFile,
+} from 'tiptap-vue-pro-core'
 
 /**
  * 图片气泡菜单:选中图片(NodeSelection)时浮现的工具条(对标飞书)。
@@ -65,6 +70,24 @@ const currentImageAttrs = computed(() => {
   return null
 })
 
+function getSelectedImageVirtualElement() {
+  const ed = props.editor
+  const sel = ed?.state.selection as { from?: number; node?: { type: { name: string } } } | undefined
+  if (!ed || sel?.from == null || sel.node?.type.name !== 'image') return null
+
+  const node = ed.view.nodeDOM(sel.from) as HTMLElement | null
+  const imageNode = node?.classList.contains('tvp-img-node')
+    ? node
+    : node?.querySelector?.('.tvp-img-node') as HTMLElement | null
+  const anchor = (imageNode?.querySelector('.tvp-img-resizable') as HTMLElement | null) ?? imageNode
+  if (!anchor) return null
+
+  return {
+    getBoundingClientRect: () => anchor.getBoundingClientRect(),
+    getClientRects: () => [anchor.getBoundingClientRect()],
+  }
+}
+
 useEditorPluginRegistration({
   getEditor: () => props.editor,
   getElement: () => rootEl.value,
@@ -73,7 +96,13 @@ useEditorPluginRegistration({
     pluginKey: 'proImageBubbleMenu',
     editor: ed,
     element,
-    updateDelay: 100,
+    updateDelay: 0,
+    options: {
+      onShow: () => {
+        element.style.visibility = 'hidden'
+      },
+    },
+    getReferencedVirtualElement: getSelectedImageVirtualElement,
     shouldShow: ({ state }) => {
       const sel = state.selection as { node?: { type: { name: string } } }
       // 仅图片节点选中时显示
@@ -141,6 +170,11 @@ async function onReplaceSelected(e: Event) {
   if (!file || !props.uploadImage) return
   const ed = props.editor
   if (!ed) return
+  const validationFailure = validateImageFile(file, resolvedEditorBehaviorOptions.value.image)
+  if (validationFailure) {
+    notifyImageFileValidationFailure(props.ctx, validationFailure)
+    return
+  }
   // 记下原图属性,替换后恢复尺寸/对齐
   const oldAttrs = currentImageAttrs.value
   try {
@@ -152,10 +186,10 @@ async function onReplaceSelected(e: Event) {
         .run()
       void oldAttrs
     } else {
-      props.ctx.notify('图片上传失败', 'error')
+      props.ctx.notify(props.ctx.t('notify.imageUploadFailed'), 'error')
     }
   } catch {
-    props.ctx.notify('图片上传失败', 'error')
+    props.ctx.notify(props.ctx.t('notify.imageUploadFailed'), 'error')
   }
 }
 
@@ -173,34 +207,34 @@ async function remove() {
 <template>
   <div ref="rootEl" class="tvp-img-bubble" style="visibility: hidden">
     <!-- 尺寸预设 -->
-    <AntTooltip content="小(25%)" placement="top" :show-after="300">
-      <AntButton text class="tvp-img-bubble__label" @click="setSize('small')">小</AntButton>
+    <AntTooltip :content="ctx.t('image.size.smallTooltip')" placement="top" :show-after="300">
+      <AntButton text class="tvp-img-bubble__label" @click="setSize('small')">{{ ctx.t('image.size.small') }}</AntButton>
     </AntTooltip>
-    <AntTooltip content="中(50%)" placement="top" :show-after="300">
-      <AntButton text class="tvp-img-bubble__label" @click="setSize('medium')">中</AntButton>
+    <AntTooltip :content="ctx.t('image.size.mediumTooltip')" placement="top" :show-after="300">
+      <AntButton text class="tvp-img-bubble__label" @click="setSize('medium')">{{ ctx.t('image.size.medium') }}</AntButton>
     </AntTooltip>
-    <AntTooltip content="大(75%)" placement="top" :show-after="300">
-      <AntButton text class="tvp-img-bubble__label" @click="setSize('large')">大</AntButton>
+    <AntTooltip :content="ctx.t('image.size.largeTooltip')" placement="top" :show-after="300">
+      <AntButton text class="tvp-img-bubble__label" @click="setSize('large')">{{ ctx.t('image.size.large') }}</AntButton>
     </AntTooltip>
-    <AntTooltip content="原始尺寸" placement="top" :show-after="300">
-      <AntButton text class="tvp-img-bubble__label" @click="setSize('original')">原始</AntButton>
+    <AntTooltip :content="ctx.t('image.size.originalTooltip')" placement="top" :show-after="300">
+      <AntButton text class="tvp-img-bubble__label" @click="setSize('original')">{{ ctx.t('image.size.original') }}</AntButton>
     </AntTooltip>
 
     <AntDivider direction="vertical" />
 
     <!-- 对齐 -->
-    <AntTooltip content="左对齐" placement="top" :show-after="300">
-      <AntButton text aria-label="左对齐" :type="activeAlign === 'left' ? 'primary' : 'default'" @click="setAlign('left')">
+    <AntTooltip :content="ctx.t('image.align.left')" placement="top" :show-after="300">
+      <AntButton text :aria-label="ctx.t('image.align.left')" :type="activeAlign === 'left' ? 'primary' : 'default'" @click="setAlign('left')">
         <AlignLeft :size="16" />
       </AntButton>
     </AntTooltip>
-    <AntTooltip content="居中" placement="top" :show-after="300">
-      <AntButton text aria-label="居中" :type="activeAlign === 'center' ? 'primary' : 'default'" @click="setAlign('center')">
+    <AntTooltip :content="ctx.t('image.align.center')" placement="top" :show-after="300">
+      <AntButton text :aria-label="ctx.t('image.align.center')" :type="activeAlign === 'center' ? 'primary' : 'default'" @click="setAlign('center')">
         <AlignCenter :size="16" />
       </AntButton>
     </AntTooltip>
-    <AntTooltip content="右对齐" placement="top" :show-after="300">
-      <AntButton text aria-label="右对齐" :type="activeAlign === 'right' ? 'primary' : 'default'" @click="setAlign('right')">
+    <AntTooltip :content="ctx.t('image.align.right')" placement="top" :show-after="300">
+      <AntButton text :aria-label="ctx.t('image.align.right')" :type="activeAlign === 'right' ? 'primary' : 'default'" @click="setAlign('right')">
         <AlignRight :size="16" />
       </AntButton>
     </AntTooltip>
@@ -208,14 +242,14 @@ async function remove() {
     <AntDivider direction="vertical" />
 
     <!-- 题注 / 替换 / 删除。题注按钮 tabindex=-1 避免点击后抢焦点,保证 focusCaption 能成功聚焦到 caption input -->
-    <AntTooltip content="编辑题注" placement="top" :show-after="300">
-      <AntButton text tabindex="-1" aria-label="编辑题注" @click="focusCaption" @mousedown.prevent><MessageSquarePlus :size="16" /></AntButton>
+    <AntTooltip :content="ctx.t('image.caption')" placement="top" :show-after="300">
+      <AntButton text tabindex="-1" :aria-label="ctx.t('image.caption')" @click="focusCaption" @mousedown.prevent><MessageSquarePlus :size="16" /></AntButton>
     </AntTooltip>
-    <AntTooltip v-if="uploadImage" content="替换图片" placement="top" :show-after="300">
-      <AntButton text aria-label="替换图片" @click="triggerReplace"><ImagePlus :size="16" /></AntButton>
+    <AntTooltip v-if="uploadImage" :content="ctx.t('image.replace')" placement="top" :show-after="300">
+      <AntButton text :aria-label="ctx.t('image.replace')" @click="triggerReplace"><ImagePlus :size="16" /></AntButton>
     </AntTooltip>
-    <AntTooltip v-model:visible="deleteTooltipVisible" content="删除图片" placement="top" :show-after="300" :persistent="false">
-      <AntButton text aria-label="删除图片" @mousedown.prevent.stop="deleteTooltipVisible = false" @click="remove"><Trash2 :size="16" /></AntButton>
+    <AntTooltip v-model:visible="deleteTooltipVisible" :content="ctx.t('image.delete')" placement="top" :show-after="300" :persistent="false">
+      <AntButton text :aria-label="ctx.t('image.delete')" @mousedown.prevent.stop="deleteTooltipVisible = false" @click="remove"><Trash2 :size="16" /></AntButton>
     </AntTooltip>
 
     <input
@@ -230,24 +264,32 @@ async function remove() {
 
 <style scoped>
 .tvp-img-bubble {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 2px;
+  width: max-content;
   padding: 4px;
   background: var(--tvp-ant-bg-color-overlay, var(--tvp-ant-bg-color, #fff));
   border: 1px solid var(--tvp-ant-border-color-light, var(--tvp-ant-border-color, #dcdfe6));
   border-radius: 6px;
   box-shadow: var(--tvp-ant-box-shadow-light, 0 2px 12px rgba(0, 0, 0, 0.12));
   color: var(--tvp-ant-text-color-regular, #606266);
-  /* 位置变化(图片加载完尺寸稳定后重定位)平滑过渡,避免「先下面后跳上面」的突兀感 */
-  transition: top 0.15s ease-out, left 0.15s ease-out;
 }
 
 .tvp-img-bubble :deep(.tvp-ant-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 28px;
   min-width: 28px;
   padding: 0 6px;
+  line-height: 1;
   color: var(--tvp-ant-text-color-regular, #606266);
+}
+
+.tvp-img-bubble :deep(.tvp-ant-button svg) {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .tvp-img-bubble :deep(.tvp-ant-button.is-text:not(.is-disabled):hover),

@@ -2,9 +2,20 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h, ref, nextTick } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
+import { AllSelection } from '@tiptap/pm/state'
 import { useProEditor } from './useProEditor'
-import type { ProEditorContext, OutputFormat } from './types'
+import { getActiveLinkRange } from './linkRange'
+import { getSelectedFileAttachment } from './fileAttachmentSelection'
+import { getSelectedHorizontalRule } from './horizontalRuleSelection'
+import {
+  fileAttachmentToMediaNodeAttrs,
+  getSelectedMediaNode,
+  mediaNodeToFileAttachmentAttrs,
+} from './mediaSelection'
+import type { NotifyFn, ProEditorContext, OutputFormat, UploadAsset, UploadImage } from './types'
+import type { LocaleProp } from './locale'
 import type { EditorBehaviorOptions } from './editorBehaviorOptions'
+import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
 
 /**
  * useProEditor 的集成测试。
@@ -27,7 +38,13 @@ function mountEditor(opts: {
   content?: string | object
   output?: OutputFormat
   placeholder?: string
+  locale?: LocaleProp
   editorBehaviorOptions?: EditorBehaviorOptions
+  uploadImage?: UploadImage
+  uploadAsset?: UploadAsset
+  notify?: NotifyFn
+  debug?: boolean | ProEditorDebugOptions
+  debugLogger?: ProEditorDebugLogger
   onModelValue?: (v: string | object) => void
 }) {
   let ctx: ProEditorContext | undefined
@@ -45,7 +62,13 @@ function mountEditor(opts: {
         },
         output: opts.output ?? 'html',
         placeholder: opts.placeholder,
+        locale: opts.locale,
         editorBehaviorOptions: opts.editorBehaviorOptions,
+        uploadImage: opts.uploadImage,
+        uploadAsset: opts.uploadAsset,
+        notify: opts.notify,
+        debug: opts.debug,
+        debugLogger: opts.debugLogger,
       } as any)
       return () => h(EditorContent, { editor: ctx!.editor.value })
     },
@@ -79,9 +102,222 @@ function selectAll(ctx: ProEditorContext) {
   ed.chain().setTextSelection({ from: 1, to: Math.max(1, size - 1) }).run()
 }
 
+function findTextPos(ctx: ProEditorContext, text: string) {
+  const ed = ctx.editor.value!
+  let textPos = 0
+  ed.state.doc.descendants((node, pos) => {
+    if (node.isText && node.text?.includes(text)) {
+      textPos = pos + node.text.indexOf(text)
+      return false
+    }
+    return true
+  })
+  return textPos
+}
+
 afterEach(() => {
   // happy-dom 残留清理(编辑器 unmount 的已知噪音由 setup.ts 兜底)
+  localStorage.clear()
+  vi.restoreAllMocks()
   document.body.innerHTML = ''
+})
+
+describe('useProEditor — developer diagnostics', () => {
+  it('emits lifecycle diagnostics', async () => {
+    const debugLogger = vi.fn()
+    const { ctx, wrapper } = mountEditor({
+      content: '<p>hello</p>',
+      debug: true,
+      debugLogger,
+    })
+
+    await ready(ctx)
+    wrapper.unmount()
+
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'lifecycle',
+      event: 'init',
+      source: 'core',
+    }))
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'lifecycle',
+      event: 'editor-ready',
+    }))
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'lifecycle',
+      event: 'destroy',
+    }))
+  })
+
+  it('emits command and content diagnostics without full content', async () => {
+    const debugLogger = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p>hello</p>',
+      debug: true,
+      debugLogger,
+    })
+
+    await ready(ctx)
+    selectAll(ctx)
+    ctx.commands.bold()
+    await nextTick()
+
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'command',
+      event: 'run',
+      payload: expect.objectContaining({ command: 'bold' }),
+    }))
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'command',
+      event: 'result',
+      payload: expect.objectContaining({ command: 'bold', ok: true }),
+    }))
+
+    const contentEntry = debugLogger.mock.calls
+      .map(([entry]) => entry)
+      .find((entry) => entry.channel === 'content' && entry.event === 'update')
+    expect(contentEntry?.payload).toEqual(expect.objectContaining({
+      output: 'html',
+      contentLength: expect.any(Number),
+    }))
+    expect(contentEntry?.payload).not.toHaveProperty('html')
+    expect(contentEntry?.payload).not.toHaveProperty('content')
+  })
+
+  it('redacts string command arguments by default', async () => {
+    const debugLogger = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p>hello</p>',
+      debug: { channels: ['command'] },
+      debugLogger,
+    })
+
+    await ready(ctx)
+    ctx.commands.insertLinkText('https://secret.example.com/path?token=abc', 'private text')
+
+    const commandEntry = debugLogger.mock.calls
+      .map(([entry]) => entry)
+      .find((entry) => entry.channel === 'command' && entry.event === 'run' && entry.payload.command === 'insertLinkText')
+
+    expect(commandEntry?.payload.args).toEqual([
+      { type: 'string', length: 41 },
+      { type: 'string', length: 12 },
+    ])
+    expect(JSON.stringify(commandEntry)).not.toContain('secret.example.com')
+    expect(JSON.stringify(commandEntry)).not.toContain('private text')
+  })
+
+  it('marks false command results as unsuccessful diagnostics', async () => {
+    const debugLogger = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p>hello</p>',
+      debug: { channels: ['command'] },
+      debugLogger,
+    })
+
+    await ready(ctx)
+    ctx.commands.deleteTable()
+
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'command',
+      event: 'result',
+      payload: expect.objectContaining({ command: 'deleteTable', ok: false }),
+    }))
+  })
+
+  it('emits upload diagnostics for image success and error', async () => {
+    const debugLogger = vi.fn()
+    const successUpload = vi.fn(async () => 'https://example.com/image.png?token=secret')
+    const { ctx } = mountEditor({
+      content: '<p>hello</p>',
+      debug: { channels: ['upload'] },
+      debugLogger,
+      uploadImage: successUpload,
+      notify: vi.fn(),
+    })
+
+    await ready(ctx)
+    await ctx.commands.uploadAndInsertImage(new File(['x'], 'image.png', { type: 'image/png' }))
+
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'upload',
+      event: 'image:start',
+      level: 'info',
+      payload: expect.objectContaining({ fileName: 'image.png' }),
+    }))
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'upload',
+      event: 'image:success',
+      payload: expect.objectContaining({ urlHost: 'example.com' }),
+    }))
+
+    const failingLogger = vi.fn()
+    const failing = mountEditor({
+      content: '<p>hello</p>',
+      debug: { channels: ['upload'] },
+      debugLogger: failingLogger,
+      uploadImage: vi.fn(async () => {
+        throw new Error('upload failed')
+      }),
+      notify: vi.fn(),
+    })
+    await ready(failing.ctx)
+    await failing.ctx.commands.uploadAndInsertImage(new File(['x'], 'broken.png', { type: 'image/png' }))
+
+    expect(failingLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'upload',
+      event: 'image:error',
+      level: 'error',
+      payload: expect.objectContaining({ fileName: 'broken.png' }),
+      error: expect.any(Error),
+    }))
+  })
+
+  it('emits markdown diagnostics', async () => {
+    const debugLogger = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p>hello</p>',
+      debug: { channels: ['markdown'] },
+      debugLogger,
+    })
+
+    await ready(ctx)
+    ctx.getMarkdown()
+    ctx.importMarkdown('# Title')
+
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'markdown',
+      event: 'export',
+      payload: expect.objectContaining({ length: expect.any(Number) }),
+    }))
+    expect(debugLogger).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'markdown',
+      event: 'import',
+      level: 'info',
+      payload: { length: 7 },
+    }))
+  })
+
+  it('keeps tvp:table-grip-debug compatibility for table diagnostics', async () => {
+    localStorage.setItem('tvp:table-grip-debug', '1')
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => {})
+    const { ctx } = mountEditor({ content: '<p>hello</p>' })
+
+    await ready(ctx)
+    ctx.commands.selectRow(0)
+
+    expect(consoleDebug).toHaveBeenCalledWith(
+      '[tiptap-vue-pro]',
+      expect.objectContaining({
+        channel: 'table',
+        event: 'select-line:no-geometry',
+      }),
+    )
+    expect(consoleDebug).not.toHaveBeenCalledWith(
+      '[tiptap-vue-pro]',
+      expect.objectContaining({ channel: 'command' }),
+    )
+  })
 })
 
 describe('useProEditor — 命令产出真实 HTML', () => {
@@ -226,6 +462,37 @@ describe('useProEditor — 命令产出真实 HTML', () => {
     expect(ed.getHTML()).toContain('<hr>')
   })
 
+  it('hr 支持样式并写入 data-hr-variant', async () => {
+    const { ctx } = mountEditor({ content: '<p>a</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.hr('dashed')
+    await nextTick()
+
+    expect(ed.getHTML()).toContain('data-hr-variant="dashed"')
+    expect(ed.getJSON()).toMatchObject({
+      content: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'horizontalRule',
+          attrs: expect.objectContaining({ variant: 'dashed' }),
+        }),
+      ]),
+    })
+  })
+
+  it('getSelectedHorizontalRule → 选中分割线节点时返回当前样式', async () => {
+    const { ctx } = mountEditor({ content: '<hr data-hr-variant="dotted"><p></p>' })
+    const ed = await ready(ctx)
+    ed.chain().focus().setNodeSelection(0).run()
+
+    expect(getSelectedHorizontalRule(ed)).toMatchObject({
+      from: 0,
+      variant: 'dotted',
+      attrs: {
+        variant: 'dotted',
+      },
+    })
+  })
+
   it('setLink → <a href target=_blank>', async () => {
     const { ctx } = mountEditor({ content: '<p>click</p>' })
     const ed = await ready(ctx)
@@ -248,6 +515,28 @@ describe('useProEditor — 命令产出真实 HTML', () => {
     expect(ed.getHTML()).not.toContain('<a')
   })
 
+  it('setLink(空串) → 移除后继续输入不会继承链接', async () => {
+    const { ctx } = mountEditor({
+      content: '<p><a href="https://x.com">link</a></p>',
+    })
+    const ed = await ready(ctx)
+    const linkTextPos = findTextPos(ctx, 'link')
+
+    ed.chain().focus().setTextSelection(linkTextPos + 1).run()
+    const range = getActiveLinkRange(ed)
+    expect(range).not.toBeNull()
+
+    ctx.commands.setLink('', { range: { from: range!.from, to: range!.to } })
+    await nextTick()
+    ed.commands.insertContent(' tail')
+    await nextTick()
+
+    expect(ed.isActive('link')).toBe(false)
+    expect(ed.state.storedMarks?.some((mark) => mark.type.name === 'link')).not.toBe(true)
+    expect(ed.getHTML()).toContain('link tail')
+    expect(ed.getHTML()).not.toContain('<a')
+  })
+
   it('insertLinkText → 插入带链接的文本', async () => {
     const { ctx } = mountEditor({ content: '<p></p>' })
     const ed = await ready(ctx)
@@ -258,6 +547,65 @@ describe('useProEditor — 命令产出真实 HTML', () => {
     const html = ed.getHTML()
     expect(html).toContain('点这里')
     expect(html).toContain('href="https://x.com"')
+  })
+
+  it('getActiveLinkRange → 光标在链接内时返回完整链接文本和范围', async () => {
+    const { ctx } = mountEditor({
+      content: '<p><a href="https://x.com" target="_self">点这里</a> tail</p>',
+    })
+    const ed = await ready(ctx)
+    const linkTextPos = findTextPos(ctx, '点这里')
+
+    ed.chain().focus().setTextSelection(linkTextPos + 1).run()
+
+    expect(getActiveLinkRange(ed)).toMatchObject({
+      text: '点这里',
+      href: 'https://x.com',
+      target: '_self',
+    })
+  })
+
+  it('getActiveLinkRange → 选中单个链接内的部分文字时返回选区范围', async () => {
+    const { ctx } = mountEditor({
+      content: '<p><a href="https://x.com" target="_blank">abcdef</a> tail</p>',
+    })
+    const ed = await ready(ctx)
+    const linkTextPos = findTextPos(ctx, 'abcdef')
+
+    ed.chain().focus().setTextSelection({ from: linkTextPos + 1, to: linkTextPos + 4 }).run()
+
+    expect(getActiveLinkRange(ed)).toMatchObject({
+      from: linkTextPos + 1,
+      to: linkTextPos + 4,
+      text: 'bcd',
+      href: 'https://x.com',
+      target: '_blank',
+    })
+  })
+
+  it('getActiveLinkRange → 选区跨不同链接时返回 null', async () => {
+    const { ctx } = mountEditor({
+      content: '<p><a href="https://a.com">one</a> and <a href="https://b.com">two</a></p>',
+    })
+    const ed = await ready(ctx)
+    const firstPos = findTextPos(ctx, 'one')
+    const secondPos = findTextPos(ctx, 'two')
+
+    ed.chain().focus().setTextSelection({ from: firstPos + 1, to: secondPos + 2 }).run()
+
+    expect(getActiveLinkRange(ed)).toBeNull()
+  })
+
+  it('getActiveLinkRange → 光标在链接外时返回 null', async () => {
+    const { ctx } = mountEditor({
+      content: '<p><a href="https://x.com">link</a> tail</p>',
+    })
+    const ed = await ready(ctx)
+    const tailPos = findTextPos(ctx, 'tail')
+
+    ed.chain().focus().setTextSelection(tailPos + 1).run()
+
+    expect(getActiveLinkRange(ed)).toBeNull()
   })
 
   it('setColor → <span style="color:...">', async () => {
@@ -419,6 +767,10 @@ function countTag(html: string, tag: string): number {
 
 // 选中表格首个单元格内容(把光标放进表格,让表格命令有作用域)
 function selectFirstCell(ctx: ProEditorContext) {
+  selectCell(ctx, 0)
+}
+
+function selectCell(ctx: ProEditorContext, index: number) {
   const ed = ctx.editor.value!
   // 遍历文档找第一个 tableCell 节点。注意 descendants 的回调返回值会控制是否
   // 继续下降:返回 true 表示「不进入子节点」。这里用外部数组收集,回调只判定不返回,
@@ -431,7 +783,8 @@ function selectFirstCell(ctx: ProEditorContext) {
   })
   if (!cells.length) return
   // cell.pos 是单元格节点起始位置,+1 进入单元格内部
-  const cell = cells[0]
+  const cell = cells[index]
+  if (!cell) return
   ed.chain().focus().setTextSelection({ from: cell.pos + 1, to: cell.pos + 1 }).run()
 }
 
@@ -497,6 +850,101 @@ describe('useProEditor — 表格结构操作', () => {
     await nextTick()
     // 2 行,每行只剩 1 个单元格
     expect(countTag(ed.getHTML(), 'td') + countTag(ed.getHTML(), 'th')).toBe(2)
+  })
+
+  it('deleteRow / deleteColumn: 最后一行和最后一列也能删除', async () => {
+    const rowCase = mountEditor({ content: '<p>x</p>' })
+    const rowEd = await ready(rowCase.ctx)
+    rowCase.ctx.commands.insertTable(3, 2)
+    await nextTick()
+    selectCell(rowCase.ctx, 4)
+    rowCase.ctx.commands.selectRow()
+    rowCase.ctx.commands.deleteRow()
+    await nextTick()
+    expect(countTag(rowEd.getHTML(), 'tr')).toBe(2)
+
+    const colCase = mountEditor({ content: '<p>x</p>' })
+    const colEd = await ready(colCase.ctx)
+    colCase.ctx.commands.insertTable(2, 3)
+    await nextTick()
+    selectCell(colCase.ctx, 2)
+    colCase.ctx.commands.selectColumn()
+    colCase.ctx.commands.deleteColumn()
+    await nextTick()
+    expect(countTag(colEd.getHTML(), 'td') + countTag(colEd.getHTML(), 'th')).toBe(4)
+  })
+
+  it('deleteRow / deleteColumn: 删除唯一行或唯一列时移除整张表', async () => {
+    const rowCase = mountEditor({ content: '<p>x</p>' })
+    const rowEd = await ready(rowCase.ctx)
+    rowCase.ctx.commands.insertTable(1, 2)
+    await nextTick()
+    selectFirstCell(rowCase.ctx)
+    rowCase.ctx.commands.deleteRow(0)
+    await nextTick()
+    expect(rowEd.getHTML()).not.toContain('<table')
+
+    const colCase = mountEditor({ content: '<p>x</p>' })
+    const colEd = await ready(colCase.ctx)
+    colCase.ctx.commands.insertTable(2, 1)
+    await nextTick()
+    selectFirstCell(colCase.ctx)
+    colCase.ctx.commands.deleteColumn(0)
+    await nextTick()
+    expect(colEd.getHTML()).not.toContain('<table')
+  })
+
+  it('deleteColumn: 从末列删到唯一列后继续删除会移除整张表', async () => {
+    const { ctx } = mountEditor({ content: '<p>x</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertTable(2, 2)
+    await nextTick()
+
+    selectCell(ctx, 1)
+    ctx.commands.deleteColumn(1)
+    await nextTick()
+    expect(countTag(ed.getHTML(), 'td') + countTag(ed.getHTML(), 'th')).toBe(2)
+
+    ctx.commands.deleteColumn(0)
+    await nextTick()
+    expect(ed.getHTML()).not.toContain('<table')
+  })
+
+  it('deleteColumn: 菜单关闭导致 selection 离开表格时仍按锁定索引删除', async () => {
+    const { ctx } = mountEditor({ content: '<p>x</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertTable(2, 2)
+    await nextTick()
+
+    selectCell(ctx, 1)
+    ctx.commands.selectColumn(1)
+    await nextTick()
+    ed.chain().focus().setTextSelection(1).run()
+    ctx.commands.deleteColumn(1)
+    await nextTick()
+
+    expect(countTag(ed.getHTML(), 'td') + countTag(ed.getHTML(), 'th')).toBe(2)
+  })
+
+  it('deleteColumn: selection 离开表格时无参命令不使用旧表格兜底', async () => {
+    const { ctx } = mountEditor({ content: '<p>x</p>' })
+    const ed = await ready(ctx)
+    ed.commands.setContent(
+      '<p>outside</p><table><tbody>' +
+      '<tr><td>A1</td><td>A2</td></tr>' +
+      '<tr><td>B1</td><td>B2</td></tr>' +
+      '</tbody></table>',
+    )
+    await nextTick()
+
+    selectCell(ctx, 1)
+    ctx.commands.selectColumn(1)
+    await nextTick()
+    ed.chain().focus().setTextSelection(1).run()
+    ctx.commands.deleteColumn()
+    await nextTick()
+
+    expect(countTag(ed.getHTML(), 'td') + countTag(ed.getHTML(), 'th')).toBe(4)
   })
 
   it('deleteTable: 表格被移除', async () => {
@@ -824,6 +1272,479 @@ describe('useProEditor — 只读切换', () => {
   })
 })
 
+describe('useProEditor — 媒体与文件命令', () => {
+  it('uploadAndInsertVideo: 上传并插入原生 video 播放器', async () => {
+    const uploadAsset = vi.fn(async () => ({
+      url: 'https://example.com/a.mp4',
+      name: 'a.mp4',
+      size: 1024,
+      mimeType: 'video/mp4',
+      duration: 120,
+      poster: 'https://example.com/a-cover.jpg',
+    }))
+    const { ctx } = mountEditor({ content: '<p></p>', uploadAsset })
+    await ready(ctx)
+
+    await ctx.commands.uploadAndInsertVideo(new File(['x'], 'a.mp4', { type: 'video/mp4' }))
+    await nextTick()
+
+    const html = ctx.getHTML()
+    expect(uploadAsset).toHaveBeenCalledWith(expect.any(File), 'video')
+    expect(html).toContain('<video')
+    expect(html).toContain('src="https://example.com/a.mp4"')
+    expect(html).toContain('poster="https://example.com/a-cover.jpg"')
+    expect(html).toContain('data-duration="120"')
+  })
+
+  it('uploadAndInsertVideo: displayMode=file 时插入附件卡片', async () => {
+    const uploadAsset = vi.fn(async () => 'https://example.com/a.mp4')
+    const { ctx } = mountEditor({
+      content: '<p></p>',
+      uploadAsset,
+      editorBehaviorOptions: {
+        media: { video: { render: { displayMode: 'file' } } },
+      },
+    })
+    await ready(ctx)
+
+    await ctx.commands.uploadAndInsertVideo(new File(['x'], 'a.mp4', { type: 'video/mp4' }))
+    await nextTick()
+
+    const html = ctx.getHTML()
+    expect(html).not.toContain('<video')
+    expect(html).toContain('tvp-file-attachment')
+    expect(html).toContain('data-media-kind="video"')
+    expect(html).toContain('a.mp4')
+  })
+
+  it('uploadAndInsertAudio: 上传并插入原生 audio 播放器', async () => {
+    const uploadAsset = vi.fn(async () => 'https://example.com/a.mp3')
+    const { ctx } = mountEditor({ content: '<p></p>', uploadAsset })
+    await ready(ctx)
+
+    await ctx.commands.uploadAndInsertAudio(new File(['x'], 'a.mp3', { type: 'audio/mpeg' }))
+    await nextTick()
+
+    const html = ctx.getHTML()
+    expect(uploadAsset).toHaveBeenCalledWith(expect.any(File), 'audio')
+    expect(html).toContain('<audio')
+    expect(html).toContain('src="https://example.com/a.mp3"')
+  })
+
+  it('uploadAndInsertAudio: displayMode=file 时插入附件卡片', async () => {
+    const uploadAsset = vi.fn(async () => 'https://example.com/a.mp3')
+    const { ctx } = mountEditor({
+      content: '<p></p>',
+      uploadAsset,
+      editorBehaviorOptions: {
+        media: { audio: { render: { displayMode: 'file' } } },
+      },
+    })
+    await ready(ctx)
+
+    await ctx.commands.uploadAndInsertAudio(new File(['x'], 'a.mp3', { type: 'audio/mpeg' }))
+    await nextTick()
+
+    const html = ctx.getHTML()
+    expect(html).not.toContain('<audio')
+    expect(html).toContain('tvp-file-attachment')
+    expect(html).toContain('data-media-kind="audio"')
+  })
+
+  it('uploadAndInsertFile: 上传并插入文件附件元数据', async () => {
+    const uploadAsset = vi.fn(async () => ({
+      url: 'https://example.com/a.pdf',
+      name: 'A.pdf',
+      size: 2048,
+      mimeType: 'application/pdf',
+      uploadedAt: '2026-06-30T10:20:30.000Z',
+      duration: 125,
+    }))
+    const { ctx } = mountEditor({
+      content: '<p></p>',
+      uploadAsset,
+      editorBehaviorOptions: {
+        media: {
+          file: {
+            render: {
+              showMimeType: true,
+              showUploadedAt: true,
+              uploadedAtFormat: 'date',
+              durationFormat: (duration) => `${duration}s`,
+              openInNewTab: false,
+              download: false,
+            },
+          },
+        },
+      },
+    })
+    await ready(ctx)
+
+    await ctx.commands.uploadAndInsertFile(new File(['x'], 'a.pdf', { type: 'application/pdf' }))
+    await nextTick()
+
+    const html = ctx.getHTML()
+    expect(uploadAsset).toHaveBeenCalledWith(expect.any(File), 'file')
+    expect(html).toContain('tvp-file-attachment')
+    expect(html).toContain('data-name="A.pdf"')
+    expect(html).toContain('data-size="2048"')
+    expect(html).toContain('data-uploaded-at-text="2026-06-30"')
+    expect(html).toContain('data-duration="125"')
+    expect(html).toContain('data-duration-text="125s"')
+    expect(html).toContain('data-show-mime-type="true"')
+    expect(html).toContain('PDF')
+    expect(html).toContain('data-open-in-new-tab="false"')
+    expect(html).toContain('data-download="false"')
+  })
+
+  it('insertFile: en-US 下文件类型标签使用英文并写入 HTML', async () => {
+    const { ctx } = mountEditor({
+      content: '<p></p>',
+      locale: 'en-US',
+      editorBehaviorOptions: {
+        media: {
+          file: {
+            render: {
+              showMimeType: true,
+            },
+          },
+        },
+      },
+    })
+    await ready(ctx)
+
+    ctx.commands.insertFile({
+      url: 'https://example.com/assets.zip',
+      name: 'assets.zip',
+      mimeType: 'application/zip',
+    })
+    await nextTick()
+
+    const html = ctx.getHTML()
+    expect(html).toContain('data-file-type-text="Archive"')
+    expect(html).toContain('Archive')
+    expect(html).not.toContain('压缩包')
+  })
+
+  it('已有文件卡片缺少持久化类型文案时 en-US 下默认类型标签使用英文', async () => {
+    const { ctx } = mountEditor({
+      content: '<p></p>',
+      locale: 'en-US',
+      editorBehaviorOptions: {
+        media: {
+          file: {
+            render: {
+              showMimeType: true,
+            },
+          },
+        },
+      },
+    })
+    const ed = await ready(ctx)
+
+    ctx.commands.insertFile({
+      url: 'https://example.com/assets.zip',
+      name: 'assets.zip',
+      mimeType: 'application/zip',
+    })
+    await nextTick()
+    ed.chain().focus().setNodeSelection(0).updateAttributes('fileAttachment', { fileTypeText: '' }).run()
+    await nextTick()
+
+    const html = ctx.getHTML()
+    expect(html).toContain('Archive')
+    expect(html).not.toContain('压缩包')
+  })
+
+  it('getSelectedFileAttachment → 选中文件附件节点时返回当前文件属性', async () => {
+    const { ctx } = mountEditor({ content: '<p></p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertFile({
+      url: 'https://example.com/a.pdf',
+      name: 'a.pdf',
+      size: 1024,
+      mimeType: 'application/pdf',
+    })
+    await nextTick()
+
+    ed.chain().focus().setNodeSelection(0).run()
+
+    expect(getSelectedFileAttachment(ed)).toMatchObject({
+      from: 0,
+      href: 'https://example.com/a.pdf',
+      name: 'a.pdf',
+      attrs: {
+        name: 'a.pdf',
+        size: 1024,
+        mimeType: 'application/pdf',
+      },
+    })
+  })
+
+  it('FileAttachment → 编辑态点击文件卡片时选中节点而不是触发下载', async () => {
+    const { ctx, wrapper } = mountEditor({ content: '<p></p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertFile({
+      url: 'https://example.com/a.pdf',
+      name: 'a.pdf',
+      size: 1024,
+      mimeType: 'application/pdf',
+    })
+    await nextTick()
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+    const link = wrapper.get('.tvp-file-attachment').element
+    const dispatched = link.dispatchEvent(event)
+    await nextTick()
+
+    expect(dispatched).toBe(false)
+    expect(event.defaultPrevented).toBe(true)
+    expect(getSelectedFileAttachment(ed)).toMatchObject({
+      href: 'https://example.com/a.pdf',
+      name: 'a.pdf',
+    })
+  })
+
+  it('FileAttachment → 编辑态点击卡片下载图标时直接下载', async () => {
+    const { ctx, wrapper } = mountEditor({ content: '<p></p>' })
+    await ready(ctx)
+    ctx.commands.insertFile({
+      url: 'https://example.com/a.pdf',
+      name: 'a.pdf',
+      size: 1024,
+      mimeType: 'application/pdf',
+    })
+    await nextTick()
+
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    try {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+      const download = wrapper.get('.tvp-file-attachment__download').element
+      const dispatched = download.dispatchEvent(event)
+      await nextTick()
+
+      expect(dispatched).toBe(false)
+      expect(event.defaultPrevented).toBe(true)
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('getSelectedMediaNode → 选中视频节点时返回当前媒体属性', async () => {
+    const { ctx } = mountEditor({ content: '<p></p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertVideo({
+      url: 'https://example.com/a.mp4',
+      name: 'a.mp4',
+      mimeType: 'video/mp4',
+      duration: 120,
+      poster: 'https://example.com/a.jpg',
+    })
+    await nextTick()
+
+    ed.chain().focus().setNodeSelection(0).run()
+
+    expect(getSelectedMediaNode(ed)).toMatchObject({
+      from: 0,
+      type: 'video',
+      src: 'https://example.com/a.mp4',
+      name: 'a.mp4',
+      attrs: {
+        name: 'a.mp4',
+        mimeType: 'video/mp4',
+        duration: 120,
+        poster: 'https://example.com/a.jpg',
+      },
+    })
+  })
+
+  it('点击音频原生控件区域也会选中音频节点', async () => {
+    const { ctx, wrapper } = mountEditor({
+      content: '<audio src="https://example.com/a.mp3"></audio>',
+    })
+    const ed = await ready(ctx)
+    await nextTick()
+
+    const audio = wrapper.element.querySelector('.tvp-media-node audio') as HTMLAudioElement
+    audio.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    await nextTick()
+
+    expect(getSelectedMediaNode(ed)).toMatchObject({
+      type: 'audio',
+      src: 'https://example.com/a.mp3',
+    })
+  })
+
+  it('全选时图片、视频、音频、文件和分割线节点都有范围选中态', async () => {
+    const { ctx, wrapper } = mountEditor({ content: '<p></p>' })
+    const ed = await ready(ctx)
+    ctx.commands.ensureFocusAtEnd()
+    ctx.commands.setImage('https://example.com/a.png')
+    ctx.commands.ensureFocusAtEnd()
+    ctx.commands.insertVideo('https://example.com/a.mp4')
+    ctx.commands.ensureFocusAtEnd()
+    ctx.commands.insertAudio('https://example.com/a.mp3')
+    ctx.commands.ensureFocusAtEnd()
+    ctx.commands.insertFile({
+      url: 'https://example.com/a.pdf',
+      name: 'a.pdf',
+      mimeType: 'application/pdf',
+    })
+    ctx.commands.ensureFocusAtEnd()
+    ctx.commands.hr('dashed')
+    await nextTick()
+
+    ed.view.dispatch(ed.state.tr.setSelection(new AllSelection(ed.state.doc)))
+    await nextTick()
+
+    expect(wrapper.element.querySelectorAll('.tvp-range-selected-node').length).toBeGreaterThanOrEqual(5)
+    expect(wrapper.element.querySelector('.tvp-img-node.tvp-range-selected-node')).not.toBeNull()
+    expect(wrapper.element.querySelector('.tvp-media-node[data-media-kind="video"].tvp-range-selected-node')).not.toBeNull()
+    expect(wrapper.element.querySelector('.tvp-media-node[data-media-kind="audio"].tvp-range-selected-node')).not.toBeNull()
+    expect(wrapper.element.querySelector('.tvp-file-attachment.tvp-range-selected-node')).not.toBeNull()
+    expect(wrapper.element.querySelector('hr.tvp-range-selected-node')).not.toBeNull()
+  })
+
+  it('setMediaSize: medium 设为当前视频容器宽度的 50%', async () => {
+    const { ctx } = mountEditor({ content: '<p></p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertVideo('https://example.com/a.mp4')
+    await nextTick()
+    Object.defineProperty(ed.view.dom, 'clientWidth', {
+      configurable: true,
+      value: 800,
+    })
+    ed.chain().focus().setNodeSelection(0).run()
+    ctx.commands.setMediaSize('medium')
+    await nextTick()
+
+    expect(ctx.getHTML()).toContain('width="400"')
+  })
+
+  it('setMediaSize: original 清除当前音频宽度', async () => {
+    const { ctx } = mountEditor({ content: '<audio src="https://example.com/a.mp3" width="320"></audio>' })
+    const ed = await ready(ctx)
+    ed.chain().focus().setNodeSelection(0).run()
+    ctx.commands.setMediaSize('original')
+    await nextTick()
+
+    expect(ctx.getHTML()).not.toContain('width="320"')
+    expect(ctx.getHTML()).not.toContain('width: 320px')
+  })
+
+  it('media/file 转换 helpers 会保留可持久化播放和文件显示属性', () => {
+    const media = {
+      from: 3,
+      to: 4,
+      type: 'video' as const,
+      src: 'https://example.com/a.mp4',
+      name: 'a.mp4',
+      attrs: {
+        name: 'movie.mp4',
+        mimeType: 'video/mp4',
+        duration: 95,
+        poster: 'https://example.com/poster.jpg',
+        controls: false,
+        muted: true,
+        loop: true,
+        autoplay: true,
+        playsInline: false,
+        preload: 'auto',
+        allowFullscreen: false,
+        allowDownload: false,
+        allowPictureInPicture: false,
+        width: 720,
+      },
+    }
+
+    const fileAttrs = mediaNodeToFileAttachmentAttrs(media, {
+      showIcon: true,
+      iconMode: 'auto',
+      showName: true,
+      showSize: false,
+      showMimeType: true,
+      showUploadedAt: true,
+      showDuration: true,
+      uploadedAtFormat: 'datetime',
+      openInNewTab: false,
+      download: false,
+    })
+
+    expect(fileAttrs).toMatchObject({
+      href: 'https://example.com/a.mp4',
+      name: 'movie.mp4',
+      mimeType: 'video/mp4',
+      mediaKind: 'video',
+      duration: 95,
+      poster: 'https://example.com/poster.jpg',
+      controls: false,
+      muted: true,
+      loop: true,
+      autoplay: true,
+      playsInline: false,
+      preload: 'auto',
+      allowFullscreen: false,
+      allowDownload: false,
+      allowPictureInPicture: false,
+      width: 720,
+      showMimeType: true,
+      showUploadedAt: true,
+      download: false,
+    })
+
+    expect(fileAttachmentToMediaNodeAttrs(fileAttrs, 'video', {
+      displayMode: 'player',
+      controls: true,
+      muted: false,
+      loop: false,
+      autoplay: false,
+      playsInline: true,
+      preload: 'metadata',
+      allowFullscreen: true,
+      allowDownload: true,
+      allowPictureInPicture: true,
+      poster: () => 'runtime-only.jpg',
+      width: '100%',
+    })).toMatchObject({
+      src: 'https://example.com/a.mp4',
+      name: 'movie.mp4',
+      mimeType: 'video/mp4',
+      duration: 95,
+      poster: 'https://example.com/poster.jpg',
+      controls: false,
+      muted: true,
+      loop: true,
+      autoplay: true,
+      playsInline: false,
+      preload: 'auto',
+      allowFullscreen: false,
+      allowDownload: false,
+      allowPictureInPicture: false,
+      width: 720,
+    })
+  })
+
+  it('uploadAndInsertVideo: 校验失败时不上传并提示', async () => {
+    const uploadAsset = vi.fn(async () => 'https://example.com/a.mp4')
+    const notify = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p></p>',
+      uploadAsset,
+      notify,
+      editorBehaviorOptions: {
+        media: { video: { maxSize: 1024 } },
+      },
+    })
+    await ready(ctx)
+
+    await ctx.commands.uploadAndInsertVideo(new File([new Uint8Array(2048)], 'large.mp4', { type: 'video/mp4' }))
+
+    expect(uploadAsset).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalledWith('文件过大(2.0 KB),上限 1.0 KB', 'warning')
+  })
+})
+
 /**
  * 图片相关命令(对标飞书):对齐、尺寸预设、题注、删除。
  *
@@ -847,6 +1768,25 @@ describe('useProEditor — 图片命令(对齐/尺寸/题注/删除)', () => {
     ctx.commands.setImageAlign('left')
     await nextTick()
     expect(ctx.getHTML()).toContain('data-align="left"')
+  })
+
+  it('uploadAndInsertImage: 图片超过 maxSize 时不上传并提示', async () => {
+    const uploadImage = vi.fn(async () => 'https://cdn/a.png')
+    const notify = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p></p>',
+      uploadImage,
+      notify,
+      editorBehaviorOptions: {
+        image: { maxSize: 1024 },
+      },
+    })
+    await ready(ctx)
+
+    await ctx.commands.uploadAndInsertImage(new File([new Uint8Array(2048)], 'large.png', { type: 'image/png' }))
+
+    expect(uploadImage).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalledWith('图片过大(2.0 KB),上限 1.0 KB', 'warning')
   })
 
   it('setImageAlign: center 是默认值,不输出 data-align 属性', async () => {

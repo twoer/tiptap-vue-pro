@@ -18,21 +18,26 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import { GripVertical, ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import type { ProEditorContext, ProEditorDebugLogFn } from 'tiptap-vue-pro-core'
 
 const props = defineProps<{
   editor: Editor | undefined
   ctx: ProEditorContext
   /** 滚动容器(覆盖层相对它定位)。由主组件传入 tvp-content-wrap */
   scrollContainer: HTMLElement | null
+  /** adapter 层开发者诊断日志 */
+  debugLog?: ProEditorDebugLogFn
 }>()
 
 // 当前 hover 的行号/列号(null = 未 hover 表格区域)
 const hoverRow = ref<number | null>(null)
 const hoverCol = ref<number | null>(null)
 
-// 抓手的像素位置(相对 scrollContainer)
-const gripPos = ref<{ row?: { left: number; top: number; height: number }; col?: { top: number; left: number; width: number } }>({})
+// 抓手的像素位置。进入表格后为每行/每列都计算一个抓手,点击时用抓手自带的 index。
+const gripPos = ref<{
+  rows: { index: number; left: number; top: number; height: number }[]
+  cols: { index: number; top: number; left: number; width: number }[]
+}>({ rows: [], cols: [] })
 
 // 菜单弹出状态(行菜单/列菜单分别控制)
 const rowMenuShow = ref(false)
@@ -65,7 +70,34 @@ function runAfterPopperClose(command: () => void) {
 // tableState 只跟随「当前选区」,用户纯 hover 表格时选区可能还在表格外。
 let activeTable: HTMLTableElement | null = null
 let activeCell: HTMLElement | null = null
+let rowMenuCell: HTMLElement | null = null
+let colMenuCell: HTMLElement | null = null
+let rowMenuIndex: number | null = null
+let colMenuIndex: number | null = null
 let activeEditor: Editor | null = null
+
+function describeCell(cell: HTMLElement | null) {
+  if (!cell) return null
+  const rect = cell.getBoundingClientRect()
+  const row = cell.parentElement as HTMLTableRowElement | null
+  const table = row?.closest('table')
+  return {
+    tag: cell.tagName,
+    text: cell.textContent?.trim(),
+    rowIndex: row && table ? Array.from(table.querySelectorAll('tr')).indexOf(row) : null,
+    colIndex: row ? Array.from(row.children).indexOf(cell) : null,
+    rect: {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    },
+  }
+}
+
+function tableGripDebug(event: string, payload: Record<string, unknown> = {}) {
+  props.debugLog?.('table', event, payload)
+}
 
 // 拿当前表格的 DOM 元素
 function getTableEl(): HTMLTableElement | null {
@@ -83,50 +115,60 @@ function updateGripPos() {
   const table = getTableEl()
   const scrollEl = props.scrollContainer
   if (!table || !scrollEl) {
-    gripPos.value = {}
+    gripPos.value = { rows: [], cols: [] }
     return
   }
   // 表格若整体滚出容器视口,不显示抓手
   const scrollRect = scrollEl.getBoundingClientRect()
   const tableRect = table.getBoundingClientRect()
   if (tableRect.bottom < scrollRect.top || tableRect.top > scrollRect.bottom) {
-    gripPos.value = {}
+    gripPos.value = { rows: [], cols: [] }
     return
   }
-  const pos: typeof gripPos.value = {}
+  if (hoverRow.value == null && hoverCol.value == null && !rowMenuShow.value && !colMenuShow.value) {
+    gripPos.value = { rows: [], cols: [] }
+    return
+  }
+  const pos: typeof gripPos.value = { rows: [], cols: [] }
 
   // 行抓手:fixed 定位,坐标直接用视口坐标(getBoundingClientRect 的返回值)
-  if (hoverRow.value != null) {
-    const rows = table.querySelectorAll('tr')
-    const tr = rows[hoverRow.value]
-    if (tr) {
-      const r = tr.getBoundingClientRect()
-      pos.row = {
-        left: tableRect.left - GRIP_SIZE - GRIP_GAP,
-        top: r.top,
-        height: r.height,
-      }
-    }
+  const rows = Array.from(table.querySelectorAll('tr'))
+  for (const [index, tr] of rows.entries()) {
+    const r = tr.getBoundingClientRect()
+    pos.rows.push({
+      index,
+      left: tableRect.left - GRIP_SIZE - GRIP_GAP,
+      top: r.top,
+      height: r.height,
+    })
   }
 
   // 列抓手
-  if (hoverCol.value != null) {
-    const firstRow = table.querySelector('tr')
-    if (firstRow) {
-      const cells = firstRow.querySelectorAll('th, td')
-      const cell = cells[hoverCol.value]
-      if (cell) {
-        const c = cell.getBoundingClientRect()
-        pos.col = {
-          top: tableRect.top - GRIP_SIZE - GRIP_GAP,
-          left: c.left,
-          width: c.width,
-        }
-      }
+  const firstRow = table.querySelector('tr')
+  if (firstRow) {
+    const cells = Array.from(firstRow.querySelectorAll('th, td'))
+    for (const [index, cell] of cells.entries()) {
+      const c = cell.getBoundingClientRect()
+      pos.cols.push({
+        index,
+        top: tableRect.top - GRIP_SIZE - GRIP_GAP,
+        left: c.left,
+        width: c.width,
+      })
     }
   }
   gripPos.value = pos
 }
+
+function getActiveGripPositions() {
+  const shouldRender = hoverRow.value != null || hoverCol.value != null || rowMenuShow.value || colMenuShow.value
+  return {
+    rows: shouldRender ? gripPos.value.rows : [],
+    cols: shouldRender ? gripPos.value.cols : [],
+  }
+}
+
+const activeGripPos = computed(getActiveGripPositions)
 
 // hover 检测:委托到 table 的 mousemove,用 cell 的 DOM 索引反查行列号
 function onContainerMouseMove(e: MouseEvent) {
@@ -141,10 +183,18 @@ function onContainerMouseMove(e: MouseEvent) {
   // 行号 = tr 在 table 中的索引;列号 = td 在 tr 中的索引
   const rowIndex = Array.from(table.querySelectorAll('tr')).indexOf(tr)
   const colIndex = Array.from(tr.children).indexOf(td)
+  const changed = hoverRow.value !== rowIndex || hoverCol.value !== colIndex
   activeTable = table
   activeCell = td
   hoverRow.value = rowIndex >= 0 ? rowIndex : null
   hoverCol.value = colIndex >= 0 ? colIndex : null
+  if (changed) {
+    tableGripDebug('hover-cell', {
+      rowIndex,
+      colIndex,
+      activeCell: describeCell(activeCell),
+    })
+  }
   updateGripPos()
 }
 
@@ -167,77 +217,222 @@ function scheduleHide() {
 function onContainerMouseLeave() {
   scheduleHide()
 }
-// 抓手自身 hover 保活:鼠标进抓手区域取消挂起的隐藏
-function onGripEnter() {
+function onRowGripEnter(index: number) {
   cancelHide()
+  hoverRow.value = index
+  rowMenuCell = getCellAt(index, hoverCol.value ?? 0) ?? rowMenuCell ?? activeCell
+  tableGripDebug('row-grip:enter', {
+    rowIndex: index,
+    rowMenuCell: describeCell(rowMenuCell),
+  })
+}
+
+function onColGripEnter(index: number) {
+  cancelHide()
+  hoverCol.value = index
+  colMenuCell = getCellAt(hoverRow.value ?? 0, index) ?? colMenuCell ?? activeCell
+  tableGripDebug('col-grip:enter', {
+    colIndex: index,
+    colMenuCell: describeCell(colMenuCell),
+  })
+}
+
+function getCellAt(rowIndex: number | null | undefined, colIndex: number | null | undefined) {
+  if (!activeTable || rowIndex == null || colIndex == null) return null
+  const row = activeTable.querySelectorAll('tr')[rowIndex]
+  return (row?.children[colIndex] as HTMLElement | undefined) ?? null
+}
+
+function lockRowGripTarget(index: number) {
+  cancelHide()
+  rowMenuIndex = index
+  rowMenuCell = getCellAt(index, hoverCol.value ?? 0) ?? activeCell
+  tableGripDebug('row-grip:lock', {
+    rowIndex: rowMenuIndex,
+    rowMenuCell: describeCell(rowMenuCell),
+  })
+}
+
+function lockColGripTarget(index: number) {
+  cancelHide()
+  colMenuIndex = index
+  colMenuCell = getCellAt(hoverRow.value ?? 0, index) ?? activeCell
+  tableGripDebug('col-grip:lock', {
+    colIndex: colMenuIndex,
+    colMenuCell: describeCell(colMenuCell),
+  })
 }
 
 function clearHover() {
   hoverRow.value = null
   hoverCol.value = null
-  gripPos.value = {}
+  gripPos.value = { rows: [], cols: [] }
   activeTable = null
   activeCell = null
 }
 
-function focusActiveCell() {
+function focusCell(cell: HTMLElement | null = activeCell) {
   const ed = props.editor
-  if (!ed || !activeCell) return
-  const rect = activeCell.getBoundingClientRect()
-  // 从 DOM 坐标反查 ProseMirror pos,比 posAtDOM 更能避开 tableCell 边界位置。
+  if (!ed || !cell) {
+    tableGripDebug('focusCell:skip', { hasEditor: !!ed, cell: describeCell(cell) })
+    return
+  }
+  const candidates: number[] = []
+  const addCandidate = (pos: number | null | undefined) => {
+    if (typeof pos === 'number' && Number.isFinite(pos)) candidates.push(pos)
+  }
+  const addDomPos = (node: Node, offset: number, deltas: number[] = [0]) => {
+    try {
+      const base = ed.view.posAtDOM(node, offset)
+      for (const delta of deltas) addCandidate(base + delta)
+    } catch {
+      // Some DOM nodes are outside ProseMirror's managed tree.
+    }
+  }
+
+  const walker = document.createTreeWalker(cell, 4)
+  let textNode = walker.nextNode() as Text | null
+  while (textNode && !textNode.textContent?.length) textNode = walker.nextNode() as Text | null
+  if (textNode) addDomPos(textNode, Math.min(1, textNode.textContent?.length ?? 0))
+  const textBlock = cell.querySelector('p,h1,h2,h3,h4,h5,h6,li,pre,blockquote')
+  if (textBlock) addDomPos(textBlock, 0, [1, 2, 0])
+  addDomPos(cell, 0, [2, 1, 3])
+
+  const rect = cell.getBoundingClientRect()
   const hit = ed.view.posAtCoords({
     left: rect.left + Math.min(8, Math.max(1, rect.width / 2)),
     top: rect.top + Math.min(8, Math.max(1, rect.height / 2)),
   })
-  if (!hit) return
-  ed.chain().focus().setTextSelection(hit.pos).run()
+  addCandidate(hit?.pos)
+  if (typeof hit?.inside === 'number' && hit.inside >= 0) {
+    addCandidate(hit.inside + 2)
+    addCandidate(hit.inside + 1)
+  }
+
+  const pos = candidates.find((candidate, index) => {
+    if (candidates.indexOf(candidate) !== index) return false
+    if (candidate < 0 || candidate > ed.state.doc.content.size) return false
+    try {
+      return ed.state.doc.resolve(candidate).parent.inlineContent
+    } catch {
+      return false
+    }
+  })
+  if (pos == null) {
+    tableGripDebug('focusCell:no-valid-pos', { candidates, cell: describeCell(cell) })
+    return
+  }
+  tableGripDebug('focusCell:hit', { pos, candidates, cell: describeCell(cell) })
+  ed.chain().focus().setTextSelection(pos).run()
 }
 
 // 点击 6 点热区打开菜单时,先把选区落到当前 hover 的 cell,再选中整行/整列。
 // 外层长条只负责 hover 保活和视觉定位,不直接触发菜单。
-function onRowMenuShow(visible: boolean) {
+function onRowMenuShow(visible: boolean, index?: number) {
   rowMenuShow.value = visible
   if (visible) {
-    focusActiveCell()
-    props.ctx.commands.selectRow()
+    if (index != null) lockRowGripTarget(index)
+    rowMenuCell = rowMenuCell ?? activeCell
+    rowMenuIndex = rowMenuIndex ?? describeCell(rowMenuCell)?.rowIndex ?? null
+    tableGripDebug('row-menu:open', {
+      activeCell: describeCell(activeCell),
+      rowMenuCell: describeCell(rowMenuCell),
+      rowMenuIndex,
+    })
+    focusCell(rowMenuCell)
+    props.ctx.commands.selectRow(rowMenuIndex ?? describeCell(rowMenuCell)?.rowIndex ?? undefined)
+  } else {
+    tableGripDebug('row-menu:close')
   }
 }
-function onColMenuShow(visible: boolean) {
+function onColMenuShow(visible: boolean, index?: number) {
   colMenuShow.value = visible
   if (visible) {
-    focusActiveCell()
-    props.ctx.commands.selectColumn()
+    if (index != null) lockColGripTarget(index)
+    colMenuCell = colMenuCell ?? activeCell
+    colMenuIndex = colMenuIndex ?? describeCell(colMenuCell)?.colIndex ?? null
+    tableGripDebug('col-menu:open', {
+      activeCell: describeCell(activeCell),
+      colMenuCell: describeCell(colMenuCell),
+      colMenuIndex,
+    })
+    focusCell(colMenuCell)
+    props.ctx.commands.selectColumn(colMenuIndex ?? describeCell(colMenuCell)?.colIndex ?? undefined)
+  } else {
+    tableGripDebug('col-menu:close')
   }
 }
 
 // 行菜单命令(作用于当前选中行)
 function runRowCmd(op: string) {
   const c = props.ctx.commands
+  const cell = rowMenuCell ?? activeCell
+  const targetCell = describeCell(cell)
+  const targetRowIndex = rowMenuIndex ?? targetCell?.rowIndex ?? undefined
+  tableGripDebug('row-command:start', {
+    op,
+    cell: targetCell,
+    rowMenuIndex,
+    rowMenuCell: describeCell(rowMenuCell),
+    activeCell: describeCell(activeCell),
+  })
+  focusCell(cell)
+  c.selectRow(targetRowIndex)
   if (op === 'addUp') c.addRowBefore()
   else if (op === 'addDown') c.addRowAfter()
   else if (op === 'delete') {
     rowMenuShow.value = false
     clearHover()
-    runAfterPopperClose(() => c.deleteRow())
+    runAfterPopperClose(() => {
+      tableGripDebug('row-command:delete-run', { cell: targetCell, rowMenuIndex })
+      focusCell(cell)
+      c.selectRow(targetRowIndex)
+      c.deleteRow(targetRowIndex)
+      rowMenuCell = null
+      rowMenuIndex = null
+    })
     return
   }
   else if (op === 'moveUp') c.moveRowUp()
   else if (op === 'moveDown') c.moveRowDown()
+  rowMenuCell = null
+  rowMenuIndex = null
   rowMenuShow.value = false
   clearHover()
 }
 function runColCmd(op: string) {
   const c = props.ctx.commands
+  const cell = colMenuCell ?? activeCell
+  const targetCell = describeCell(cell)
+  const targetColIndex = colMenuIndex ?? targetCell?.colIndex ?? undefined
+  tableGripDebug('col-command:start', {
+    op,
+    cell: targetCell,
+    colMenuIndex,
+    colMenuCell: describeCell(colMenuCell),
+    activeCell: describeCell(activeCell),
+  })
+  focusCell(cell)
+  c.selectColumn(targetColIndex)
   if (op === 'addLeft') c.addColumnBefore()
   else if (op === 'addRight') c.addColumnAfter()
   else if (op === 'delete') {
     colMenuShow.value = false
     clearHover()
-    runAfterPopperClose(() => c.deleteColumn())
+    runAfterPopperClose(() => {
+      tableGripDebug('col-command:delete-run', { cell: targetCell, colMenuIndex })
+      focusCell(cell)
+      c.selectColumn(targetColIndex)
+      c.deleteColumn(targetColIndex)
+      colMenuCell = null
+      colMenuIndex = null
+    })
     return
   }
   else if (op === 'moveLeft') c.moveColumnLeft()
   else if (op === 'moveRight') c.moveColumnRight()
+  colMenuCell = null
+  colMenuIndex = null
   colMenuShow.value = false
   clearHover()
 }
@@ -276,6 +471,10 @@ function teardown() {
   window.removeEventListener('resize', updateGripPos)
   activeTable = null
   activeCell = null
+  rowMenuCell = null
+  colMenuCell = null
+  rowMenuIndex = null
+  colMenuIndex = null
 }
 
 onMounted(setup)
@@ -293,17 +492,19 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
   <template v-if="hasEditor">
     <!-- 行抓手(表格左外侧)-->
     <div
-      v-if="gripPos.row && hoverRow != null"
+      v-for="row in activeGripPos.rows"
+      :key="'row-' + row.index"
       class="tvp-table-grip tvp-table-grip--row"
-      :style="{ left: gripPos.row.left + 'px', top: gripPos.row.top + 'px', height: gripPos.row.height + 'px' }"
-      @mouseenter="onGripEnter"
-      @mousedown.stop.prevent
+      :class="{ 'is-active': row.index === hoverRow || row.index === rowMenuIndex }"
+      :style="{ left: row.left + 'px', top: row.top + 'px', height: row.height + 'px' }"
+      @mouseenter="onRowGripEnter(row.index)"
+      @mousedown.stop.prevent="lockRowGripTarget(row.index)"
     >
       <ElDropdown
-        v-model:visible="rowMenuShow"
+        :visible="rowMenuShow && rowMenuIndex === row.index"
         trigger="click"
         placement="right-start"
-        @visible-change="onRowMenuShow"
+        @visible-change="(visible: boolean) => onRowMenuShow(visible, row.index)"
         @command="runRowCmd"
       >
         <span class="tvp-table-grip__icon"><GripVertical :size="14" /></span>
@@ -321,17 +522,19 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
 
     <!-- 列抓手(表格上外侧)-->
     <div
-      v-if="gripPos.col && hoverCol != null"
+      v-for="col in activeGripPos.cols"
+      :key="'col-' + col.index"
       class="tvp-table-grip tvp-table-grip--col"
-      :style="{ left: gripPos.col.left + 'px', top: gripPos.col.top + 'px', width: gripPos.col.width + 'px' }"
-      @mouseenter="onGripEnter"
-      @mousedown.stop.prevent
+      :class="{ 'is-active': col.index === hoverCol || col.index === colMenuIndex }"
+      :style="{ left: col.left + 'px', top: col.top + 'px', width: col.width + 'px' }"
+      @mouseenter="onColGripEnter(col.index)"
+      @mousedown.stop.prevent="lockColGripTarget(col.index)"
     >
       <ElDropdown
-        v-model:visible="colMenuShow"
+        :visible="colMenuShow && colMenuIndex === col.index"
         trigger="click"
-        placement="bottom-start"
-        @visible-change="onColMenuShow"
+        placement="top-start"
+        @visible-change="(visible: boolean) => onColMenuShow(visible, col.index)"
         @command="runColCmd"
       >
         <span class="tvp-table-grip__icon"><GripVertical :size="14" /></span>
@@ -350,8 +553,7 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
 </template>
 
 <style scoped>
-/* 抓手:fixed 浮层(相对视口),不受 content-wrap overflow 裁剪。
-   图标(6 点)默认清晰可见,背景默认透明;hover 时背景淡淡浮现,点击区域 22px 不变。 */
+/* 抓手:fixed 浮层(相对视口),不受 content-wrap overflow 裁剪。 */
 .tvp-table-grip {
   position: fixed;
   display: flex;
@@ -370,6 +572,11 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
   width: 28px;
   height: 28px;
   color: #595959; /* 明确的深灰,不依赖 CSS 变量继承 */
+  opacity: 0;
+  transition: opacity 0.12s, color 0.15s;
+}
+.tvp-table-grip.is-active .tvp-table-grip__icon {
+  opacity: 1;
 }
 /* Dropdown 触发器只包住 6 点附近,但比 SVG 本身大,避免要求精确点中图标路径。 */
 .tvp-table-grip :deep(.el-dropdown) {
@@ -377,8 +584,7 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
   height: 28px;
 }
 .tvp-table-grip:hover {
-  /* hover 背景用更淡的色(lighter 比 light 更轻),不抢视觉 */
-  background: var(--el-fill-color-lighter, #fafafa);
+  background: transparent;
 }
 .tvp-table-grip:hover .tvp-table-grip__icon {
   color: var(--el-color-primary, #409eff);
@@ -388,14 +594,29 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.tvp-menu-item svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 /* 行抓手:竖条状,宽度固定,高度跟随行高 */
 .tvp-table-grip--row {
   width: 22px;
+  background: transparent;
+}
+.tvp-table-grip--row:hover {
+  background: transparent;
 }
 /* 列抓手:横条状,高度固定,宽度跟随列宽 */
 .tvp-table-grip--col {
   height: 22px;
+  background: transparent;
+}
+.tvp-table-grip--col:hover {
+  background: transparent;
 }
 </style>

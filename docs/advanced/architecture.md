@@ -18,7 +18,7 @@ flowchart LR
 
 | 目录 | 说明 |
 | --- | --- |
-| `packages/core` | `useProEditor`、默认扩展、命令聚合、Markdown、图片上传调度、类型契约 |
+| `packages/core` | `useProEditor`、默认扩展、命令聚合、Markdown、图片上传调度、开发者诊断、类型契约 |
 | `packages/element-plus` | Element Plus 组件、工具栏、弹窗、气泡菜单、样式 |
 | `packages/naive` | Naive UI 组件、工具栏、弹窗、气泡菜单、样式 |
 | `packages/ant-design-vue` | Ant Design Vue 组件、工具栏、弹窗、气泡菜单、样式 |
@@ -53,3 +53,7 @@ flowchart TD
 ## Adapter 边界
 
 Adapter 之间不能互相引用 UI 组件或样式变量。Element Plus 代码只使用 Element Plus,Naive UI 代码只使用 Naive UI,Ant Design Vue 代码只使用 Ant Design Vue。共享行为统一沉到 Core。
+
+## 开发者诊断边界
+
+开发者诊断的事件过滤、内容清洗和 console fallback 位于 Core。Adapter 只负责上报各自 UI 行为,例如工具栏点击、弹窗打开和表格抓手菜单;不跨 adapter 引用组件、类名或样式变量。

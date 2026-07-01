@@ -41,7 +41,7 @@ interface EditorExtensionConfig {
 ```
 
 ::: tip
-传入 `extensions` 会覆盖默认扩展数组。只想调整字体、字号、色板、代码语言、表格网格等菜单数据时,优先使用 `toolbarOptions`。
+传入 `extensions` 会覆盖默认扩展数组。只想调整字体、字号、色板、代码语言、分割线样式、表格网格等菜单数据时,优先使用 `toolbarOptions`。
 :::
 
 ## 什么时候该碰扩展注册表
@@ -49,7 +49,7 @@ interface EditorExtensionConfig {
 | 目标 | 建议 |
 | --- | --- |
 | 只是改工具栏按钮 | 用 `toolbar` |
-| 只是改字体、字号、色板、代码语言 | 用 `toolbarOptions` |
-| 只是改链接 target、表格表头、图片 accept | 用 `editorBehaviorOptions` |
+| 只是改字体、字号、色板、代码语言、分割线样式 | 用 `toolbarOptions` |
+| 只是改链接 target、表格表头、图片 accept 和大小上限 | 用 `editorBehaviorOptions` |
 | 要禁用某个 Tiptap 扩展 | 用 `createEditorExtensions` |
 | 要接入自定义 Tiptap 扩展 | 自己组装 `extensions` 后传给组件 |

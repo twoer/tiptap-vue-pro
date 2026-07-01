@@ -4,7 +4,7 @@ import { ElButton } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import { Bold, Italic, Underline, Strikethrough, Link, Eraser } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import { useEditorPluginRegistration, type ProEditorContext } from 'tiptap-vue-pro-core'
+import { getActiveLinkRange, getSelectedFileAttachment, getSelectedHorizontalRule, getSelectedMediaNode, resolveLocale, useEditorPluginRegistration, type LocaleKey, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 /**
  * 气泡菜单:选中文字时浮现的小工具条。
@@ -27,6 +27,10 @@ const rootEl = ref<HTMLElement | null>(null)
 const isVisible = ref(false)
 
 const ctx = computed(() => props.ctx)
+const fallbackT = resolveLocale().t
+function t(key: LocaleKey) {
+  return ctx.value.t?.(key) ?? fallbackT(key)
+}
 
 // 链接快捷输入
 const linkInputVisible = ref(false)
@@ -43,15 +47,15 @@ function confirmQuickLink() {
   if (!href) {
     if (props.editor?.isActive('link')) {
       ctx.value.commands.setLink('')
-      ctx.value.notify('已移除链接', 'success')
+      ctx.value.notify(t('notify.linkRemoved'), 'success')
       linkInputVisible.value = false
       return
     }
-    ctx.value.notify('请填写链接地址', 'warning')
+    ctx.value.notify(t('notify.linkEmpty'), 'warning')
     return
   }
   if (!/^(https?:|mailto:|tel:)/i.test(href) && !/\.[a-z]{2,}/i.test(href)) {
-    ctx.value.notify('链接格式不正确,请输入完整网址(如 https://example.com)', 'warning')
+    ctx.value.notify(t('notify.linkInvalid'), 'warning')
     return
   }
   ctx.value.commands.setLink(href)
@@ -69,9 +73,14 @@ useEditorPluginRegistration({
     editor: ed,
     element,
     updateDelay: 100,
-    shouldShow: ({ state }) => {
+    shouldShow: ({ editor, state }) => {
       // 仅在有非空选区时显示(纯光标点击不弹)
       if (state.selection.empty) return false
+      // 链接范围由 LinkBubbleMenu 独占,避免与普通文字 bubble 同时出现。
+      if (getActiveLinkRange(editor)) return false
+      if (getSelectedFileAttachment(editor)) return false
+      if (getSelectedMediaNode(editor)) return false
+      if (getSelectedHorizontalRule(editor)) return false
       // 在表格内选文字时不弹文字气泡——表格气泡(proTableBubble)独占,
       // 避免两个气泡同时浮现在同一位置打架。表格内的文字格式化用顶部工具栏。
       const { $from } = state.selection
@@ -91,12 +100,12 @@ useEditorPluginRegistration({
     class="tvp-bubble"
     :class="{ 'is-visible': isVisible }"
   >
-    <ElButton text aria-label="加粗" :type="ctx.isActive('bold') ? 'primary' : 'default'" @click="ctx.commands.bold()"><Bold :size="16" /></ElButton>
-    <ElButton text aria-label="斜体" :type="ctx.isActive('italic') ? 'primary' : 'default'" @click="ctx.commands.italic()"><Italic :size="16" /></ElButton>
-    <ElButton text aria-label="下划线" :type="ctx.isActive('underline') ? 'primary' : 'default'" @click="ctx.commands.underline()"><Underline :size="16" /></ElButton>
-    <ElButton text aria-label="删除线" :type="ctx.isActive('strike') ? 'primary' : 'default'" @click="ctx.commands.strike()"><Strikethrough :size="16" /></ElButton>
-    <ElButton text aria-label="链接" @click="openQuickLink"><Link :size="16" /></ElButton>
-    <ElButton text aria-label="清除格式" @click="ctx.commands.clearFormat()"><Eraser :size="16" /></ElButton>
+    <ElButton text :aria-label="t('command.bold')" :type="ctx.isActive('bold') ? 'primary' : 'default'" @click="ctx.commands.bold()"><Bold :size="16" /></ElButton>
+    <ElButton text :aria-label="t('command.italic')" :type="ctx.isActive('italic') ? 'primary' : 'default'" @click="ctx.commands.italic()"><Italic :size="16" /></ElButton>
+    <ElButton text :aria-label="t('command.underline')" :type="ctx.isActive('underline') ? 'primary' : 'default'" @click="ctx.commands.underline()"><Underline :size="16" /></ElButton>
+    <ElButton text :aria-label="t('command.strike')" :type="ctx.isActive('strike') ? 'primary' : 'default'" @click="ctx.commands.strike()"><Strikethrough :size="16" /></ElButton>
+    <ElButton text :aria-label="t('command.link')" @click="openQuickLink"><Link :size="16" /></ElButton>
+    <ElButton text :aria-label="t('command.clearFormat')" @click="ctx.commands.clearFormat()"><Eraser :size="16" /></ElButton>
 
     <!-- 快速链接输入 -->
     <teleport to="body">
@@ -108,7 +117,7 @@ useEditorPluginRegistration({
             placeholder="https://"
             @keyup.enter="confirmQuickLink"
           />
-          <ElButton size="small" type="primary" aria-label="确定链接" @click="confirmQuickLink">确定</ElButton>
+          <ElButton size="small" type="primary" :aria-label="t('toolbar.link.confirmAria')" @click="confirmQuickLink">{{ t('toolbar.action.confirm') }}</ElButton>
         </div>
       </div>
     </teleport>

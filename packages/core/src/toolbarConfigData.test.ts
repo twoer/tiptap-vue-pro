@@ -6,6 +6,7 @@ import {
   TOOLBAR_FONT_SIZES,
   TOOLBAR_HEADING_OPTIONS,
   TOOLBAR_HEADING_PREVIEW_STYLES,
+  TOOLBAR_HORIZONTAL_RULE_OPTIONS,
   TOOLBAR_LINE_HEIGHTS,
   TOOLBAR_MARKDOWN_IMPORT_ACCEPT,
   TOOLBAR_MARKDOWN_OPTIONS,
@@ -50,6 +51,7 @@ describe('toolbar config data', () => {
     expect(TOOLBAR_PRESET_HIGHLIGHTS).toHaveLength(32)
     expect(TOOLBAR_ALIGN_OPTIONS.map((option) => option.label)).toEqual(['左对齐', '居中', '右对齐', '两端对齐'])
     expect(TOOLBAR_MARKDOWN_OPTIONS.map((option) => option.label)).toEqual(['导入', '导出'])
+    expect(TOOLBAR_HORIZONTAL_RULE_OPTIONS.map((option) => option.value)).toEqual(['solid', 'thick', 'dashed', 'dotted'])
   })
 
   it('resolves defaults when toolbar options are omitted', () => {
@@ -60,6 +62,7 @@ describe('toolbar config data', () => {
       colors: TOOLBAR_PRESET_COLORS,
       highlights: TOOLBAR_PRESET_HIGHLIGHTS,
       codeBlockLanguages: TOOLBAR_CODE_BLOCK_LANGUAGES,
+      horizontalRules: TOOLBAR_HORIZONTAL_RULE_OPTIONS,
       tableGrid: TOOLBAR_TABLE_GRID,
       markdown: {
         importAccept: TOOLBAR_MARKDOWN_IMPORT_ACCEPT,
@@ -81,6 +84,7 @@ describe('toolbar config data', () => {
     expect(options.colors).toEqual(TOOLBAR_PRESET_COLORS)
     expect(options.highlights).toEqual(TOOLBAR_PRESET_HIGHLIGHTS)
     expect(options.codeBlockLanguages).toEqual(TOOLBAR_CODE_BLOCK_LANGUAGES)
+    expect(options.horizontalRules).toEqual(TOOLBAR_HORIZONTAL_RULE_OPTIONS)
     expect(options.tableGrid).toEqual(TOOLBAR_TABLE_GRID)
   })
 
@@ -89,17 +93,20 @@ describe('toolbar config data', () => {
       colors: [],
       highlights: [],
       codeBlockLanguages: [],
+      horizontalRules: [],
     })
 
     expect(options.colors).toEqual([])
     expect(options.highlights).toEqual([])
     expect(options.codeBlockLanguages).toEqual([])
+    expect(options.horizontalRules).toEqual([])
   })
 
   it('resolves advanced toolbar option overrides', () => {
     const exportFilename = () => 'doc.md'
     const options = resolveToolbarOptions({
       codeBlockLanguages: [{ label: 'Mermaid', value: 'mermaid' }],
+      horizontalRules: [{ label: '虚线', value: 'dashed' }],
       tableGrid: { maxRows: 12, maxCols: 6.8 },
       markdown: {
         importAccept: '.md',
@@ -112,6 +119,7 @@ describe('toolbar config data', () => {
     })
 
     expect(options.codeBlockLanguages).toEqual([{ label: 'Mermaid', value: 'mermaid' }])
+    expect(options.horizontalRules).toEqual([{ label: '虚线', value: 'dashed' }])
     expect(options.tableGrid).toEqual({ maxRows: 12, maxCols: 6 })
     expect(options.markdown).toEqual({ importAccept: '.md', exportFilename })
     expect(options.print).toEqual({ title: '文档打印', cleanupDelay: 10 })

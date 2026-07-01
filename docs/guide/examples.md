@@ -12,6 +12,7 @@ import {
   type EditorBehaviorOptions,
   type ToolbarConfig,
   type ToolbarOptions,
+  type UploadAsset,
   type UploadImage,
 } from 'tiptap-vue-pro-element-plus'
 import 'tiptap-vue-pro-element-plus/style.css'
@@ -23,7 +24,7 @@ const toolbar: ToolbarConfig = [
   ['undo', 'redo'],
   ['heading', 'fontFamily', 'fontSize', 'lineHeight'],
   ['bold', 'italic', 'underline', 'color', 'highlight'],
-  ['link', 'image', 'table'],
+  ['link', 'image', 'attachment', 'table'],
   ['markdown', 'preview', 'fullscreen'],
 ]
 
@@ -40,7 +41,17 @@ const toolbarOptions: ToolbarOptions = {
 
 const editorBehaviorOptions: EditorBehaviorOptions = {
   link: { defaultTarget: '_self' },
-  image: { accept: 'image/png,image/jpeg,image/webp' },
+  image: { accept: 'image/png,image/jpeg,image/webp', maxSize: 10 * 1024 * 1024, multiple: true, allowUrl: true },
+  media: {
+    video: { accept: 'video/mp4,video/webm', maxSize: 100 * 1024 * 1024, multiple: true },
+    audio: { accept: 'audio/mpeg,audio/wav', maxSize: 30 * 1024 * 1024, multiple: true },
+    file: {
+      accept: '.pdf,.doc,.docx,.xls,.xlsx,.zip',
+      maxSize: 50 * 1024 * 1024,
+      multiple: true,
+      render: { showSize: true, showMimeType: true, showUploadedAt: true },
+    },
+  },
 }
 
 const uploadImage: UploadImage = async (file) => {
@@ -49,6 +60,14 @@ const uploadImage: UploadImage = async (file) => {
   const res = await fetch('/api/upload', { method: 'POST', body: formData })
   const { url } = await res.json()
   return url
+}
+
+const uploadAsset: UploadAsset = async (file, kind) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('kind', kind)
+  const res = await fetch('/api/upload-asset', { method: 'POST', body: formData })
+  return await res.json()
 }
 </script>
 
@@ -59,6 +78,7 @@ const uploadImage: UploadImage = async (file) => {
     :toolbar-options="toolbarOptions"
     :editor-behavior-options="editorBehaviorOptions"
     :upload-image="uploadImage"
+    :upload-asset="uploadAsset"
   />
 </template>
 ```

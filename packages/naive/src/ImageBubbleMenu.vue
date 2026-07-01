@@ -25,7 +25,12 @@ import type {
   ImageSizePreset,
   EditorBehaviorOptions,
 } from 'tiptap-vue-pro-core'
-import { resolveEditorBehaviorOptions, useEditorPluginRegistration } from 'tiptap-vue-pro-core'
+import {
+  notifyImageFileValidationFailure,
+  resolveEditorBehaviorOptions,
+  useEditorPluginRegistration,
+  validateImageFile,
+} from 'tiptap-vue-pro-core'
 
 const props = defineProps<{
   editor: Editor | undefined
@@ -52,6 +57,24 @@ const currentImageAttrs = computed(() => {
 })
 const activeAlign = computed<ImageAlign>(() => (currentImageAttrs.value?.align as ImageAlign) ?? 'center')
 
+function getSelectedImageVirtualElement() {
+  const ed = props.editor
+  const sel = ed?.state.selection as { from?: number; node?: { type: { name: string } } } | undefined
+  if (!ed || sel?.from == null || sel.node?.type.name !== 'image') return null
+
+  const node = ed.view.nodeDOM(sel.from) as HTMLElement | null
+  const imageNode = node?.classList.contains('tvp-img-node')
+    ? node
+    : node?.querySelector?.('.tvp-img-node') as HTMLElement | null
+  const anchor = (imageNode?.querySelector('.tvp-img-resizable') as HTMLElement | null) ?? imageNode
+  if (!anchor) return null
+
+  return {
+    getBoundingClientRect: () => anchor.getBoundingClientRect(),
+    getClientRects: () => [anchor.getBoundingClientRect()],
+  }
+}
+
 useEditorPluginRegistration({
   getEditor: () => props.editor,
   getElement: () => rootEl.value,
@@ -60,7 +83,13 @@ useEditorPluginRegistration({
     pluginKey: 'proImageBubbleMenu',
     editor: ed,
     element,
-    updateDelay: 100,
+    updateDelay: 0,
+    options: {
+      onShow: () => {
+        element.style.visibility = 'hidden'
+      },
+    },
+    getReferencedVirtualElement: getSelectedImageVirtualElement,
     shouldShow: ({ state }) => {
       const sel = state.selection as { node?: { type: { name: string } } }
       return !!sel.node && sel.node.type.name === 'image'
@@ -123,15 +152,20 @@ async function onReplaceSelected(e: Event) {
   if (!file || !props.uploadImage) return
   const ed = props.editor
   if (!ed) return
+  const validationFailure = validateImageFile(file, resolvedEditorBehaviorOptions.value.image)
+  if (validationFailure) {
+    notifyImageFileValidationFailure(props.ctx, validationFailure)
+    return
+  }
   try {
     const url = await props.uploadImage(file)
     if (url) {
       ed.chain().focus().updateAttributes('image', { src: url }).run()
     } else {
-      props.ctx.notify('图片上传失败', 'error')
+      props.ctx.notify(props.ctx.t('notify.imageUploadFailed'), 'error')
     }
   } catch {
-    props.ctx.notify('图片上传失败', 'error')
+    props.ctx.notify(props.ctx.t('notify.imageUploadFailed'), 'error')
   }
 }
 
@@ -152,27 +186,27 @@ async function remove() {
     <!-- 尺寸预设。统一 size(默认 medium),由 :deep 样式约束为正方形,避免 small 与图标按钮高度不一 -->
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text @click="setSize('small')">小</NButton>
+        <NButton text @click="setSize('small')">{{ ctx.t('image.size.small') }}</NButton>
       </template>
-      小(25%)
+      {{ ctx.t('image.size.smallTooltip') }}
     </NTooltip>
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text @click="setSize('medium')">中</NButton>
+        <NButton text @click="setSize('medium')">{{ ctx.t('image.size.medium') }}</NButton>
       </template>
-      中(50%)
+      {{ ctx.t('image.size.mediumTooltip') }}
     </NTooltip>
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text @click="setSize('large')">大</NButton>
+        <NButton text @click="setSize('large')">{{ ctx.t('image.size.large') }}</NButton>
       </template>
-      大(75%)
+      {{ ctx.t('image.size.largeTooltip') }}
     </NTooltip>
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text @click="setSize('original')">原始</NButton>
+        <NButton text @click="setSize('original')">{{ ctx.t('image.size.original') }}</NButton>
       </template>
-      原始尺寸
+      {{ ctx.t('image.size.originalTooltip') }}
     </NTooltip>
 
     <NDivider vertical />
@@ -180,27 +214,27 @@ async function remove() {
     <!-- 对齐 -->
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text aria-label="左对齐" :type="activeAlign === 'left' ? 'primary' : 'default'" @click="setAlign('left')">
+        <NButton text :aria-label="ctx.t('image.align.left')" :type="activeAlign === 'left' ? 'primary' : 'default'" @click="setAlign('left')">
           <AlignLeft :size="16" />
         </NButton>
       </template>
-      左对齐
+      {{ ctx.t('image.align.left') }}
     </NTooltip>
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text aria-label="居中" :type="activeAlign === 'center' ? 'primary' : 'default'" @click="setAlign('center')">
+        <NButton text :aria-label="ctx.t('image.align.center')" :type="activeAlign === 'center' ? 'primary' : 'default'" @click="setAlign('center')">
           <AlignCenter :size="16" />
         </NButton>
       </template>
-      居中
+      {{ ctx.t('image.align.center') }}
     </NTooltip>
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text aria-label="右对齐" :type="activeAlign === 'right' ? 'primary' : 'default'" @click="setAlign('right')">
+        <NButton text :aria-label="ctx.t('image.align.right')" :type="activeAlign === 'right' ? 'primary' : 'default'" @click="setAlign('right')">
           <AlignRight :size="16" />
         </NButton>
       </template>
-      右对齐
+      {{ ctx.t('image.align.right') }}
     </NTooltip>
 
     <NDivider vertical />
@@ -208,21 +242,21 @@ async function remove() {
     <!-- 题注 / 替换 / 删除 -->
     <NTooltip trigger="hover" placement="top">
       <template #trigger>
-        <NButton text aria-label="编辑题注" @click="focusCaption" @mousedown.prevent><MessageSquarePlus :size="16" /></NButton>
+        <NButton text :aria-label="ctx.t('image.caption')" @click="focusCaption" @mousedown.prevent><MessageSquarePlus :size="16" /></NButton>
       </template>
-      编辑题注
+      {{ ctx.t('image.caption') }}
     </NTooltip>
     <NTooltip v-if="uploadImage" trigger="hover" placement="top">
       <template #trigger>
-        <NButton text aria-label="替换图片" @click="triggerReplace"><ImagePlus :size="16" /></NButton>
+        <NButton text :aria-label="ctx.t('image.replace')" @click="triggerReplace"><ImagePlus :size="16" /></NButton>
       </template>
-      替换图片
+      {{ ctx.t('image.replace') }}
     </NTooltip>
     <NTooltip v-model:show="deleteTooltipVisible" trigger="hover" placement="top">
       <template #trigger>
-        <NButton text aria-label="删除图片" @mousedown.prevent.stop="deleteTooltipVisible = false" @click="remove"><Trash2 :size="16" /></NButton>
+        <NButton text :aria-label="ctx.t('image.delete')" @mousedown.prevent.stop="deleteTooltipVisible = false" @click="remove"><Trash2 :size="16" /></NButton>
       </template>
-      删除图片
+      {{ ctx.t('image.delete') }}
     </NTooltip>
 
     <input
@@ -237,17 +271,16 @@ async function remove() {
 
 <style scoped>
 .tvp-img-bubble {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 2px;
+  width: max-content;
   padding: 4px;
   background: var(--n-popover-color, var(--n-color, #fff));
   border: 1px solid var(--n-border-color, #efeff5);
   border-radius: 6px;
   box-shadow: var(--n-box-shadow, 0 2px 12px rgba(0, 0, 0, 0.12));
   color: var(--n-text-color-2, #303133);
-  /* 位置变化平滑过渡,避免图片加载完重定位时的突兀跳动 */
-  transition: top 0.15s ease-out, left 0.15s ease-out;
 }
 
 /*
@@ -256,13 +289,19 @@ async function remove() {
  * 用 :deep() 穿透 NButton 的 scoped 边界,统一 padding/height/min-width。
  */
 .tvp-img-bubble :deep(.n-button) {
-  height: 28px;
-  min-width: 28px;
-  padding: 0;
-  color: var(--n-text-color-2, #303133);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  line-height: 1;
+  color: var(--n-text-color-2, #303133);
+}
+
+.tvp-img-bubble :deep(.n-button svg) {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .tvp-img-bubble :deep(.n-button:hover),

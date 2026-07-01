@@ -1,5 +1,12 @@
 import type { ProEditorContext, UploadImage } from './types'
-import { handleImageFiles, hasImageFiles } from './handleImageUpload'
+import type { EditorBehaviorOptions } from './editorBehaviorOptions'
+import { resolveEditorBehaviorOptions } from './editorBehaviorOptions'
+import {
+  handleImageFiles,
+  hasImageFiles,
+  isImageFileValidationFailure,
+  notifyImageFileValidationFailure,
+} from './handleImageUpload'
 
 /**
  * Shared paste/drop image handling for UI adapters.
@@ -10,6 +17,7 @@ import { handleImageFiles, hasImageFiles } from './handleImageUpload'
 export function useImageDropPaste(
   ctx: ProEditorContext,
   getUploadImage: () => UploadImage | undefined,
+  getEditorBehaviorOptions?: () => EditorBehaviorOptions | undefined,
 ) {
   function consumeFiles(
     files: File[] | FileList | null | undefined,
@@ -21,9 +29,14 @@ export function useImageDropPaste(
     const ed = ctx.editor.value
     if (!ed) return
     preventDefault()
-    void handleImageFiles(files, uploadImage, ed, () => {
-      ctx.notify('部分图片上传失败', 'error')
-    })
+    const imageOptions = resolveEditorBehaviorOptions(getEditorBehaviorOptions?.()).image
+    void handleImageFiles(files, uploadImage, ed, (_file, error) => {
+      if (isImageFileValidationFailure(error)) {
+        notifyImageFileValidationFailure(ctx, error)
+        return
+      }
+      ctx.notify(ctx.t('notify.partialImageUploadFailed'), 'error')
+    }, imageOptions)
   }
 
   function onPaste(e: ClipboardEvent) {

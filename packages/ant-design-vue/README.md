@@ -1,11 +1,13 @@
 # Tiptap Vue Pro Ant Design Vue
 
+English: [README.en-US.md](./README.en-US.md)
+
 基于 Tiptap v3 + Vue 3 + Ant Design Vue 的开箱即用富文本编辑器组件。
 
 ## 能力
 
 - 开箱即用工具栏:标题、格式化、字体、字号、行高、缩进、颜色、高亮、对齐
-- 链接、图片上传/网络图片、表格网格、Markdown 导入导出
+- 链接、图片上传/网络图片、视频/音频/文件上传、表格网格、Markdown 导入导出
 - 全屏、预览、暗色模式、字数统计
 
 > 字体、字号、行高、缩进属于 HTML 样式能力;导出 Markdown 时可能丢失,导出 HTML / JSON 可保留。
@@ -36,7 +38,7 @@ const content = ref('<p>hello world</p>')
 
 ## 配置
 
-`toolbar` 控制内置按钮的显示和顺序;`toolbarOptions` 控制菜单数据,如字体、字号、行高、颜色、代码语言、表格网格、Markdown 和打印;`editorBehaviorOptions` 控制默认行为,如链接打开方式、表格是否带表头、图片 accept。
+`locale` 控制内置文案语言(支持 `zh-CN` / `en-US` 和局部覆盖);`toolbar` 控制内置按钮的显示和顺序;`toolbarOptions` 控制菜单数据,如字体、字号、行高、颜色、代码语言、分割线样式、表格网格、Markdown 和打印;`editorBehaviorOptions` 控制默认行为,如链接打开方式、表格是否带表头、图片和媒体附件的 accept、大小上限、多选和渲染方式。
 
 ```vue
 <script setup lang="ts">
@@ -45,6 +47,7 @@ import {
   ProEditorAntDesignVue,
   type EditorBehaviorOptions,
   type ToolbarOptions,
+  type UploadAsset,
 } from 'tiptap-vue-pro-ant-design-vue'
 
 const content = ref('<p>hello world</p>')
@@ -60,21 +63,45 @@ const toolbarOptions: ToolbarOptions = {
     { label: 'TypeScript', value: 'typescript' },
     { label: 'Python', value: 'python' },
   ],
+  horizontalRules: [
+    { label: '实线', value: 'solid' },
+    { label: '虚线', value: 'dashed' },
+  ],
   tableGrid: { maxRows: 12, maxCols: 12 },
 }
 
 const editorBehaviorOptions: EditorBehaviorOptions = {
   link: { defaultTarget: '_self' },
   table: { withHeaderRow: false },
-  image: { accept: 'image/png,image/jpeg,image/webp' },
+  image: { accept: 'image/png,image/jpeg,image/webp', maxSize: 10 * 1024 * 1024, multiple: true, allowUrl: true },
+  media: {
+    video: { accept: 'video/mp4,video/webm', maxSize: 100 * 1024 * 1024, multiple: true },
+    audio: { accept: 'audio/mpeg,audio/wav', maxSize: 30 * 1024 * 1024, multiple: true },
+    file: {
+      accept: '.pdf,.doc,.docx,.xls,.xlsx,.zip',
+      maxSize: 50 * 1024 * 1024,
+      multiple: true,
+      render: { showSize: true, showMimeType: true, showUploadedAt: true },
+    },
+  },
+}
+
+const uploadAsset: UploadAsset = async (file, kind) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('kind', kind)
+  const res = await fetch('/api/upload-asset', { method: 'POST', body: formData })
+  return await res.json()
 }
 </script>
 
 <template>
   <ProEditorAntDesignVue
     v-model="content"
+    locale="en-US"
     :toolbar-options="toolbarOptions"
     :editor-behavior-options="editorBehaviorOptions"
+    :upload-asset="uploadAsset"
   />
 </template>
 ```
@@ -100,7 +127,7 @@ const toolbar: ToolbarConfig = [
 <template>
   <ProEditorAntDesignVue v-model="content" :toolbar="toolbar">
     <template #toolbar-after="{ ctx }">
-      <Button type="text" @click="ctx.commands.hr()">分割线</Button>
+      <Button type="text" @click="ctx.commands.hr('dashed')">虚线</Button>
     </template>
   </ProEditorAntDesignVue>
 </template>

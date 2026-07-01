@@ -182,5 +182,12 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.tvp-menu-item svg {
+  display: block;
+  flex: 0 0 auto;
 }
 </style>

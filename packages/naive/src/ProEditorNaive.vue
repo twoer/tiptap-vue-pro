@@ -30,9 +30,12 @@ import {
 } from 'naive-ui'
 import { Pencil } from 'lucide-vue-next'
 import {
+  createDebugLogger,
   useEditorEventBridge,
   useImageDropPaste,
   useProEditor,
+  resolveLocale,
+  type UploadAsset,
   type UploadImage,
   type OutputFormat,
   type Extensions,
@@ -41,12 +44,21 @@ import {
   type ToolbarOptions,
   type ToolbarProp,
   type EditorBehaviorOptions,
+  type LocaleKey,
+  type LocaleProp,
+  type ProEditorDebugLogger,
+  type ProEditorDebugLogFn,
+  type ProEditorDebugOptions,
 } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
 import TableGripHandles from './TableGripHandles.vue'
 import ImageBubbleMenu from './ImageBubbleMenu.vue'
+import LinkBubbleMenu from './LinkBubbleMenu.vue'
+import FileBubbleMenu from './FileBubbleMenu.vue'
+import MediaBubbleMenu from './MediaBubbleMenu.vue'
+import HorizontalRuleBubbleMenu from './HorizontalRuleBubbleMenu.vue'
 import MessageBridge from './MessageBridge.vue'
 
 const props = withDefaults(
@@ -57,8 +69,12 @@ const props = withDefaults(
     output?: OutputFormat
     /** placeholder */
     placeholder?: string
+    /** 内置文案语言或自定义文案覆盖。默认 zh-CN */
+    locale?: LocaleProp
     /** 图片上传函数 */
     uploadImage?: UploadImage
+    /** 视频、音频、文件上传函数 */
+    uploadAsset?: UploadAsset
     /** 是否只读 */
     readonly?: boolean
     /** 暗色模式 */
@@ -73,17 +89,23 @@ const props = withDefaults(
     editorBehaviorOptions?: EditorBehaviorOptions
     /** 自定义扩展(覆盖默认) */
     extensions?: Extensions
+    /** 开发者诊断开关。默认关闭 */
+    debug?: boolean | ProEditorDebugOptions
+    /** 自定义诊断日志接收器 */
+    debugLogger?: ProEditorDebugLogger
   }>(),
   {
     modelValue: '',
     output: 'html',
-    placeholder: '请输入内容...',
+    placeholder: undefined,
+    locale: undefined,
     readonly: false,
     dark: false,
     showWordCount: true,
     toolbar: undefined,
     toolbarOptions: undefined,
     editorBehaviorOptions: undefined,
+    debug: undefined,
   },
 )
 
@@ -128,12 +150,22 @@ const ctx = useProEditor({
     return props.output
   },
   placeholder: props.placeholder,
+  get locale() {
+    return props.locale
+  },
   uploadImage: props.uploadImage,
+  uploadAsset: props.uploadAsset,
   get editorBehaviorOptions() {
     return props.editorBehaviorOptions
   },
   editable: !props.readonly,
   extensions: props.extensions,
+  get debug() {
+    return props.debug
+  },
+  get debugLogger() {
+    return props.debugLogger
+  },
   notify: (msg: string, type?: NotifyType) => {
     const m = messageApi.value
     if (!m) return
@@ -143,6 +175,14 @@ const ctx = useProEditor({
     else m.info(msg)
   },
 } as any)
+
+const debugLog: ProEditorDebugLogFn = (...args) => {
+  createDebugLogger({
+    debug: props.debug,
+    debugLogger: props.debugLogger,
+    source: 'naive',
+  })(...args)
+}
 
 watch(
   () => props.output,
@@ -212,10 +252,14 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
 })
 
 // 图片粘贴/拖拽:挂到内容容器上。
-const { onPaste, onDrop } = useImageDropPaste(ctx, () => props.uploadImage)
+const { onPaste, onDrop } = useImageDropPaste(ctx, () => props.uploadImage, () => props.editorBehaviorOptions)
 
 // 字数
 const wordCount = computed(() => ctx.wordCount.value)
+const fallbackT = resolveLocale().t
+function t(key: LocaleKey, params?: Record<string, string | number>) {
+  return ctx.t?.(key, params) ?? fallbackT(key, params)
+}
 
 // 暗色主题:NConfigProvider 注入 darkTheme,Naive 组件自动跟随。
 // 自绘区域(toolbar / ProseMirror / footer)没有 Naive 组件变量,由 .tvp-editor--dark
@@ -258,11 +302,13 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           v-else-if="!readonly && !isPreview"
           :ctx="toolbarCtx"
           :upload-image="props.uploadImage"
+          :upload-asset="props.uploadAsset"
           :is-fullscreen="isFullscreen"
           :is-preview="isPreview"
           :toolbar="props.toolbar"
           :toolbar-options="props.toolbarOptions"
           :editor-behavior-options="props.editorBehaviorOptions"
+          :debug-log="debugLog"
           @toggle-fullscreen="toggleFullscreen"
           @toggle-preview="togglePreview"
         >
@@ -276,15 +322,15 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 
         <!-- 预览态:隐藏工具栏,顶部只留一个「返回编辑」条 -->
         <div v-if="isPreview" class="tvp-preview-bar">
-          <span class="tvp-preview-bar__hint">预览模式(只读)</span>
+          <span class="tvp-preview-bar__hint">{{ t('preview.readonly') }}</span>
           <NTooltip placement="top" :show-arrow="false">
             <template #trigger>
               <NButton text class="tvp-preview-bar__edit-btn" @click="togglePreview">
                 <Pencil :size="16" />
-                <span class="tvp-preview-bar__edit-text">编辑</span>
+                <span class="tvp-preview-bar__edit-text">{{ t('toolbar.preview.edit') }}</span>
               </NButton>
             </template>
-            返回编辑
+            {{ t('toolbar.preview.edit') }}
           </NTooltip>
         </div>
 
@@ -304,9 +350,37 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           :editor="ctx.editor.value"
           :ctx="toolbarCtx"
           :scroll-container="contentWrap"
+          :debug-log="debugLog"
         />
 
         <!-- 气泡菜单:选中文字时浮现(仅可编辑态;预览/只读不显示) -->
+        <MediaBubbleMenu
+          v-if="!readonly && !isPreview && ctx.editor.value"
+          :editor="ctx.editor.value"
+          :ctx="toolbarCtx"
+          :editor-behavior-options="props.editorBehaviorOptions"
+        />
+
+        <FileBubbleMenu
+          v-if="!readonly && !isPreview && ctx.editor.value"
+          :editor="ctx.editor.value"
+          :ctx="toolbarCtx"
+          :editor-behavior-options="props.editorBehaviorOptions"
+        />
+
+        <HorizontalRuleBubbleMenu
+          v-if="!readonly && !isPreview && ctx.editor.value"
+          :editor="ctx.editor.value"
+          :ctx="toolbarCtx"
+        />
+
+        <LinkBubbleMenu
+          v-if="!readonly && !isPreview && ctx.editor.value"
+          :editor="ctx.editor.value"
+          :ctx="toolbarCtx"
+          :editor-behavior-options="props.editorBehaviorOptions"
+        />
+
         <BubbleMenu
           v-if="!readonly && !isPreview && ctx.editor.value"
           :editor="ctx.editor.value"
@@ -330,7 +404,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
         />
 
         <div v-if="!readonly && !isPreview && showWordCount" class="tvp-footer">
-          <span>字数: {{ wordCount.characters }}</span>
+          <span>{{ t('wordCount.characters', { count: wordCount.characters }) }}</span>
         </div>
       </div>
     </NMessageProvider>
@@ -370,6 +444,17 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 
 .tvp-editor--readonly {
   border-color: var(--n-border-color, #ebeef5);
+}
+
+.tvp-bubble,
+.tvp-img-bubble,
+.tvp-link-bubble,
+.tvp-file-bubble,
+.tvp-media-bubble,
+.tvp-hr-bubble,
+.tvp-table-bubble {
+  position: relative;
+  z-index: 2100;
 }
 
 /*
@@ -421,13 +506,21 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 .tvp-preview-bar .tvp-preview-bar__edit-btn :deep(.n-button__content) {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
   line-height: 1;
 }
 
+.tvp-preview-bar .tvp-preview-bar__edit-btn :deep(svg) {
+  display: block;
+  flex: 0 0 auto;
+}
+
 .tvp-preview-bar__edit-text {
-  margin-left: 4px;
+  margin-left: 0;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* 纯图标按钮正方形击中区,复用工具栏的约束 */
@@ -455,6 +548,42 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 
 .tvp-content .ProseMirror p {
   margin: 0.5em 0;
+}
+
+.tvp-content .ProseMirror hr {
+  position: relative;
+  height: 16px;
+  margin: 0.5em 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.tvp-content .ProseMirror hr::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  border-top: 1.5px solid var(--n-border-color, #dcdfe6);
+  transform: translateY(-50%);
+}
+
+.tvp-content .ProseMirror hr[data-hr-variant='thick']::before {
+  border-top-width: 3px;
+}
+
+.tvp-content .ProseMirror hr[data-hr-variant='dashed']::before {
+  border-top-style: dashed;
+}
+
+.tvp-content .ProseMirror hr[data-hr-variant='dotted']::before {
+  border-top-style: dotted;
+}
+
+.tvp-editor--naive .tvp-content .ProseMirror hr.ProseMirror-selectednode,
+.tvp-editor--naive .tvp-content .ProseMirror hr.tvp-range-selected-node {
+  outline: 2px solid var(--n-primary-color-hover, #36ad6a);
+  outline-offset: 4px;
 }
 
 .tvp-content .ProseMirror h1,
@@ -632,7 +761,8 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   align-items: flex-end;
 }
 
-.tvp-editor--naive .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode {
+.tvp-editor--naive .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode,
+.tvp-editor--naive .tvp-content .ProseMirror .tvp-img-node.tvp-range-selected-node {
   outline: 2px solid var(--n-color-target, #18a058);
   outline-offset: 2px;
   border-radius: 4px;
@@ -665,6 +795,421 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 .tvp-content .ProseMirror .tvp-img-node:hover .tvp-img-caption-empty,
 .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode .tvp-img-caption-empty {
   display: block;
+}
+
+.tvp-content .ProseMirror video,
+.tvp-content .ProseMirror audio {
+  display: block;
+  max-width: 100%;
+  margin: 10px 0;
+}
+
+.tvp-content .ProseMirror audio {
+  width: min(100%, 520px);
+}
+
+.tvp-content .ProseMirror .tvp-media-node {
+  display: flex;
+  align-items: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  margin: 10px 0;
+  border-radius: 6px;
+}
+
+.tvp-content .ProseMirror .tvp-media-resizable {
+  max-width: 100%;
+  line-height: 0;
+}
+
+.tvp-content .ProseMirror .tvp-media-node[data-media-kind='audio'] {
+  width: 520px;
+  max-width: 100%;
+}
+
+.tvp-content .ProseMirror .tvp-media-node[data-media-kind='audio'] .tvp-media-resizable {
+  width: 100%;
+  line-height: normal;
+}
+
+.tvp-content .ProseMirror .tvp-media-node video,
+.tvp-content .ProseMirror .tvp-media-node audio {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+}
+
+.tvp-content .ProseMirror .tvp-media-node[data-media-kind='audio'] audio {
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+}
+
+.tvp-editor--naive .tvp-content .ProseMirror .tvp-media-node.ProseMirror-selectednode,
+.tvp-editor--naive .tvp-content .ProseMirror .tvp-media-node.tvp-range-selected-node {
+  outline: 2px solid var(--n-color-target, #18a058);
+  outline-offset: 2px;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 42px;
+  margin: 6px 0;
+  padding: 7px 11px;
+  border: 1px solid var(--n-border-color, #dcdfe6);
+  border-radius: 6px;
+  background: var(--n-color, #fff);
+  color: var(--n-primary-color, #18a058);
+  text-decoration: none;
+  vertical-align: middle;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment:hover {
+  border-color: var(--n-primary-color-hover, #36ad6a);
+  background: var(--n-color-hover, #f6fffa);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.tvp-editor--naive .tvp-content .ProseMirror .tvp-file-attachment.ProseMirror-selectednode,
+.tvp-editor--naive .tvp-content .ProseMirror .tvp-file-attachment.tvp-range-selected-node {
+  border-color: var(--n-primary-color, #18a058);
+  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.16);
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin-right: 8px;
+  border-radius: 6px;
+  background: #909399;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__icon::before {
+  content: 'FILE';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='pdf'] .tvp-file-attachment__icon {
+  background: #f56c6c;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='pdf'] .tvp-file-attachment__icon::before {
+  content: 'PDF';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='doc'] .tvp-file-attachment__icon {
+  background: #2080f0;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='doc'] .tvp-file-attachment__icon::before {
+  content: 'DOC';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='sheet'] .tvp-file-attachment__icon {
+  background: var(--n-primary-color, #18a058);
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='sheet'] .tvp-file-attachment__icon::before {
+  content: 'XLS';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='slide'] .tvp-file-attachment__icon {
+  background: #f0a020;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='slide'] .tvp-file-attachment__icon::before {
+  content: 'PPT';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='archive'] .tvp-file-attachment__icon {
+  background: #8a8f99;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='archive'] .tvp-file-attachment__icon::before {
+  content: 'ZIP';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='image'] .tvp-file-attachment__icon {
+  background: #a855f7;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='image'] .tvp-file-attachment__icon::before {
+  content: 'IMG';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='video'] .tvp-file-attachment__icon {
+  background: #7c3aed;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='video'] .tvp-file-attachment__icon::before {
+  content: 'VID';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='audio'] .tvp-file-attachment__icon {
+  background: #13c2c2;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='audio'] .tvp-file-attachment__icon::before {
+  content: 'AUD';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='text'] .tvp-file-attachment__icon {
+  background: #64748b;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='text'] .tvp-file-attachment__icon::before {
+  content: 'TXT';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='code'] .tvp-file-attachment__icon {
+  background: #334155;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='code'] .tvp-file-attachment__icon::before {
+  content: '</>';
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment .tvp-file-attachment__icon::before {
+  content: none !important;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__icon::after {
+  content: '';
+  width: 18px;
+  height: 18px;
+  display: block;
+  background: currentColor;
+  mask: var(--tvp-file-icon-mask) center / 18px 18px no-repeat;
+  -webkit-mask: var(--tvp-file-icon-mask) center / 18px 18px no-repeat;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='pdf'],
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='doc'],
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='text'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Cpath d='M10 9H8'/%3E%3Cpath d='M16 13H8'/%3E%3Cpath d='M16 17H8'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='image'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Ccircle cx='10' cy='12' r='2'/%3E%3Cpath d='m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='video'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Cpath d='m10 17.843 3.033-1.755a.64.64 0 0 1 .967.56v4.704a.65.65 0 0 1-.967.56L10 20.157'/%3E%3Crect width='7' height='6' x='3' y='16' rx='1'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='audio'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.65 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v10.35'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Cpath d='M8 20v-7l3 1.474'/%3E%3Ccircle cx='6' cy='20' r='2'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='archive'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v11.5'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Cpath d='M8 12v-1'/%3E%3Cpath d='M8 18v-2'/%3E%3Cpath d='M8 7V6'/%3E%3Ccircle cx='8' cy='20' r='2'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='code'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Cpath d='M10 12.5 8 15l2 2.5'/%3E%3Cpath d='m14 12.5 2 2.5-2 2.5'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='sheet'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z'/%3E%3Cpath d='M14 2v5a1 1 0 0 0 1 1h5'/%3E%3Cpath d='M8 13h2'/%3E%3Cpath d='M14 13h2'/%3E%3Cpath d='M8 17h2'/%3E%3Cpath d='M14 17h2'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='slide'] {
+  --tvp-file-icon-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 3h20'/%3E%3Cpath d='M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3'/%3E%3Cpath d='m7 21 5-5 5 5'/%3E%3C/svg%3E");
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__svg {
+  width: 18px;
+  height: 18px;
+  display: none;
+  flex: 0 0 auto;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__body {
+  min-width: 0;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__name,
+.tvp-content .ProseMirror .tvp-file-attachment__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__name {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__meta {
+  color: var(--n-text-color-3, #909399);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment {
+  box-sizing: border-box;
+  max-width: min(calc(100% - 8px), 440px);
+  margin: 6px 8px 6px 0;
+  gap: 10px;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  margin-right: 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__icon::after {
+  display: block;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__svg {
+  display: none;
+  width: 18px;
+  height: 18px;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__body {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin-left: 2px;
+  border-radius: 6px;
+  color: var(--n-text-color-2, #606266);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment:hover .tvp-file-attachment__download,
+.tvp-content .ProseMirror .tvp-file-attachment:focus .tvp-file-attachment__download,
+.tvp-content .ProseMirror .tvp-file-attachment.ProseMirror-selectednode .tvp-file-attachment__download,
+.tvp-content .ProseMirror .tvp-file-attachment.tvp-range-selected-node .tvp-file-attachment__download {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__download:hover {
+  background: var(--n-action-color, #f5f7fa);
+  color: var(--n-primary-color, #18a058);
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__download-svg {
+  display: none;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__download::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3'/%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3'/%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment__name,
+.tvp-content .ProseMirror .tvp-file-attachment__meta {
+  display: block;
+  max-width: 100%;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='pdf'] .tvp-file-attachment__icon {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #e11d48;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='doc'] .tvp-file-attachment__icon {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #2080f0;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='sheet'] .tvp-file-attachment__icon {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: var(--n-primary-color, #18a058);
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='slide'] .tvp-file-attachment__icon {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='archive'] .tvp-file-attachment__icon {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='image'] .tvp-file-attachment__icon,
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='video'] .tvp-file-attachment__icon {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='audio'] .tvp-file-attachment__icon {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #0284c7;
+}
+
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='text'] .tvp-file-attachment__icon,
+.tvp-content .ProseMirror .tvp-file-attachment[data-file-icon='code'] .tvp-file-attachment__icon {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
 }
 
 .tvp-content .ProseMirror table {

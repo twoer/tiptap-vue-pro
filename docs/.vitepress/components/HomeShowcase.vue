@@ -1,41 +1,105 @@
 <script setup lang="ts">
-import { withBase } from 'vitepress'
+import { computed } from 'vue'
+import { useData, withBase } from 'vitepress'
 
-const stats = [
+const { lang } = useData()
+const isEnglish = computed(() => lang.value === 'en-US')
+
+const stats = computed(() => [
   { value: 'Vue 3', label: 'Framework' },
-  { value: '3', label: 'UI Adapters' },
-  { value: '30+', label: 'Toolbar Commands' },
-]
+  { value: '3', label: isEnglish.value ? 'UI Adapters' : 'UI Adapters' },
+  { value: '30+', label: isEnglish.value ? 'Toolbar Commands' : 'Toolbar Commands' },
+])
 
-const entryPoints = [
-  {
-    title: '快速接入',
-    body: '从项目使用的 UI 库开始,复制最小示例即可跑起来。',
-    href: '/guide/quick-start',
-    meta: '5 min',
-  },
-  {
-    title: '配置菜单和行为',
-    body: '开放字体、字号、行高、色板、代码语言和默认交互行为。',
-    href: '/guide/configuration',
-    meta: 'config',
-  },
-  {
-    title: '在线体验',
-    body: '在文档流里切换三套 Adapter,需要大画布时再全屏打开。',
-    href: '/guide/live-demo',
-    meta: 'playground',
-  },
-]
+const entryPoints = computed(() => isEnglish.value
+  ? [
+      {
+        title: 'Quick start',
+        body: 'Start from your UI library, copy the minimal example, and get running.',
+        href: '/guide/quick-start',
+        meta: '5 min',
+      },
+      {
+        title: 'Configure menus and behavior',
+        body: 'Expose fonts, sizes, line heights, palettes, code languages, and defaults.',
+        href: '/guide/configuration',
+        meta: 'config',
+      },
+      {
+        title: 'Live demo',
+        body: 'Switch between the three adapters in the docs, or open a larger playground.',
+        href: '/guide/live-demo',
+        meta: 'playground',
+      },
+    ]
+  : [
+      {
+        title: '快速接入',
+        body: '从项目使用的 UI 库开始,复制最小示例即可跑起来。',
+        href: '/guide/quick-start',
+        meta: '5 min',
+      },
+      {
+        title: '配置菜单和行为',
+        body: '开放字体、字号、行高、色板、代码语言和默认交互行为。',
+        href: '/guide/configuration',
+        meta: 'config',
+      },
+      {
+        title: '在线体验',
+        body: '在文档流里切换三套 Adapter,需要大画布时再全屏打开。',
+        href: '/guide/live-demo',
+        meta: 'playground',
+      },
+    ])
 
 const uiAdapterNames = ['Element Plus', 'Naive UI', 'Ant Design Vue']
 
-const capabilities = [
-  ['Toolbar', '按钮分组、顺序、菜单数据、禁用项'],
-  ['Behavior', '链接 target、表格表头、图片 accept'],
-  ['Markdown', '导入导出、HTML 转换、统一入口'],
-  ['Core API', 'useProEditor、扩展注册表、命令注册表'],
-]
+const capabilities = computed(() => isEnglish.value
+  ? [
+      ['Toolbar', 'Button groups, order, menu data, disabled states'],
+      ['Behavior', 'Link target, table headers, image and media settings'],
+      ['Markdown', 'Import/export, HTML conversion, unified entry points'],
+      ['Core API', 'useProEditor, extension registry, command registry'],
+    ]
+  : [
+      ['Toolbar', '按钮分组、顺序、菜单数据、禁用项'],
+      ['Behavior', '链接 target、表格表头、图片 accept'],
+      ['Markdown', '导入导出、HTML 转换、统一入口'],
+      ['Core API', 'useProEditor、扩展注册表、命令注册表'],
+    ])
+
+const copy = computed(() => isEnglish.value
+  ? {
+      subtitle: ['Vue 3 rich text editor', 'Three mainstream UI adapters'],
+      leadPrefix: 'Ships with',
+      adapterSeparator: ', ',
+      leadSuffix: 'adapters, packaging toolbar, images, media attachments, tables, Markdown, and bubble menus into one configurable component.',
+      primaryAction: 'Quick Start',
+      secondaryAction: 'Live Demo',
+      coreTitle: 'Core stays headless',
+      coreBody: 'UI rendering, dialogs, dropdowns, and messages stay inside each adapter package.',
+      startTitle: 'Choose what you want to do next.',
+      capabilitiesTitle: 'Expose configuration instead of asking users to fork source code.',
+      architectureTitle: 'Core and Adapter boundaries must stay clear.',
+    }
+  : {
+      subtitle: ['Vue 3 富文本编辑器', '三套主流 UI 适配'],
+      leadPrefix: '内置',
+      adapterSeparator: '、',
+      leadSuffix: '三套主流 UI Adapter,把工具栏、图片、表格、Markdown 和气泡菜单收成一套可配置组件。',
+      primaryAction: '快速开始',
+      secondaryAction: '在线体验',
+      coreTitle: 'Core 保持 Headless',
+      coreBody: 'UI 渲染、弹窗、下拉菜单和消息反馈都留在各 Adapter 包里。',
+      startTitle: '选择你现在要做的事。',
+      capabilitiesTitle: '开放配置,而不是让用户 Fork 源码。',
+      architectureTitle: 'Core 和 Adapter 的边界必须清楚。',
+    })
+
+function pageHref(path: string) {
+  return withBase(`${isEnglish.value ? '/en' : ''}${path}`)
+}
 </script>
 
 <template>
@@ -45,19 +109,18 @@ const capabilities = [
         <p class="eyebrow">Vue 3 / Element Plus / Naive UI / Ant Design Vue</p>
         <h1>Tiptap Vue Pro</h1>
         <p class="hero__subtitle">
-          <span>Vue 3 富文本编辑器</span>
-          <span>三套主流 UI 适配</span>
+          <span v-for="line in copy.subtitle" :key="line">{{ line }}</span>
         </p>
         <p class="hero__lead">
-          内置
-          <span class="hero__highlight">Element Plus</span>、
-          <span class="hero__highlight">Naive UI</span>、
+          {{ copy.leadPrefix }}
+          <span class="hero__highlight">Element Plus</span>{{ copy.adapterSeparator }}
+          <span class="hero__highlight">Naive UI</span>{{ copy.adapterSeparator }}
           <span class="hero__highlight">Ant Design Vue</span>
-          三套主流 UI Adapter,把工具栏、图片、表格、Markdown 和气泡菜单收成一套可配置组件。
+          {{ copy.leadSuffix }}
         </p>
         <div class="hero__actions">
-          <a class="button button--primary" :href="withBase('/guide/quick-start')">快速开始</a>
-          <a class="button" :href="withBase('/guide/live-demo')">在线体验</a>
+          <a class="button button--primary" :href="pageHref('/guide/quick-start')">{{ copy.primaryAction }}</a>
+          <a class="button" :href="pageHref('/guide/live-demo')">{{ copy.secondaryAction }}</a>
         </div>
       </div>
 
@@ -73,8 +136,8 @@ const capabilities = [
           </div>
         </div>
         <div class="brief__note">
-          <strong>Core 保持 Headless</strong>
-          <span>UI 渲染、弹窗、下拉菜单和消息反馈都留在各 Adapter 包里。</span>
+          <strong>{{ copy.coreTitle }}</strong>
+          <span>{{ copy.coreBody }}</span>
         </div>
       </aside>
     </section>
@@ -89,10 +152,10 @@ const capabilities = [
     <section class="section">
       <div class="section__head">
         <p class="eyebrow">start here</p>
-        <h2>选择你现在要做的事。</h2>
+        <h2>{{ copy.startTitle }}</h2>
       </div>
       <div class="entry-grid">
-        <a v-for="item in entryPoints" :key="item.title" class="entry" :href="withBase(item.href)">
+        <a v-for="item in entryPoints" :key="item.title" class="entry" :href="pageHref(item.href)">
           <span>{{ item.meta }}</span>
           <strong>{{ item.title }}</strong>
           <p>{{ item.body }}</p>
@@ -103,7 +166,7 @@ const capabilities = [
     <section class="section capabilities">
       <div class="section__head">
         <p class="eyebrow">capabilities</p>
-        <h2>开放配置,而不是让用户 Fork 源码。</h2>
+        <h2>{{ copy.capabilitiesTitle }}</h2>
       </div>
       <div class="capability-list">
         <div v-for="[name, detail] in capabilities" :key="name" class="capability-row">
@@ -116,7 +179,7 @@ const capabilities = [
     <section class="section architecture">
       <div>
         <p class="eyebrow">architecture</p>
-        <h2>Core 和 Adapter 的边界必须清楚。</h2>
+        <h2>{{ copy.architectureTitle }}</h2>
       </div>
       <div class="architecture__rail">
         <div>

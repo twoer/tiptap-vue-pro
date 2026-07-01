@@ -10,16 +10,70 @@ import {
   moveTableRow,
   moveTableColumn,
 } from '@tiptap/pm/tables'
+import { TextSelection } from '@tiptap/pm/state'
 import { createDefaultExtensions } from './extensions'
+import { insertHorizontalRule } from './extensions/horizontalRule'
+import { detectFileAttachmentIcon } from './extensions/media'
+import { getSelectedMediaNode } from './mediaSelection'
 import { getMarkdown, importMarkdown } from './markdown'
-import { resolveEditorBehaviorOptions } from './editorBehaviorOptions'
+import { resolveEditorBehaviorOptions, type EditorFileRenderOptions } from './editorBehaviorOptions'
+import {
+  notifyImageFileValidationFailure,
+  validateImageFile,
+} from './handleImageUpload'
+import {
+  normalizeUploadedAsset,
+  notifyAssetFileValidationFailure,
+  notifyAssetUploadFailure,
+  validateAssetFile,
+} from './handleAssetUpload'
+import { resolveLocale } from './locale'
+import { createDebugLogger } from './debug'
 import type {
   ProEditorOptions,
   ProEditorContext,
   ProEditorCommands,
   NotifyFn,
   TableState,
+  UploadedAsset,
 } from './types'
+import type { ProEditorDebugLogFn } from './debug'
+
+function contentLength(value: unknown) {
+  if (typeof value === 'string') return value.length
+  try {
+    return JSON.stringify(value ?? null).length
+  } catch {
+    return 0
+  }
+}
+
+function selectionDebugPayload(ed: CoreEditor) {
+  const selection = ed.state.selection
+  return {
+    from: selection.from,
+    to: selection.to,
+    empty: selection.empty,
+    type: selection.constructor.name,
+  }
+}
+
+function summarizeCommandArgs(args: unknown[]) {
+  return args.map((arg) => {
+    if (typeof File !== 'undefined' && arg instanceof File) {
+      return {
+        fileName: arg.name,
+        fileSize: arg.size,
+        mimeType: arg.type,
+      }
+    }
+    if (typeof arg === 'string') {
+      return { type: 'string', length: arg.length }
+    }
+    if (arg && typeof arg === 'object') return '[object]'
+    return arg
+  })
+}
 
 /**
  * Tiptap Vue Pro 的核心 composable。
@@ -44,18 +98,34 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     extensions,
     placeholder,
     uploadImage,
+    uploadAsset,
     editable = true,
     editorProps,
     notify,
     immediatelyRender = false,
   } = options
 
-  const exts = extensions ?? createDefaultExtensions(placeholder)
+  const debugLog: ProEditorDebugLogFn = (...args) => {
+    createDebugLogger({
+      debug: options.debug,
+      debugLogger: options.debugLogger,
+      source: 'core',
+    })(...args)
+  }
   const getOutput = () => options.output ?? 'html'
   const getBehaviorOptions = () => resolveEditorBehaviorOptions(options.editorBehaviorOptions)
+  const resolvedLocale = computed(() => resolveLocale(options.locale))
+  const t = ((key, paramsOrFallback, fallback) =>
+    resolvedLocale.value.t(key, paramsOrFallback, fallback)) as ReturnType<typeof resolveLocale>['t']
+  const exts = extensions ?? createDefaultExtensions(
+    placeholder ?? t('placeholder.default'),
+    {},
+    { fileAttachment: { fileTypeLabel: localizedFileTypeText } },
+  )
 
   // ---- 通过官方 useEditor 创建实例 ----
   // 注意:useEditor 内部用 Vue 生命周期管理 Editor,返回 Ref<Editor | undefined>
+  debugLog('lifecycle', 'init', { editable, output: getOutput(), immediatelyRender })
   const editorOptions = {
     extensions: exts,
     content: content as never,
@@ -66,6 +136,20 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       isUpdatingFromEditor = true
       emitValue(ed)
       syncWordCount(ed)
+    },
+    onSelectionUpdate: ({ editor: ed }: { editor: CoreEditor }) => {
+      debugLog('selection', 'update', selectionDebugPayload(ed))
+    },
+    onTransaction: ({ transaction }: { transaction: {
+      docChanged?: boolean
+      selectionSet?: boolean
+      steps?: unknown[]
+    } }) => {
+      debugLog('transaction', 'apply', {
+        docChanged: !!transaction.docChanged,
+        selectionSet: !!transaction.selectionSet,
+        steps: transaction.steps?.length ?? 0,
+      })
     },
   }
   const editor = useEditor(editorOptions as Parameters<typeof useEditor>[0])
@@ -92,7 +176,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   watch(
     () => editor.value,
     (ed) => {
-      if (ed) syncWordCount(ed)
+      if (ed) {
+        debugLog('lifecycle', 'editor-ready', { hasEditor: true })
+        syncWordCount(ed)
+      }
     },
     { immediate: true },
   )
@@ -103,6 +190,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     const val = output === 'html' ? ed.getHTML() : ed.getJSON()
     // 通过 setter 回写(由 adapter 组件把 content setter 接到 v-model)
     options.content = val
+    debugLog('content', 'update', {
+      output,
+      contentLength: contentLength(val),
+    })
   }
 
   // 外部值变化 → 写入编辑器(跳过编辑器自己触发的回写)
@@ -127,6 +218,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
           ? JSON.stringify(ed.getJSON())
           : ed.getHTML()
       if (incoming === current) return
+      debugLog('content', 'external-sync', {
+        output,
+        contentLength: contentLength(next),
+      })
       ed.commands.setContent(next ?? '', { emitUpdate: false })
     },
   )
@@ -158,7 +253,30 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   // TableMap、当前 cell 的行列索引 + doc 绝对 pos。
   // 全部基于 ProseMirror state 纯计算,不读 DOM。
   // 返回 null 表示选区不在表格内(命令静默失效,与 Tiptap 原生命令行为一致)。
-  function tableGeometry() {
+  let lastKnownTablePos: number | null = null
+
+  function tableGeometryFromTablePos(tablePos: number | null, rowIndex = 0, colIndex = 0) {
+    const ed = editor.value
+    if (!ed || tablePos == null) return null
+    const tableNode = ed.state.doc.nodeAt(tablePos)
+    if (!tableNode || tableNode.type.name !== 'table') return null
+    const map = TableMap.get(tableNode)
+    const row = Math.max(0, Math.min(rowIndex, map.height - 1))
+    const col = Math.max(0, Math.min(colIndex, map.width - 1))
+    const tableStart = tablePos + 1
+    const cellRelPos = map.positionAt(row, col, tableNode)
+    return {
+      map,
+      tableStart,
+      rowCount: map.height,
+      colCount: map.width,
+      row,
+      col,
+      cellDocPos: tableStart + cellRelPos,
+    }
+  }
+
+  function tableGeometry(axis?: 'row' | 'col', targetIndex?: number) {
     const ed = editor.value
     if (!ed) return null
     const sel = ed.state.selection
@@ -190,10 +308,16 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     if (cellDepth < 0 && anchorPos > 0) {
       ({ $pos: $cell, cellDepth, tableDepth } = resolveInfo(anchorPos - 1))
     }
-    if (cellDepth < 0 || tableDepth < 0) return null
+    if (cellDepth < 0 || tableDepth < 0) {
+      if (!axis || typeof targetIndex !== 'number') return null
+      const fallbackRow = axis === 'row' && typeof targetIndex === 'number' ? targetIndex : 0
+      const fallbackCol = axis === 'col' && typeof targetIndex === 'number' ? targetIndex : 0
+      return tableGeometryFromTablePos(lastKnownTablePos, fallbackRow, fallbackCol)
+    }
 
     const tableNode = $cell.node(tableDepth)
     const tableStart = $cell.start(tableDepth) // table 内容区起始 pos(table pos + 1)
+    lastKnownTablePos = tableStart - 1
     const map = TableMap.get(tableNode)
     // cell 节点在文档中的起始 pos,减 tableStart = 相对 table 内容区的 offset。
     const cellRelPos = $cell.before(cellDepth) - tableStart
@@ -213,47 +337,125 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   // 移动当前行/列。dir: -1 上/左,+1 下/右。越界时 moveTableRow/Column 内部静默返回。
   function moveRow(dir: -1 | 1) {
     const g = tableGeometry()
-    if (!g) return
+    if (!g) {
+      debugLog('table', 'move-line:no-geometry', { axis: 'row', dir })
+      return
+    }
     const ed = editor.value!
     const to = g.row + dir
-    if (to < 0 || to >= g.rowCount) return
+    if (to < 0 || to >= g.rowCount) {
+      debugLog('table', 'move-line:out-of-range', { axis: 'row', from: g.row, to, rowCount: g.rowCount })
+      return
+    }
     moveTableRow({ from: g.row, to, pos: g.cellDocPos })(
       ed.state,
       (tr) => ed.view.dispatch(tr),
     )
+    debugLog('table', 'move-line', { axis: 'row', from: g.row, to })
   }
   function moveColumn(dir: -1 | 1) {
     const g = tableGeometry()
-    if (!g) return
+    if (!g) {
+      debugLog('table', 'move-line:no-geometry', { axis: 'col', dir })
+      return
+    }
     const ed = editor.value!
     const to = g.col + dir
-    if (to < 0 || to >= g.colCount) return
+    if (to < 0 || to >= g.colCount) {
+      debugLog('table', 'move-line:out-of-range', { axis: 'col', from: g.col, to, colCount: g.colCount })
+      return
+    }
     moveTableColumn({ from: g.col, to, pos: g.cellDocPos })(
       ed.state,
       (tr) => ed.view.dispatch(tr),
     )
+    debugLog('table', 'move-line', { axis: 'col', from: g.col, to })
   }
 
   // 选中整行/整列(飞书式抓手点击)。用 CellSelection.rowSelection/colSelection,
   // 传入该行/列首尾 cell 的 ResolvedPos,自动扩展为整行/整列选区。
-  function selectLine(axis: 'row' | 'col') {
-    const g = tableGeometry()
-    if (!g) return
+  function selectLine(axis: 'row' | 'col', targetIndex?: number) {
+    const g = tableGeometry(axis, targetIndex)
+    if (!g) {
+      debugLog('table', 'select-line:no-geometry', { axis, targetIndex, ok: false })
+      return false
+    }
     const ed = editor.value!
     const { map, tableStart, row, col } = g
+    const targetRow = axis === 'row' && typeof targetIndex === 'number' ? targetIndex : row
+    const targetCol = axis === 'col' && typeof targetIndex === 'number' ? targetIndex : col
+    if (targetRow < 0 || targetRow >= map.height || targetCol < 0 || targetCol >= map.width) {
+      debugLog('table', 'select-line:out-of-range', {
+        axis,
+        targetIndex,
+        targetRow,
+        targetCol,
+        rowCount: map.height,
+        colCount: map.width,
+        ok: false,
+      })
+      return false
+    }
     // 算出该行/列首尾 cell 的相对 pos,转 doc 绝对 pos 后 resolve。
     const firstRel = axis === 'row'
-      ? map.positionAt(row, 0, ed.state.doc.nodeAt(tableStart - 1)!)
-      : map.positionAt(0, col, ed.state.doc.nodeAt(tableStart - 1)!)
+      ? map.positionAt(targetRow, 0, ed.state.doc.nodeAt(tableStart - 1)!)
+      : map.positionAt(0, targetCol, ed.state.doc.nodeAt(tableStart - 1)!)
     const lastRel = axis === 'row'
-      ? map.positionAt(row, map.width - 1, ed.state.doc.nodeAt(tableStart - 1)!)
-      : map.positionAt(map.height - 1, col, ed.state.doc.nodeAt(tableStart - 1)!)
+      ? map.positionAt(targetRow, map.width - 1, ed.state.doc.nodeAt(tableStart - 1)!)
+      : map.positionAt(map.height - 1, targetCol, ed.state.doc.nodeAt(tableStart - 1)!)
     const $first = ed.state.doc.resolve(tableStart + firstRel)
     const $last = ed.state.doc.resolve(tableStart + lastRel)
     const cellSel = axis === 'row'
       ? CellSelection.rowSelection($first, $last)
       : CellSelection.colSelection($first, $last)
     ed.view.dispatch(ed.state.tr.setSelection(cellSel))
+    debugLog('table', 'select-line', {
+      axis,
+      row,
+      col,
+      targetIndex,
+      targetRow,
+      targetCol,
+      rowCount: g.rowCount,
+      colCount: g.colCount,
+      selection: ed.state.selection.constructor.name,
+      ok: true,
+    })
+    return true
+  }
+
+  function deleteLine(axis: 'row' | 'col', targetIndex?: number) {
+    const ed = editor.value
+    if (!ed) {
+      debugLog('table', 'delete-line:no-editor', { axis, targetIndex, ok: false })
+      return
+    }
+    const before = tableGeometry(axis, targetIndex)
+    debugLog('table', 'delete-line:start', {
+      axis,
+      targetIndex,
+      before,
+      selection: ed.state.selection.constructor.name,
+    })
+    const selected = before ? selectLine(axis, targetIndex) : false
+    const shouldDeleteTable = selected && (
+      (axis === 'row' && before!.rowCount <= 1) ||
+      (axis === 'col' && before!.colCount <= 1)
+    )
+    const ok = shouldDeleteTable
+      ? ed.chain().focus().deleteTable().run()
+      : axis === 'row'
+        ? ed.chain().focus().deleteRow().run()
+        : ed.chain().focus().deleteColumn().run()
+    const after = tableGeometry()
+    debugLog('table', 'delete-line', {
+      axis,
+      targetIndex,
+      deletedTable: shouldDeleteTable,
+      ok,
+      after,
+      selection: ed.state.selection.constructor.name,
+    })
   }
 
   /**
@@ -268,12 +470,215 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     return isNodeSelection(sel) && sel.node.type.name === 'image'
   }
 
+  function selectedMediaType(ed: Editor | CoreEditor): 'video' | 'audio' | null {
+    const media = getSelectedMediaNode(ed as CoreEditor)
+    return media?.type ?? null
+  }
+
   // ---- 消息提示 ----
   // adapter 注入的 UI 库实现;未注入时静默(no-op),保证 headless 场景不崩。
   // 放在 commands 之前,因为 uploadAndInsertImage 等命令内部会调用它。
   const notifyFn: NotifyFn = notify ?? (() => {})
 
-  const commands: ProEditorCommands = {
+  function normalizeAssetForNode(asset: UploadedAsset | string): UploadedAsset {
+    if (typeof asset === 'string') return { url: asset }
+    return {
+      ...asset,
+      uploadedAt: asset.uploadedAt instanceof Date
+        ? asset.uploadedAt.toISOString()
+        : asset.uploadedAt,
+    }
+  }
+
+  function formatFileUploadedAt(
+    value: UploadedAsset['uploadedAt'],
+    format: EditorFileRenderOptions['uploadedAtFormat'],
+  ) {
+    if (value == null || value === '') return ''
+    if (typeof format === 'function') return format(value)
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return String(value)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    if (format === 'date') return datePart
+    return `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+
+  function formatFileDuration(
+    value: UploadedAsset['duration'],
+    format: EditorFileRenderOptions['durationFormat'],
+  ) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return ''
+    if (typeof format === 'function') return format(value)
+    return ''
+  }
+
+  function localizedFileTypeText(attrs: Record<string, unknown>) {
+    const fileTypeText = String(attrs.fileTypeText ?? '')
+    if (fileTypeText) return fileTypeText
+    const icon = detectFileAttachmentIcon({
+      name: attrs.name,
+      href: attrs.href,
+      mimeType: attrs.mimeType ?? '',
+      mediaKind: attrs.mediaKind,
+    })
+    const name = String(attrs.name ?? attrs.href ?? '').toLowerCase()
+    if (icon === 'pdf') return 'PDF'
+    if (icon === 'doc') return 'Word'
+    if (icon === 'sheet') return name.endsWith('.csv') ? 'CSV' : 'Excel'
+    if (icon === 'slide') return 'PPT'
+    if (icon === 'archive') return t('file.type.archive')
+    if (icon === 'image') return t('file.type.image')
+    if (icon === 'video') return t('file.type.video')
+    if (icon === 'audio') return t('file.type.audio')
+    if (icon === 'text') return t('file.type.text')
+    if (icon === 'code') return t('file.type.code')
+    const subtype = String(attrs.mimeType ?? '').split('/')[1]?.split(';')[0]
+    return subtype ? subtype.toUpperCase() : t('file.type.file')
+  }
+
+  function insertFileAsset(
+    asset: UploadedAsset | string,
+    mediaKind: 'video' | 'audio' | 'file' = 'file',
+  ) {
+    const ed = cmd()
+    if (!ed) return
+    const normalized = normalizeAssetForNode(asset)
+    const render = getBehaviorOptions().media.file.render
+    ed.chain().focus().insertContent({
+      type: 'fileAttachment',
+      attrs: {
+        href: normalized.url,
+        name: normalized.name ?? normalized.url,
+        size: normalized.size ?? null,
+        mimeType: normalized.mimeType ?? '',
+        mediaKind,
+        uploadedAt: normalized.uploadedAt ?? '',
+        uploadedAtText: formatFileUploadedAt(normalized.uploadedAt, render.uploadedAtFormat),
+        duration: normalized.duration ?? null,
+        durationText: formatFileDuration(normalized.duration, render.durationFormat),
+        fileTypeText: localizedFileTypeText({
+          name: normalized.name ?? normalized.url,
+          href: normalized.url,
+          mimeType: normalized.mimeType ?? '',
+          mediaKind,
+          fileTypeText: normalized.fileTypeText,
+        }),
+        showIcon: render.showIcon,
+        iconMode: render.iconMode,
+        showName: render.showName,
+        showSize: render.showSize,
+        showMimeType: render.showMimeType,
+        showUploadedAt: render.showUploadedAt,
+        showDuration: render.showDuration,
+        openInNewTab: render.openInNewTab,
+        download: render.download,
+      },
+    }).scrollIntoView().run()
+  }
+
+  function insertVideoAsset(asset: UploadedAsset | string) {
+    const ed = cmd()
+    if (!ed) return
+    const normalized = normalizeAssetForNode(asset)
+    const render = getBehaviorOptions().media.video.render
+    if (render.displayMode === 'file') {
+      insertFileAsset(normalized, 'video')
+      return
+    }
+    const poster = typeof render.poster === 'function'
+      ? render.poster(normalized)
+      : render.poster ?? normalized.poster ?? ''
+    ed.chain().focus().insertContent({
+      type: 'video',
+      attrs: {
+        src: normalized.url,
+        name: normalized.name ?? '',
+        mimeType: normalized.mimeType ?? '',
+        poster,
+        duration: normalized.duration ?? null,
+        controls: render.controls,
+        muted: render.muted,
+        loop: render.loop,
+        autoplay: render.autoplay,
+        playsInline: render.playsInline,
+        preload: render.preload,
+        allowFullscreen: render.allowFullscreen,
+        allowDownload: render.allowDownload,
+        allowPictureInPicture: render.allowPictureInPicture,
+        width: render.width ?? null,
+      },
+    }).scrollIntoView().run()
+  }
+
+  function insertAudioAsset(asset: UploadedAsset | string) {
+    const ed = cmd()
+    if (!ed) return
+    const normalized = normalizeAssetForNode(asset)
+    const render = getBehaviorOptions().media.audio.render
+    if (render.displayMode === 'file') {
+      insertFileAsset(normalized, 'audio')
+      return
+    }
+    ed.chain().focus().insertContent({
+      type: 'audio',
+      attrs: {
+        src: normalized.url,
+        name: normalized.name ?? '',
+        mimeType: normalized.mimeType ?? '',
+        duration: normalized.duration ?? null,
+        controls: render.controls,
+        muted: render.muted,
+        loop: render.loop,
+        autoplay: render.autoplay,
+        preload: render.preload,
+        allowDownload: render.allowDownload,
+        width: render.width ?? null,
+      },
+    }).scrollIntoView().run()
+  }
+
+  async function uploadAndInsertAsset(
+    file: File,
+    kind: 'video' | 'audio' | 'file',
+    insert: (asset: UploadedAsset) => void,
+  ) {
+    if (!uploadAsset) return
+    const ed = cmd()
+    if (!ed) return
+    const mediaOptions = getBehaviorOptions().media[kind]
+    const validationFailure = validateAssetFile(file, kind, mediaOptions)
+    if (validationFailure) {
+      notifyAssetFileValidationFailure({ notify: notifyFn, t }, validationFailure)
+      return
+    }
+    debugLog('upload', 'asset:start', {
+      kind,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+    }, 'info')
+    try {
+      const result = await uploadAsset(file, kind)
+      if (result) {
+        const normalized = normalizeUploadedAsset(result, file)
+        debugLog('upload', 'asset:success', {
+          kind,
+          fileName: file.name,
+          url: normalized.url,
+        }, 'info')
+        insert(normalized)
+        return
+      }
+      debugLog('upload', 'asset:error', { kind, fileName: file.name }, 'error')
+      notifyAssetUploadFailure(notifyFn, t, kind)
+    } catch (error) {
+      debugLog('upload', 'asset:error', { kind, fileName: file.name }, 'error', error)
+      notifyAssetUploadFailure(notifyFn, t, kind)
+    }
+  }
+
+  const rawCommands: ProEditorCommands = {
     undo: () => cmd()?.chain().focus().undo().run(),
     redo: () => cmd()?.chain().focus().redo().run(),
     bold: () => cmd()?.chain().focus().toggleBold().run(),
@@ -332,17 +737,24 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       const target = o?.target ?? '_blank'
       // 空字符串 = 移除链接
       if (!href) {
+        const selectionTo = range?.to ?? ed.state.selection.to
         const c = ed.chain().focus()
         if (range) c.setTextSelection(range)
-      c.extendMarkRange('link').unsetLink().scrollIntoView().run()
-      return
-    }
-    // 显式给 range 时,先选到该 range 再 extendMarkRange + setLink,
-    // 避免 dialog 失焦后 selection 漂移导致范围错位。
-    const c = ed.chain().focus()
-    if (range) c.setTextSelection(range)
-    c.extendMarkRange('link').setLink({ href, target }).scrollIntoView().run()
-  },
+        c.extendMarkRange('link').unsetLink().run()
+
+        const linkMark = ed.schema.marks.link
+        const pos = Math.min(Math.max(selectionTo, 0), ed.state.doc.content.size)
+        const tr = ed.state.tr.setSelection(TextSelection.create(ed.state.doc, pos))
+        if (linkMark) tr.removeStoredMark(linkMark)
+        ed.view.dispatch(tr.scrollIntoView())
+        return
+      }
+      // 显式给 range 时,先选到该 range 再 extendMarkRange + setLink,
+      // 避免 dialog 失焦后 selection 漂移导致范围错位。
+      const c = ed.chain().focus()
+      if (range) c.setTextSelection(range)
+      c.extendMarkRange('link').setLink({ href, target }).scrollIntoView().run()
+    },
     /**
      * 在指定位置插入/替换一段带链接的文本。
      *
@@ -390,19 +802,38 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       if (!uploadImage) return
       const ed = cmd()
       if (!ed) return
+      const validationFailure = validateImageFile(file, getBehaviorOptions().image)
+      if (validationFailure) {
+        notifyImageFileValidationFailure({ notify: notifyFn, t }, validationFailure)
+        return
+      }
+      debugLog('upload', 'image:start', {
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
+      }, 'info')
       try {
         const url = await uploadImage(file)
         if (url) {
+          debugLog('upload', 'image:success', { fileName: file.name, url }, 'info')
           ed.chain().focus().setImage({ src: url }).scrollIntoView().run()
         } else {
           // uploadImage 返回 null 视为失败(约定见 UploadImage 文档)
-          notifyFn('图片上传失败', 'error')
+          debugLog('upload', 'image:error', { fileName: file.name }, 'error')
+          notifyFn(t('notify.imageUploadFailed'), 'error')
         }
-      } catch {
+      } catch (error) {
         // 提示由 notify 负责(adapter 注入),Core 保持 UI 无关
-        notifyFn('图片上传失败', 'error')
+        debugLog('upload', 'image:error', { fileName: file.name }, 'error', error)
+        notifyFn(t('notify.imageUploadFailed'), 'error')
       }
     },
+    insertVideo: insertVideoAsset,
+    uploadAndInsertVideo: (file) => uploadAndInsertAsset(file, 'video', insertVideoAsset),
+    insertAudio: insertAudioAsset,
+    uploadAndInsertAudio: (file) => uploadAndInsertAsset(file, 'audio', insertAudioAsset),
+    insertFile: (asset) => insertFileAsset(asset, 'file'),
+    uploadAndInsertFile: (file) => uploadAndInsertAsset(file, 'file', (asset) => insertFileAsset(asset, 'file')),
     /**
      * 图片对齐/尺寸/题注/删除 —— 仅在当前是图片 NodeSelection 时生效。
      *
@@ -430,6 +861,20 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       if (containerWidth <= 0) return
       ed.chain().focus().updateAttributes('image', { width: Math.round(containerWidth * ratio) }).run()
     },
+    setMediaSize: (preset) => {
+      const ed = cmd()
+      if (!ed) return
+      const type = selectedMediaType(ed)
+      if (!type) return
+      if (preset === 'original') {
+        ed.chain().focus().updateAttributes(type, { width: null }).run()
+        return
+      }
+      const ratio = preset === 'small' ? 0.25 : preset === 'medium' ? 0.5 : 0.75
+      const containerWidth = ed.view.dom.clientWidth || 0
+      if (containerWidth <= 0) return
+      ed.chain().focus().updateAttributes(type, { width: Math.round(containerWidth * ratio) }).run()
+    },
     setImageCaption: (caption) => {
       const ed = cmd()
       if (!ed || !isImageSelected(ed)) return
@@ -451,10 +896,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     // adapter 的工具栏用 isActive('table') 判定后才显示对应按钮,所以无需在 core 判断场景。
     addRowBefore: () => cmd()?.chain().focus().addRowBefore().run(),
     addRowAfter: () => cmd()?.chain().focus().addRowAfter().run(),
-    deleteRow: () => cmd()?.chain().focus().deleteRow().run(),
+    deleteRow: (rowIndex?: number) => deleteLine('row', rowIndex),
     addColumnBefore: () => cmd()?.chain().focus().addColumnBefore().run(),
     addColumnAfter: () => cmd()?.chain().focus().addColumnAfter().run(),
-    deleteColumn: () => cmd()?.chain().focus().deleteColumn().run(),
+    deleteColumn: (columnIndex?: number) => deleteLine('col', columnIndex),
     mergeCells: () => cmd()?.chain().focus().mergeCells().run(),
     splitCell: () => cmd()?.chain().focus().splitCell().run(),
     toggleHeaderRow: () => cmd()?.chain().focus().toggleHeaderRow().run(),
@@ -469,9 +914,13 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     moveColumnLeft: () => moveColumn(-1),
     moveColumnRight: () => moveColumn(1),
     // ---- 选中整行/整列(飞书式抓手点击)----
-    selectRow: () => selectLine('row'),
-    selectColumn: () => selectLine('col'),
-    hr: () => cmd()?.chain().focus().setHorizontalRule().run(),
+    selectRow: (rowIndex?: number) => selectLine('row', rowIndex),
+    selectColumn: (columnIndex?: number) => selectLine('col', columnIndex),
+    hr: (variant) => {
+      const ed = cmd()
+      if (!ed) return
+      insertHorizontalRule(ed as unknown as CoreEditor, { variant })
+    },
     clearNodes: () => cmd()?.chain().focus().clearNodes().run(),
     setFontFamily: (fontFamily) => {
       const chain = typographyChain()
@@ -505,6 +954,42 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       cmd()?.chain().focus().clearNodes().unsetAllMarks().run(),
     taskList: () => cmd()?.chain().focus().toggleTaskList().run(),
   }
+
+  function withDebugCommands(commandMap: ProEditorCommands): ProEditorCommands {
+    const wrapped: Partial<ProEditorCommands> = {}
+    for (const key of Object.keys(commandMap) as Array<keyof ProEditorCommands>) {
+      const command = commandMap[key] as (...args: unknown[]) => unknown
+      wrapped[key] = ((...args: unknown[]) => {
+        debugLog('command', 'run', {
+          command: key,
+          args: summarizeCommandArgs(args),
+        })
+        try {
+          const result = command(...args)
+          if (result && typeof (result as Promise<unknown>).then === 'function') {
+            return Promise.resolve(result).then(
+              (value) => {
+                debugLog('command', 'result', { command: key, ok: value !== false })
+                return value
+              },
+              (error) => {
+                debugLog('command', 'result', { command: key, ok: false }, 'error', error)
+                throw error
+              },
+            )
+          }
+          debugLog('command', 'result', { command: key, ok: result !== false })
+          return result
+        } catch (error) {
+          debugLog('command', 'result', { command: key, ok: false }, 'error', error)
+          throw error
+        }
+      }) as never
+    }
+    return wrapped as ProEditorCommands
+  }
+
+  const commands = withDebugCommands(rawCommands)
 
   // ---- isActive ----
   // Tiptap 的 isActive 有两个重载:(name, attrs) 和 (attrs-only)。
@@ -592,8 +1077,13 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   const getHTML = () => editor.value?.getHTML() ?? ''
   const getJSON = () => editor.value?.getJSON() ?? {}
   // Markdown:扩展未启用时 getMarkdown 返回空串,importMarkdown 降级为原文塞入
-  const getMarkdownFn = () => (editor.value ? getMarkdown(editor.value) : '')
+  const getMarkdownFn = () => {
+    const value = editor.value ? getMarkdown(editor.value) : ''
+    debugLog('markdown', 'export', { length: value.length })
+    return value
+  }
   const importMarkdownFn = (md: string) => {
+    debugLog('markdown', 'import', { length: md.length }, 'info')
     editor.value && importMarkdown(editor.value, md)
   }
 
@@ -602,6 +1092,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
 
   // ---- 销毁(useEditor 已自行管理,这里仅占位保持接口完整) ----
   onBeforeUnmount(() => {
+    debugLog('lifecycle', 'destroy')
     // useEditor 内部已注册 onBeforeUnmount 销毁 editor
   })
 
@@ -618,5 +1109,6 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     setEditable,
     tableState,
     notify: notifyFn,
+    t,
   }
 }

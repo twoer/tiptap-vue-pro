@@ -1,4 +1,5 @@
 import { CODE_BLOCK_LANGUAGES } from './codeBlock'
+import type { HorizontalRuleVariant } from './extensions/horizontalRule'
 
 export type ToolbarHeadingLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6
 export type ToolbarTextAlign = 'left' | 'center' | 'right' | 'justify'
@@ -27,6 +28,11 @@ export interface ToolbarAlignOption {
 export interface ToolbarMarkdownOption {
   label: string
   value: ToolbarMarkdownAction
+}
+
+export interface ToolbarHorizontalRuleOption {
+  label: string
+  value: HorizontalRuleVariant
 }
 
 export interface ToolbarTableGridOptions {
@@ -61,6 +67,7 @@ export interface ToolbarOptions {
   colors?: string[]
   highlights?: string[]
   codeBlockLanguages?: ToolbarCodeBlockLanguageOption[]
+  horizontalRules?: ToolbarHorizontalRuleOption[]
   tableGrid?: ToolbarTableGridOptions
   markdown?: ToolbarMarkdownOptions
   print?: ToolbarPrintOptions
@@ -73,6 +80,7 @@ export interface ResolvedToolbarOptions {
   colors: string[]
   highlights: string[]
   codeBlockLanguages: ToolbarCodeBlockLanguageOption[]
+  horizontalRules: ToolbarHorizontalRuleOption[]
   tableGrid: ResolvedToolbarTableGridOptions
   markdown: ResolvedToolbarMarkdownOptions
   print: ToolbarPrintOptions
@@ -134,6 +142,12 @@ export const TOOLBAR_FONT_FAMILIES: ToolbarFontFamilyOption[] = [
 export const TOOLBAR_FONT_SIZES = ['', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '40px', '48px', '64px', '72px', '96px']
 export const TOOLBAR_LINE_HEIGHTS = ['', '1', '1.2', '1.4', '1.6', '1.8', '2']
 export const TOOLBAR_CODE_BLOCK_LANGUAGES: ToolbarCodeBlockLanguageOption[] = CODE_BLOCK_LANGUAGES.map((language) => ({ ...language }))
+export const TOOLBAR_HORIZONTAL_RULE_OPTIONS: ToolbarHorizontalRuleOption[] = [
+  { label: '实线', value: 'solid' },
+  { label: '粗线', value: 'thick' },
+  { label: '虚线', value: 'dashed' },
+  { label: '点线', value: 'dotted' },
+]
 export const TOOLBAR_TABLE_GRID: ResolvedToolbarTableGridOptions = {
   maxRows: 8,
   maxCols: 10,
@@ -166,6 +180,7 @@ export function resolveToolbarOptions(options: ToolbarOptions = {}): ResolvedToo
     colors: [...(options.colors ?? TOOLBAR_PRESET_COLORS)],
     highlights: [...(options.highlights ?? TOOLBAR_PRESET_HIGHLIGHTS)],
     codeBlockLanguages: [...(options.codeBlockLanguages ?? TOOLBAR_CODE_BLOCK_LANGUAGES)],
+    horizontalRules: [...(options.horizontalRules ?? TOOLBAR_HORIZONTAL_RULE_OPTIONS)],
     tableGrid: {
       maxRows: resolvePositiveInteger(options.tableGrid?.maxRows, TOOLBAR_TABLE_GRID.maxRows),
       maxCols: resolvePositiveInteger(options.tableGrid?.maxCols, TOOLBAR_TABLE_GRID.maxCols),

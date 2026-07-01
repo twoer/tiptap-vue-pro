@@ -1,4 +1,35 @@
 export { useProEditor } from './useProEditor'
+export {
+  createDebugLogger,
+  isDebugEnabledFor,
+  resolveDebugOptions,
+  sanitizeDebugPayload,
+} from './debug'
+export type {
+  ProEditorDebugChannel,
+  ProEditorDebugEntry,
+  ProEditorDebugLevel,
+  ProEditorDebugLogger,
+  ProEditorDebugLogFn,
+  ProEditorDebugOptions,
+  ProEditorDebugSource,
+} from './debug'
+export {
+  DEFAULT_LOCALE,
+  EN_US_LOCALE_MESSAGES,
+  ZH_CN_LOCALE_MESSAGES,
+  resolveLocale,
+} from './locale'
+export type {
+  LocaleCode,
+  LocaleKey,
+  LocaleMessageOverrides,
+  LocaleMessages,
+  LocaleOptions,
+  LocaleProp,
+  LocaleTranslate,
+  ResolvedLocale,
+} from './locale'
 export { createDefaultExtensions } from './extensions'
 export {
   createEditorExtensions,
@@ -15,21 +46,65 @@ export {
   resolveEditorBehaviorOptions,
 } from './editorBehaviorOptions'
 export type {
+  EditorAssetBehaviorOptions,
   EditorBehaviorOptions,
+  EditorAudioRenderOptions,
   EditorImageBehaviorOptions,
+  EditorMediaAssetMetadata,
+  EditorMediaBehaviorOptions,
+  EditorFileRenderOptions,
+  EditorVideoRenderOptions,
+  FileAttachmentIconMode,
+  ResolvedEditorAssetBehaviorOptions,
   EditorLinkBehaviorOptions,
   EditorLinkTarget,
+  ResolvedEditorAudioRenderOptions,
+  ResolvedEditorImageBehaviorOptions,
+  ResolvedEditorFileRenderOptions,
+  ResolvedEditorMediaBehaviorOptions,
+  ResolvedEditorVideoRenderOptions,
   EditorTableBehaviorOptions,
   ResolvedEditorBehaviorOptions,
 } from './editorBehaviorOptions'
 export { ImageExtended } from './extensions/image'
 export type { ImageAlign, ImageSizePreset } from './extensions/image'
 export {
+  HORIZONTAL_RULE_VARIANTS,
+  HorizontalRuleExtended,
+  insertHorizontalRule,
+  normalizeHorizontalRuleVariant,
+} from './extensions/horizontalRule'
+export type { HorizontalRuleAttributes, HorizontalRuleVariant } from './extensions/horizontalRule'
+export { AudioExtended, FileAttachment, VideoExtended } from './extensions/media'
+export {
+  normalizeUploadedAsset,
+  notifyAssetFileValidationFailure,
+  notifyAssetUploadFailure,
+  validateAssetFile,
+} from './handleAssetUpload'
+export type { AssetFileValidationFailure } from './handleAssetUpload'
+export {
+  formatFileSize,
   handleImageFiles,
   hasImageFiles,
+  isImageFileValidationFailure,
   isImageFile,
+  notifyImageFileValidationFailure,
+  validateImageFile,
 } from './handleImageUpload'
-export type { ImageUploadErrorFn } from './handleImageUpload'
+export type { ImageFileValidationFailure, ImageUploadErrorFn } from './handleImageUpload'
+export { getActiveLinkRange } from './linkRange'
+export type { ActiveLinkRange } from './linkRange'
+export { getSelectedFileAttachment } from './fileAttachmentSelection'
+export type { ActiveFileAttachment } from './fileAttachmentSelection'
+export {
+  fileAttachmentToMediaNodeAttrs,
+  getSelectedMediaNode,
+  mediaNodeToFileAttachmentAttrs,
+} from './mediaSelection'
+export type { ActiveMediaNode, SelectedMediaKind } from './mediaSelection'
+export { getSelectedHorizontalRule } from './horizontalRuleSelection'
+export type { ActiveHorizontalRule } from './horizontalRuleSelection'
 export { useEditorEventBridge } from './editorEventBridge'
 export { useEditorPluginRegistration } from './editorPluginRegistration'
 export type { EditorPluginRegistrationOptions } from './editorPluginRegistration'
@@ -53,6 +128,7 @@ export {
   TOOLBAR_FONT_SIZES,
   TOOLBAR_HEADING_OPTIONS,
   TOOLBAR_HEADING_PREVIEW_STYLES,
+  TOOLBAR_HORIZONTAL_RULE_OPTIONS,
   TOOLBAR_LINE_HEIGHTS,
   TOOLBAR_MARKDOWN_IMPORT_ACCEPT,
   TOOLBAR_MARKDOWN_OPTIONS,
@@ -68,6 +144,7 @@ export type {
   ToolbarAlignOption,
   ToolbarCodeBlockLanguageOption,
   ToolbarFontFamilyOption,
+  ToolbarHorizontalRuleOption,
   ToolbarHeadingLevel,
   ToolbarHeadingOption,
   ToolbarMarkdownAction,
@@ -107,6 +184,9 @@ export type {
   ProEditorContext,
   ProEditorCommands,
   OutputFormat,
+  UploadedAsset,
+  UploadAsset,
+  UploadAssetKind,
   UploadImage,
   NotifyType,
   NotifyFn,

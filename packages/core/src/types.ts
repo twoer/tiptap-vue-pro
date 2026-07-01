@@ -1,8 +1,11 @@
 import type { Editor } from '@tiptap/vue-3'
 import type { Extensions } from '@tiptap/core'
 import type { CodeBlockLanguage } from './codeBlock'
+import type { HorizontalRuleVariant } from './extensions/horizontalRule'
 import type { ImageAlign, ImageSizePreset } from './extensions/image'
 import type { EditorBehaviorOptions } from './editorBehaviorOptions'
+import type { LocaleProp, LocaleTranslate } from './locale'
+import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
 
 /**
  * 扩展数组类型,v3 用 Extensions(同时接受 Extension 和 Node)。
@@ -26,6 +29,42 @@ export type OutputFormat = 'html' | 'json'
  *   提示用户;adapter 负责注入具体的提示 UI,见 NotifyFn)
  */
 export type UploadImage = (file: File) => Promise<string | null>
+
+/**
+ * 通用资源上传类型。
+ *
+ * image 预留给后续把图片上传也迁移到统一契约;当前版本仍优先保留
+ * uploadImage 兼容旧用户。video/audio/file 用于媒体与附件上传。
+ */
+export type UploadAssetKind = 'image' | 'video' | 'audio' | 'file'
+
+/**
+ * 上传完成后的资源元数据。
+ *
+ * url 是唯一必需字段;其余字段用于节点渲染与 HTML 可逆序列化。
+ * duration 单位为秒,poster 主要供视频封面使用,fileTypeText 可覆盖文件卡片类型标签。
+ */
+export interface UploadedAsset {
+  url: string
+  name?: string
+  size?: number
+  mimeType?: string
+  fileTypeText?: string
+  uploadedAt?: string | number | Date
+  duration?: number
+  poster?: string
+}
+
+/**
+ * 通用资源上传函数契约。
+ *
+ * 返回 string 时视为资源 url,Core 会用原 File 补齐 name/size/mimeType。
+ * 返回 UploadedAsset 时会保留服务端返回的元数据。
+ */
+export type UploadAsset = (
+  file: File,
+  kind: UploadAssetKind,
+) => Promise<string | UploadedAsset | null>
 
 /**
  * 消息提示类型。
@@ -56,8 +95,12 @@ export interface ProEditorOptions {
   extensions?: Extensions
   /** placeholder 文案 */
   placeholder?: string
+  /** 内置文案语言或自定义文案覆盖。默认 zh-CN */
+  locale?: LocaleProp
   /** 图片上传函数。不传则图片只能以已有 url 插入,粘贴/拖拽上传失效 */
   uploadImage?: UploadImage
+  /** 视频、音频、文件等通用资源上传函数 */
+  uploadAsset?: UploadAsset
   /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
   editorBehaviorOptions?: EditorBehaviorOptions
   /** 是否只读 */
@@ -65,8 +108,12 @@ export interface ProEditorOptions {
   /**
    * 消息提示回调。adapter 注入各自 UI 库的实现(EP 的 ElMessage / Naive 的
    * useMessage)。Core 在上传失败等场景调用它;不传则静默。
-   */
+  */
   notify?: NotifyFn
+  /** 开发者诊断开关。默认关闭;传 true 时输出结构化调试日志 */
+  debug?: boolean | ProEditorDebugOptions
+  /** 自定义诊断日志接收器。不传时 debug 开启后回退到 console.debug */
+  debugLogger?: ProEditorDebugLogger
   /** 额外编辑器属性,透传给 Editor 构造函数(如 autofocus, editorProps) */
   editorProps?: Record<string, unknown>
   /**
@@ -115,6 +162,8 @@ export interface ProEditorContext {
    * 供工具栏等组件在「导入成功 / 链接校验失败」等场景统一调用,文案与触发点对齐。
    */
   notify: NotifyFn
+  /** 文案翻译函数。adapter 可复用它渲染工具栏、弹窗和提示文案 */
+  t: LocaleTranslate
 }
 
 /**
@@ -188,6 +237,18 @@ export interface ProEditorCommands {
   setImage: (src: string, alt?: string) => void
   /** 插入图片(从 File,走 uploadImage) */
   uploadAndInsertImage: (file: File) => Promise<void>
+  /** 插入视频。会根据 media.video.render.displayMode 决定插入播放器或附件卡片。 */
+  insertVideo: (asset: UploadedAsset | string) => void
+  /** 上传并插入视频。 */
+  uploadAndInsertVideo: (file: File) => Promise<void>
+  /** 插入音频。会根据 media.audio.render.displayMode 决定插入播放器或附件卡片。 */
+  insertAudio: (asset: UploadedAsset | string) => void
+  /** 上传并插入音频。 */
+  uploadAndInsertAudio: (file: File) => Promise<void>
+  /** 插入文件附件卡片。 */
+  insertFile: (asset: UploadedAsset | string) => void
+  /** 上传并插入文件附件卡片。 */
+  uploadAndInsertFile: (file: File) => Promise<void>
   /**
    * 设置当前选中图片的对齐方式。
    * 仅在当前选中节点是 image 时生效(NodeSelection)。
@@ -199,6 +260,12 @@ export interface ProEditorCommands {
    * original 清除宽度属性,回归自然尺寸。仅 NodeSelection 生效。
    */
   setImageSize: (preset: ImageSizePreset) => void
+  /**
+   * 按预设设置当前选中视频/音频的宽度。
+   * small/medium/large 按编辑器内容区宽度的 25%/50%/75%;
+   * original 清除宽度属性,回归原始尺寸。仅 NodeSelection 生效。
+   */
+  setMediaSize: (preset: ImageSizePreset) => void
   /**
    * 设置当前选中图片的题注。空串清除题注。仅 NodeSelection 生效。
    */
@@ -217,10 +284,10 @@ export interface ProEditorCommands {
    */
   addRowBefore: () => void
   addRowAfter: () => void
-  deleteRow: () => void
+  deleteRow: (rowIndex?: number) => void
   addColumnBefore: () => void
   addColumnAfter: () => void
-  deleteColumn: () => void
+  deleteColumn: (columnIndex?: number) => void
   /** 合并选区内单元格(需选中多个单元格,通常用拖拽或键盘选区) */
   mergeCells: () => void
   /** 拆分已合并的单元格 */
@@ -240,11 +307,11 @@ export interface ProEditorCommands {
   moveRowDown: () => void
   moveColumnLeft: () => void
   moveColumnRight: () => void
-  /** 选中光标所在整行(CellSelection.rowSelection)——飞书式抓手点击行为 */
-  selectRow: () => void
-  /** 选中光标所在整列(CellSelection.colSelection) */
-  selectColumn: () => void
-  hr: () => void
+  /** 选中光标所在或指定整行(CellSelection.rowSelection)——飞书式抓手点击行为 */
+  selectRow: (rowIndex?: number) => void
+  /** 选中光标所在或指定整列(CellSelection.colSelection) */
+  selectColumn: (columnIndex?: number) => void
+  hr: (variant?: HorizontalRuleVariant) => void
   clearNodes: () => void
   /** 设置字体族;fontFamily 为空字符串则清除字体 */
   setFontFamily: (fontFamily: string) => void

@@ -1,26 +1,54 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { h, nextTick, ref } from 'vue'
+import { h, nextTick, shallowRef } from 'vue'
 import Toolbar from './Toolbar.vue'
 import { getCommandLabel, TOOLBAR_MARKDOWN_OPTIONS } from 'tiptap-vue-pro-core'
 import type { ProEditorContext, ToolbarOptions } from 'tiptap-vue-pro-core'
 
 function createEditor(options: { empty?: boolean; inLink?: boolean; codeBlockLanguage?: string } = {}) {
+  const linkMarkType = { name: 'link' }
+  const linkMark = {
+    type: linkMarkType,
+    attrs: { href: 'https://old.example.com', target: '_blank' },
+    eq(other: unknown) {
+      return other === linkMark
+    },
+  }
+  const linkNode = { marks: [linkMark], nodeSize: 7 }
+  const linkParent = {
+    childCount: 1,
+    child: vi.fn(() => linkNode),
+    childAfter: vi.fn(() => ({ node: linkNode, index: 0, offset: 0 })),
+    childBefore: vi.fn(() => ({ node: linkNode, index: 0, offset: 0 })),
+  }
   return {
     state: {
+      schema: {
+        marks: {
+          link: linkMarkType,
+        },
+      },
       selection: {
         from: 3,
         to: options.empty === false ? 10 : 3,
         empty: options.empty ?? true,
+        $from: options.inLink
+          ? {
+              marks: () => [linkMark],
+              parent: linkParent,
+              parentOffset: 1,
+              start: () => 3,
+            }
+          : undefined,
       },
       doc: {
-        textBetween: vi.fn(() => '选中文本'),
+        textBetween: vi.fn((from: number, to: number) => (from === 3 && to === 10 ? '旧链接' : '选中文本')),
       },
     },
     isActive: vi.fn((name: string) => name === 'link' && !!options.inLink),
     getAttributes: vi.fn((name: string) => {
-      if (name === 'link' && options.inLink) return { href: 'https://old.example.com' }
+      if (name === 'link' && options.inLink) return { href: 'https://old.example.com', target: '_blank' }
       if (name === 'codeBlock' && options.codeBlockLanguage) return { language: options.codeBlockLanguage }
       return {}
     }),
@@ -29,11 +57,14 @@ function createEditor(options: { empty?: boolean; inLink?: boolean; codeBlockLan
 
 function createCtx(editor?: ReturnType<typeof createEditor>) {
   return {
-    editor: ref(editor),
+    editor: shallowRef(editor),
     isActive: vi.fn(() => false),
     commands: {
       setImage: vi.fn(),
       uploadAndInsertImage: vi.fn(),
+      uploadAndInsertVideo: vi.fn(),
+      uploadAndInsertAudio: vi.fn(),
+      uploadAndInsertFile: vi.fn(),
       insertLinkText: vi.fn(),
       setLink: vi.fn(),
       code: vi.fn(),
@@ -81,6 +112,16 @@ async function setNativeInput(input: HTMLInputElement, value: string) {
 
 async function clickBodyText(text: string) {
   await nextTick()
+  const dropdownItem = Array.from(document.body.querySelectorAll('.tvp-ant-dropdown-menu__item')).find((item) =>
+    item.textContent?.trim() === text,
+  ) as HTMLElement | undefined
+  if (dropdownItem) {
+    dropdownItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    dropdownItem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    dropdownItem.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    return
+  }
   const node = Array.from(document.body.querySelectorAll('*')).find((item) =>
     item.textContent?.trim() === text,
   ) as HTMLElement | undefined
@@ -109,6 +150,7 @@ describe('Ant Design Vue Toolbar', () => {
       props: { ctx },
     })
 
+    expect(wrapper.find('button[aria-label="图片"]').exists()).toBe(false)
     await wrapper.find('button[aria-label="网络图片"]').trigger('click')
     await nextTick()
     const input = inputByPlaceholder('请输入图片地址 https://...')
@@ -128,6 +170,7 @@ describe('Ant Design Vue Toolbar', () => {
       props: { ctx },
     })
 
+    expect(wrapper.find('button[aria-label="图片"]').exists()).toBe(false)
     await wrapper.find('button[aria-label="网络图片"]').trigger('click')
     await nextTick()
     const input = inputByPlaceholder('请输入图片地址 https://...')
@@ -196,6 +239,7 @@ describe('Ant Design Vue Toolbar', () => {
     expect(wrapper.find('button[aria-label="加粗"]').exists()).toBe(true)
     expect(wrapper.find('button[aria-label="斜体"]').exists()).toBe(true)
     expect(wrapper.find('button[aria-label="链接"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="图片"]').exists()).toBe(false)
     expect(wrapper.find('button[aria-label="网络图片"]').exists()).toBe(false)
     expect(wrapper.find('button[aria-label="标题"]').exists()).toBe(false)
   })
@@ -422,6 +466,32 @@ describe('Ant Design Vue Toolbar', () => {
     expect(ctx.notify).toHaveBeenCalledWith('已移除链接', 'success')
   })
 
+  it('链接弹窗:光标在已有链接内时预填文本并更新完整范围', async () => {
+    const ctx = createCtx(createEditor({ inLink: true }))
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="链接"]').trigger('click')
+    await nextTick()
+    await nextTick()
+    const textInput = inputByPlaceholder('显示的文字(留空则用链接地址)')
+    const hrefInput = inputByPlaceholder('https://example.com')
+
+    expect(textInput.value).toBe('旧链接')
+    expect(hrefInput.value).toBe('https://old.example.com')
+
+    await setNativeInput(hrefInput, 'https://new.example.com')
+    await clickBodyButton('确定')
+
+    expect(ctx.commands.insertLinkText).toHaveBeenCalledWith(
+      'https://new.example.com',
+      '旧链接',
+      { target: '_blank', range: { from: 3, to: 10 } },
+    )
+  })
+
   it('上传图片:选择文件后调用 uploadAndInsertImage 并清空 input', async () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
@@ -446,6 +516,64 @@ describe('Ant Design Vue Toolbar', () => {
     expect(input.value).toBe('')
   })
 
+  it('图片入口合并上传和网络图片菜单', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, uploadImage: vi.fn() },
+    })
+
+    expect(wrapper.find('button[aria-label="图片"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="上传图片"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="网络图片"]').exists()).toBe(false)
+
+    await wrapper.find('button[aria-label="图片"]').trigger('click')
+    await nextTick()
+
+    expect(document.body.textContent).toContain('上传图片')
+    expect(document.body.textContent).toContain('网络图片')
+  })
+
+  it('图片入口仅有上传时不显示下拉菜单', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        uploadImage: vi.fn(),
+        editorBehaviorOptions: {
+          image: { allowUrl: false },
+        },
+      },
+    })
+
+    expect(wrapper.find('button[aria-label="上传图片"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="图片"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="网络图片"]').exists()).toBe(false)
+
+    await wrapper.find('button[aria-label="上传图片"]').trigger('click')
+
+    expect(ctx.prepareInsert).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('网络图片')
+  })
+
+  it('图片入口无上传且禁用网络图片时隐藏', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        editorBehaviorOptions: {
+          image: { allowUrl: false },
+        },
+      },
+    })
+
+    expect(wrapper.find('button[aria-label="图片"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="上传图片"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="网络图片"]').exists()).toBe(false)
+  })
+
   it('editorBehaviorOptions 可配置图片上传 accept', () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
@@ -462,18 +590,129 @@ describe('Ant Design Vue Toolbar', () => {
     expect(wrapper.find('input[accept="image/png,image/jpeg"]').exists()).toBe(true)
   })
 
+  it('上传附件:有 uploadAsset 时显示上传菜单', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, uploadAsset: vi.fn() },
+    })
+
+    expect(wrapper.find('button[aria-label="上传"]').exists()).toBe(true)
+  })
+
+  it('上传视频:选择文件后调用 uploadAndInsertVideo 并清空 input', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, uploadAsset: vi.fn() },
+    })
+    const input = wrapper.find('input[accept="video/*"]').element as HTMLInputElement
+    const file = new File(['video'], 'a.mp4', { type: 'video/mp4' })
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [file],
+    })
+    Object.defineProperty(input, 'value', {
+      configurable: true,
+      writable: true,
+      value: 'a.mp4',
+    })
+
+    await wrapper.find('input[accept="video/*"]').trigger('change')
+
+    expect(ctx.commands.uploadAndInsertVideo).toHaveBeenCalledWith(file)
+    expect(input.value).toBe('')
+  })
+
+  it('editorBehaviorOptions 可配置视频和文件上传 accept, audio 上传入口隐藏', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        uploadAsset: vi.fn(),
+        editorBehaviorOptions: {
+          media: {
+            video: { accept: 'video/mp4' },
+            audio: { accept: 'audio/mpeg' },
+            file: { accept: '.pdf,.docx' },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.find('input[accept="video/mp4"]').exists()).toBe(true)
+    expect(wrapper.find('input[accept="audio/mpeg"]').exists()).toBe(false)
+    expect(wrapper.find('input[accept=".pdf,.docx"]').exists()).toBe(true)
+  })
+
+  it('上传附件:默认多选只处理第一个文件', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, uploadAsset: vi.fn() },
+    })
+    const input = wrapper.find('input[accept="*"]').element as HTMLInputElement
+    const first = new File(['a'], 'a.pdf', { type: 'application/pdf' })
+    const second = new File(['b'], 'b.pdf', { type: 'application/pdf' })
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [first, second],
+    })
+
+    await wrapper.find('input[accept="*"]').trigger('change')
+    await Promise.resolve()
+
+    expect(input.multiple).toBe(false)
+    expect(ctx.commands.uploadAndInsertFile).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.uploadAndInsertFile).toHaveBeenCalledWith(first)
+  })
+
+  it('上传附件:multiple=true 时按顺序处理多个文件', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        uploadAsset: vi.fn(),
+        editorBehaviorOptions: {
+          image: { multiple: true },
+          media: {
+            video: { multiple: true },
+            audio: { multiple: true },
+            file: { multiple: true },
+          },
+        },
+      },
+    })
+    const input = wrapper.find('input[accept="*"]').element as HTMLInputElement
+    const first = new File(['a'], 'a.pdf', { type: 'application/pdf' })
+    const second = new File(['b'], 'b.pdf', { type: 'application/pdf' })
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [first, second],
+    })
+
+    await wrapper.find('input[accept="*"]').trigger('change')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(wrapper.find('input[accept="image/*"]').element).toHaveProperty('multiple', true)
+    expect(wrapper.find('input[accept="video/*"]').element).toHaveProperty('multiple', true)
+    expect(wrapper.find('input[accept="audio/*"]').exists()).toBe(false)
+    expect(input.multiple).toBe(true)
+    expect(ctx.commands.uploadAndInsertFile).toHaveBeenNthCalledWith(1, first)
+    expect(ctx.commands.uploadAndInsertFile).toHaveBeenNthCalledWith(2, second)
+  })
+
   it('表格网格:选择尺寸后插入表格并关闭下拉', async () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
       attachTo: document.body,
       props: { ctx },
     })
-    const handleClose = vi.fn()
     await wrapper.find('button[aria-label="插入表格"]').trigger('click')
     await nextTick()
-    ;(wrapper.vm as unknown as { tableDropdown: { handleClose: () => void } }).tableDropdown = {
-      handleClose,
-    }
 
     const cells = Array.from(document.body.querySelectorAll('.tvp-table-grid__cell')) as HTMLElement[]
     expect(cells.length).toBe(80)
@@ -485,7 +724,14 @@ describe('Ant Design Vue Toolbar', () => {
 
     expect(ctx.prepareInsert).toHaveBeenCalledTimes(1)
     expect(ctx.commands.insertTable).toHaveBeenCalledWith(3, 4)
-    expect(handleClose).toHaveBeenCalledTimes(1)
+    expect((wrapper.vm as unknown as { tableDropdownVisible: boolean }).tableDropdownVisible).toBe(false)
+  })
+
+  it('表格网格下拉使用不透明背景', () => {
+    const source = readFileSync(`${process.cwd()}/src/Toolbar.vue`, 'utf8')
+
+    expect(source).toContain('background: var(--tvp-ant-bg-color-overlay')
+    expect(source).toContain('box-shadow: var(--tvp-ant-box-shadow-light')
   })
 
   it('Markdown 菜单文案保持简化,菜单项图标文字间距统一', () => {

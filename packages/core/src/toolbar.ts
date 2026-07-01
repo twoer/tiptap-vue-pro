@@ -25,6 +25,7 @@ export type ToolbarBuiltinKey =
   | 'hr'
   | 'link'
   | 'image'
+  | 'attachment'
   | 'table'
   | 'clearFormat'
   | 'markdown'
@@ -39,13 +40,13 @@ export type ToolbarProp = ToolbarConfig | false
 export const DEFAULT_TOOLBAR: ToolbarConfig = [
   ['undo', 'redo'],
   ['heading', 'fontFamily', 'fontSize', 'lineHeight'],
-  ['bold', 'italic', 'strike', 'underline', 'code', 'superscript', 'subscript'],
-  ['color', 'highlight'],
+  ['bold', 'italic', 'underline', 'strike', 'code', 'superscript', 'subscript'],
+  ['color', 'highlight', 'clearFormat'],
   ['align', 'decreaseIndent', 'increaseIndent'],
-  ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock', 'hr'],
-  ['link', 'image', 'table'],
-  ['clearFormat'],
-  ['markdown', 'print', 'fullscreen', 'preview'],
+  ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
+  ['link', 'image', 'attachment', 'table', 'hr'],
+  ['markdown', 'print'],
+  ['preview', 'fullscreen'],
 ]
 
 export function normalizeToolbarConfig(toolbar?: ToolbarProp): ToolbarConfig {

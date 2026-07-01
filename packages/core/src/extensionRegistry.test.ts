@@ -10,6 +10,7 @@ describe('extension registry', () => {
     const names = extensions.map((extension) => extension.name)
 
     expect(names).toContain('starterKit')
+    expect(names).toContain('horizontalRule')
     expect(names).toContain('placeholder')
     expect(names).toContain('characterCount')
     expect(names).toContain('markdown')
@@ -49,6 +50,7 @@ describe('extension registry', () => {
   })
 
   it.each([
+    ['starterKit', ['starterKit', 'horizontalRule']],
     ['characterCount', ['characterCount']],
     ['typography', ['textStyle', 'fontFamily', 'fontSize', 'lineHeight', 'color']],
     ['highlight', ['highlight']],
@@ -57,6 +59,7 @@ describe('extension registry', () => {
     ['codeBlock', ['codeBlock']],
     ['script', ['superscript', 'subscript']],
     ['taskList', ['taskList', 'taskItem']],
+    ['media', ['video', 'audio', 'fileAttachment']],
     ['markdown', ['markdown']],
   ] as const)('allows disabling the %s extension group', (key, disabledNames) => {
     const extensions = createEditorExtensions({
@@ -74,6 +77,7 @@ describe('extension registry', () => {
 
     for (const enabledName of [
       'starterKit',
+      'horizontalRule',
       'placeholder',
       'characterCount',
       'image',
@@ -91,6 +95,9 @@ describe('extension registry', () => {
       'subscript',
       'taskList',
       'taskItem',
+      'video',
+      'audio',
+      'fileAttachment',
       'markdown',
     ]) {
       expect(names).toContain(enabledName)

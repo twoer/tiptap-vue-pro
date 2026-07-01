@@ -112,10 +112,10 @@ onBeforeUnmount(() => {
 <template>
   <div ref="rootEl" class="tvp-table-bubble">
     <!-- 选区菜单:选中多格/合并格时浮现。增删行列交给抓手,这里只做合并/拆分 + 表头/删表 -->
-    <ElTooltip v-if="tableState.canMerge" content="合并单元格" placement="top" :show-after="400">
+    <ElTooltip :teleported="false" v-if="tableState.canMerge" content="合并单元格" placement="top" :show-after="400" :persistent="false">
       <ElButton text class="tvp-icon-btn" @click="ctx.commands.mergeCells()"><Combine :size="15" /></ElButton>
     </ElTooltip>
-    <ElTooltip v-if="tableState.canSplit" content="拆分单元格" placement="top" :show-after="400">
+    <ElTooltip :teleported="false" v-if="tableState.canSplit" content="拆分单元格" placement="top" :show-after="400" :persistent="false">
       <ElButton text class="tvp-icon-btn" @click="ctx.commands.splitCell()"><Split :size="15" /></ElButton>
     </ElTooltip>
 
@@ -182,5 +182,12 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.tvp-menu-item svg {
+  display: block;
+  flex: 0 0 auto;
 }
 </style>

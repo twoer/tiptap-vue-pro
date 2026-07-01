@@ -1,5 +1,18 @@
 import type { Editor } from '@tiptap/core'
-import type { UploadImage } from './types'
+import type { EditorImageBehaviorOptions } from './editorBehaviorOptions'
+import type { ProEditorContext, UploadImage } from './types'
+
+export type ImageFileValidationFailure =
+  | {
+    reason: 'invalid-type'
+    file: File
+  }
+  | {
+    reason: 'too-large'
+    file: File
+    size: number
+    maxSize: number
+  }
 
 /**
  * 判断是否为图片文件(基于 MIME 类型,不依赖文件名扩展)。
@@ -20,6 +33,64 @@ export function hasImageFiles(
 ): boolean {
   if (!files || files.length === 0) return false
   return Array.from(files).some(isImageFile)
+}
+
+export function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = size / 1024
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex++
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`
+}
+
+export function validateImageFile(
+  file: File,
+  options: EditorImageBehaviorOptions = {},
+): ImageFileValidationFailure | null {
+  if (!isImageFile(file)) {
+    return { reason: 'invalid-type', file }
+  }
+  const maxSize = options.maxSize
+  if (typeof maxSize === 'number' && maxSize > 0 && file.size > maxSize) {
+    return {
+      reason: 'too-large',
+      file,
+      size: file.size,
+      maxSize,
+    }
+  }
+  return null
+}
+
+export function isImageFileValidationFailure(
+  value: unknown,
+): value is ImageFileValidationFailure {
+  return typeof value === 'object'
+    && value !== null
+    && 'reason' in value
+    && ((value as { reason?: unknown }).reason === 'invalid-type'
+      || (value as { reason?: unknown }).reason === 'too-large')
+}
+
+export function notifyImageFileValidationFailure(
+  ctx: Pick<ProEditorContext, 'notify' | 't'>,
+  failure: ImageFileValidationFailure,
+) {
+  if (failure.reason === 'too-large') {
+    ctx.notify(
+      ctx.t('notify.imageFileTooLarge', {
+        size: formatFileSize(failure.size),
+        limit: formatFileSize(failure.maxSize),
+      }),
+      'warning',
+    )
+    return
+  }
+  ctx.notify(ctx.t('notify.invalidImageFile'), 'warning')
 }
 
 /**
@@ -52,6 +123,7 @@ export async function handleImageFiles(
   upload: UploadImage | undefined,
   editor: Editor,
   onError?: ImageUploadErrorFn,
+  imageOptions?: EditorImageBehaviorOptions,
 ): Promise<boolean> {
   if (!files || files.length === 0) return false
   if (!upload) return false
@@ -61,6 +133,11 @@ export async function handleImageFiles(
 
   // 串行上传,保证插入顺序与拖入顺序一致
   for (const file of images) {
+    const validationFailure = validateImageFile(file, imageOptions)
+    if (validationFailure) {
+      onError?.(file, validationFailure)
+      continue
+    }
     try {
       const url = await upload(file)
       if (url) {
