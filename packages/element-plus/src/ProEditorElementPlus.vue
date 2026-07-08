@@ -167,6 +167,7 @@ watch(
 // 二者独立,可叠加(全屏下也能预览)。
 const isFullscreen = ref(false)
 const isPreview = ref(false)
+const tableGripMenuOpen = ref(false)
 // 内容滚动容器(表格抓手覆盖层相对它定位)
 const contentWrap = ref<HTMLElement | null>(null)
 
@@ -294,6 +295,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       :ctx="toolbarCtx"
       :scroll-container="contentWrap"
       :debug-log="debugLog"
+      @menu-open-change="tableGripMenuOpen = $event"
     />
 
     <!-- 气泡菜单:选中文字时浮现(仅可编辑态;预览/只读不显示) -->
@@ -315,6 +317,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       v-if="!readonly && !isPreview && ctx.editor.value"
       :editor="ctx.editor.value"
       :ctx="toolbarCtx"
+      :suppress="tableGripMenuOpen"
     />
 
     <LinkBubbleMenu
@@ -378,6 +381,10 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
 .tvp-table-bubble {
   position: relative;
   z-index: 2100;
+}
+
+.tvp-editor[data-table-grip-suppress-bubble="true"] .tvp-table-bubble {
+  display: none !important;
 }
 
 /*
@@ -1211,6 +1218,19 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 
 .tvp-content .ProseMirror th {
   background: var(--el-fill-color-light, #f5f7fa);
+}
+
+.tvp-content .ProseMirror .selectedCell {
+  position: relative;
+}
+
+.tvp-content .ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(64, 158, 255, 0.12);
+  box-shadow: inset 0 0 0 1px var(--el-color-primary, #409eff);
 }
 
 /* placeholder */

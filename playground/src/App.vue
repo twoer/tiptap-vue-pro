@@ -32,7 +32,12 @@ function createDemoContent(uiName: string) {
     '<li data-checked="true"><label><input type="checkbox" checked=""><span></span></label><div><p>已完成项会有删除线</p></div></li></ul>' +
     '<blockquote>选中文字会浮现气泡菜单(加粗/斜体/链接...)。</blockquote>' +
     '<pre><code>const editor = useProEditor({ content })\n// 开箱即用的 Tiptap v3 封装</code></pre>' +
-    '<table><tbody><tr><th>功能</th><th>状态</th></tr><tr><td>表格</td><td>OK</td></tr></tbody></table>' +
+    '<table><tbody>' +
+    '<tr><th>模块</th><th>能力</th><th>状态</th><th>备注</th></tr>' +
+    '<tr><td>表格</td><td>行列操作</td><td>OK</td><td>结构调整</td></tr>' +
+    '<tr><td>表格</td><td>区域选择</td><td>OK</td><td>矩形选区</td></tr>' +
+    '<tr><td>表格</td><td>合并拆分</td><td>OK</td><td>单元格编排</td></tr>' +
+    '</tbody></table>' +
     '<h3>图片功能(对标飞书)</h3>' +
     '<p>点击下方图片选中 → 浮现工具条:拖拽四角调整大小、切换左/中/右对齐、编辑题注、替换、删除。</p>' +
     '<img src="https://avatars.githubusercontent.com/u/7254263" data-align="center" data-caption="示例图片:点击我试试调整大小与对齐" width="320">'

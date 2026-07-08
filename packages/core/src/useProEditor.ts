@@ -35,6 +35,7 @@ import type {
   ProEditorCommands,
   NotifyFn,
   TableState,
+  TableCellCoordinate,
   UploadedAsset,
 } from './types'
 import type { ProEditorDebugLogFn } from './debug'
@@ -126,12 +127,49 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   // ---- 通过官方 useEditor 创建实例 ----
   // 注意:useEditor 内部用 Vue 生命周期管理 Editor,返回 Ref<Editor | undefined>
   debugLog('lifecycle', 'init', { editable, output: getOutput(), immediatelyRender })
+  const userHandleKeyDown = typeof editorProps?.handleKeyDown === 'function'
+    ? editorProps.handleKeyDown as (view: unknown, event: KeyboardEvent) => boolean
+    : undefined
+  const userHandleClick = typeof editorProps?.handleClick === 'function'
+    ? editorProps.handleClick as (view: unknown, pos: number, event: MouseEvent) => boolean
+    : undefined
+  const userHandleDOMEvents = (editorProps?.handleDOMEvents && typeof editorProps.handleDOMEvents === 'object')
+    ? editorProps.handleDOMEvents as Record<string, (view: unknown, event: Event) => boolean>
+    : undefined
+  const resolvedEditorProps = {
+    ...(editorProps ?? {}),
+    handleDOMEvents: {
+      ...(userHandleDOMEvents ?? {}),
+      mousedown: (view: unknown, event: Event) => {
+        if (userHandleDOMEvents?.mousedown?.(view, event)) return true
+        if (event instanceof MouseEvent && event.shiftKey) {
+          debugLog('table', 'shift-mousedown', {
+            clientX: event.clientX,
+            clientY: event.clientY,
+          })
+          return selectCellRangeFromMouseDown(view, event)
+        }
+        if (event instanceof MouseEvent) rememberPointerTableCell(view, event)
+        return false
+      },
+    },
+    handleKeyDown: (view: unknown, event: KeyboardEvent) => {
+      if (userHandleKeyDown?.(view, event)) return true
+      if (isSelectAllShortcut(event)) return selectCurrentTable()
+      return false
+    },
+    handleClick: (view: unknown, pos: number, event: MouseEvent) => {
+      if (userHandleClick?.(view, pos, event)) return true
+      if (event.shiftKey) return selectCellRangeFromClick(pos, event)
+      return false
+    },
+  }
   const editorOptions = {
     extensions: exts,
     content: content as never,
     editable,
     immediatelyRender,
-    editorProps: editorProps ?? {},
+    editorProps: resolvedEditorProps,
     onUpdate: ({ editor: ed }: { editor: CoreEditor }) => {
       isUpdatingFromEditor = true
       emitValue(ed)
@@ -254,6 +292,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   // 全部基于 ProseMirror state 纯计算,不读 DOM。
   // 返回 null 表示选区不在表格内(命令静默失效,与 Tiptap 原生命令行为一致)。
   let lastKnownTablePos: number | null = null
+  let lastPointerTableCell: { tableStart: number; row: number; col: number } | null = null
+
+  const isTableCellNode = (n: { type: { name: string } }) =>
+    n.type.name === 'tableCell' || n.type.name === 'tableHeader'
 
   function tableGeometryFromTablePos(tablePos: number | null, rowIndex = 0, colIndex = 0) {
     const ed = editor.value
@@ -276,6 +318,78 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     }
   }
 
+  function tableGeometryFromPos(pos: number) {
+    const ed = editor.value
+    if (!ed) return null
+    const doc = ed.state.doc
+    const candidates = [pos, pos - 1, pos + 1]
+
+    function geometryFromResolvedPos($pos: ReturnType<typeof doc.resolve>) {
+      let cellDepth = -1
+      let tableDepth = -1
+      for (let d = $pos.depth; d > 0; d--) {
+        const name = $pos.node(d).type.name
+        if (cellDepth < 0 && isTableCellNode($pos.node(d))) cellDepth = d
+        if (tableDepth < 0 && name === 'table') tableDepth = d
+      }
+      if (cellDepth >= 0 && tableDepth >= 0) {
+        const tableNode = $pos.node(tableDepth)
+        const tableStart = $pos.start(tableDepth)
+        const map = TableMap.get(tableNode)
+        const cellRelPos = $pos.before(cellDepth) - tableStart
+        const rect = map.findCell(cellRelPos)
+        lastKnownTablePos = tableStart - 1
+        return {
+          map,
+          tableStart,
+          rowCount: map.height,
+          colCount: map.width,
+          row: rect.top,
+          col: rect.left,
+          cellDocPos: tableStart + cellRelPos,
+        }
+      }
+
+      // CellSelection stores $anchorCell/$headCell at the position before a cell.
+      // That boundary is not "inside" the cell, so read nodeAfter before trying
+      // adjacent fallback positions; otherwise a selected column can be mistaken
+      // for the cell on its left.
+      if ($pos.nodeAfter && isTableCellNode($pos.nodeAfter)) {
+        const rowDepth = $pos.depth
+        if (rowDepth > 0 && $pos.node(rowDepth).type.name === 'tableRow') {
+          const boundaryTableDepth = rowDepth - 1
+          if (boundaryTableDepth > 0 && $pos.node(boundaryTableDepth).type.name === 'table') {
+            const tableNode = $pos.node(boundaryTableDepth)
+            const tableStart = $pos.start(boundaryTableDepth)
+            const map = TableMap.get(tableNode)
+            const cellRelPos = $pos.pos - tableStart
+            const rect = map.findCell(cellRelPos)
+            lastKnownTablePos = tableStart - 1
+            return {
+              map,
+              tableStart,
+              rowCount: map.height,
+              colCount: map.width,
+              row: rect.top,
+              col: rect.left,
+              cellDocPos: tableStart + cellRelPos,
+            }
+          }
+        }
+      }
+
+      return null
+    }
+
+    for (const rawPos of candidates) {
+      if (rawPos < 0 || rawPos > doc.content.size) continue
+      const geometry = geometryFromResolvedPos(doc.resolve(rawPos))
+      if (geometry) return geometry
+    }
+
+    return null
+  }
+
   function tableGeometry(axis?: 'row' | 'col', targetIndex?: number) {
     const ed = editor.value
     if (!ed) return null
@@ -287,9 +401,6 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       $headCell?: { pos: number }
     }
     const anchorPos = anySel.$anchorCell?.pos ?? sel.$from.pos
-    const isCell = (n: { type: { name: string } }) =>
-      n.type.name === 'tableCell' || n.type.name === 'tableHeader'
-
     // 解析 $pos,沿节点链找 cell + table,记录各自 depth。
     // tryResolve:若传入 pos 恰好落在节点边界(不在 cell 内容内),退一格再解析。
     function resolveInfo(pos: number) {
@@ -298,12 +409,35 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       let tableDepth = -1
       for (let d = $pos.depth; d > 0; d--) {
         const name = $pos.node(d).type.name
-        if (cellDepth < 0 && isCell($pos.node(d))) cellDepth = d
+        if (cellDepth < 0 && isTableCellNode($pos.node(d))) cellDepth = d
         if (tableDepth < 0 && name === 'table') tableDepth = d
       }
       return { $pos, cellDepth, tableDepth }
     }
     let { $pos: $cell, cellDepth, tableDepth } = resolveInfo(anchorPos)
+    if (cellDepth < 0 && $cell.nodeAfter && isTableCellNode($cell.nodeAfter)) {
+      const rowDepth = $cell.depth
+      if (rowDepth > 0 && $cell.node(rowDepth).type.name === 'tableRow') {
+        tableDepth = rowDepth - 1
+        if (tableDepth > 0 && $cell.node(tableDepth).type.name === 'table') {
+          const tableNode = $cell.node(tableDepth)
+          const tableStart = $cell.start(tableDepth)
+          lastKnownTablePos = tableStart - 1
+          const map = TableMap.get(tableNode)
+          const cellRelPos = $cell.pos - tableStart
+          const rect = map.findCell(cellRelPos)
+          return {
+            map,
+            tableStart,
+            rowCount: map.height,
+            colCount: map.width,
+            row: rect.top,
+            col: rect.left,
+            cellDocPos: tableStart + cellRelPos,
+          }
+        }
+      }
+    }
     // 边界情况:pos 落在 cell 外,退一格重试
     if (cellDepth < 0 && anchorPos > 0) {
       ({ $pos: $cell, cellDepth, tableDepth } = resolveInfo(anchorPos - 1))
@@ -422,6 +556,155 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       ok: true,
     })
     return true
+  }
+
+  function selectCurrentTable() {
+    const g = tableGeometry()
+    const ed = editor.value
+    if (!g || !ed) {
+      debugLog('table', 'select-table:no-geometry', { ok: false })
+      return false
+    }
+    const tableNode = ed.state.doc.nodeAt(g.tableStart - 1)
+    if (!tableNode || tableNode.type.name !== 'table') {
+      debugLog('table', 'select-table:no-table-node', { ok: false })
+      return false
+    }
+    const firstRel = g.map.positionAt(0, 0, tableNode)
+    const lastRel = g.map.positionAt(g.map.height - 1, g.map.width - 1, tableNode)
+    const cellSel = CellSelection.create(
+      ed.state.doc,
+      g.tableStart + firstRel,
+      g.tableStart + lastRel,
+    )
+    ed.view.dispatch(ed.state.tr.setSelection(cellSel).scrollIntoView())
+    debugLog('table', 'select-table', {
+      rowCount: g.rowCount,
+      colCount: g.colCount,
+      ok: true,
+    })
+    return true
+  }
+
+  function selectCellRange(anchor: TableCellCoordinate, head: TableCellCoordinate, tablePos?: number | null) {
+    const current = tableGeometry()
+    const g = tableGeometryFromTablePos(
+      tablePos ?? (current ? current.tableStart - 1 : lastKnownTablePos),
+      anchor.row,
+      anchor.col,
+    )
+    const ed = editor.value
+    if (!g || !ed) {
+      debugLog('table', 'select-cell-range:no-geometry', { anchor, head, ok: false })
+      return false
+    }
+    const tableNode = ed.state.doc.nodeAt(g.tableStart - 1)
+    if (!tableNode || tableNode.type.name !== 'table') {
+      debugLog('table', 'select-cell-range:no-table-node', { anchor, head, ok: false })
+      return false
+    }
+    const anchorRow = Math.max(0, Math.min(anchor.row, g.map.height - 1))
+    const anchorCol = Math.max(0, Math.min(anchor.col, g.map.width - 1))
+    const headRow = Math.max(0, Math.min(head.row, g.map.height - 1))
+    const headCol = Math.max(0, Math.min(head.col, g.map.width - 1))
+    const anchorRel = g.map.positionAt(anchorRow, anchorCol, tableNode)
+    const headRel = g.map.positionAt(headRow, headCol, tableNode)
+    const cellSel = CellSelection.create(
+      ed.state.doc,
+      g.tableStart + anchorRel,
+      g.tableStart + headRel,
+    )
+    ed.view.dispatch(ed.state.tr.setSelection(cellSel).scrollIntoView())
+    debugLog('table', 'select-cell-range', {
+      anchor: { row: anchorRow, col: anchorCol },
+      head: { row: headRow, col: headCol },
+      selectedRows: Math.abs(headRow - anchorRow) + 1,
+      selectedCols: Math.abs(headCol - anchorCol) + 1,
+      ok: true,
+    })
+    return true
+  }
+
+  function selectCellRangeFromClick(pos: number, event: MouseEvent) {
+    const anchor = tableGeometry() ?? lastPointerTableCell
+    const head = tableGeometryFromPos(pos)
+    if (!anchor || !head || anchor.tableStart !== head.tableStart) {
+      debugLog('table', 'select-cell-range:click-skip', {
+        pos,
+        hasAnchor: !!anchor,
+        hasHead: !!head,
+        sameTable: !!anchor && !!head && anchor.tableStart === head.tableStart,
+      })
+      return false
+    }
+    const selected = selectCellRange(
+      { row: anchor.row, col: anchor.col },
+      { row: head.row, col: head.col },
+      anchor.tableStart - 1,
+    )
+    if (selected) event.preventDefault()
+    return selected
+  }
+
+  function selectCellRangeFromMouseDown(view: unknown, event: MouseEvent) {
+    const anchor = tableGeometry() ?? lastPointerTableCell
+    const head = pointerTableGeometry(view, event)
+    if (!anchor || !head || anchor.tableStart !== head.tableStart) {
+      debugLog('table', 'select-cell-range:mousedown-skip', {
+        hasAnchor: !!anchor,
+        hasHead: !!head,
+        sameTable: !!anchor && !!head && anchor.tableStart === head.tableStart,
+      })
+      return false
+    }
+    const selected = selectCellRange(
+      { row: anchor.row, col: anchor.col },
+      { row: head.row, col: head.col },
+      anchor.tableStart - 1,
+    )
+    if (selected) event.preventDefault()
+    return selected
+  }
+
+  function pointerTableGeometry(view: unknown, event: MouseEvent) {
+    const posAtCoords = (view as {
+      posAtCoords?: (coords: { left: number; top: number }) => { pos: number } | null
+    }).posAtCoords
+    let target: { pos: number } | null | undefined
+    try {
+      target = posAtCoords?.call(view, { left: event.clientX, top: event.clientY })
+    } catch (error) {
+      debugLog('table', 'select-cell-range:pos-at-coords-error', {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      }, 'warn', error)
+      return null
+    }
+    if (!target) {
+      debugLog('table', 'select-cell-range:no-pos-at-coords', {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      })
+      return null
+    }
+    return tableGeometryFromPos(target.pos)
+  }
+
+  function rememberPointerTableCell(view: unknown, event: MouseEvent) {
+    const g = pointerTableGeometry(view, event)
+    if (!g) return
+    lastPointerTableCell = { tableStart: g.tableStart, row: g.row, col: g.col }
+    debugLog('table', 'remember-pointer-cell', {
+      row: g.row,
+      col: g.col,
+    })
+  }
+
+  function isSelectAllShortcut(event: KeyboardEvent) {
+    return event.key.toLowerCase() === 'a' &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey
   }
 
   function deleteLine(axis: 'row' | 'col', targetIndex?: number) {
@@ -916,6 +1199,8 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     // ---- 选中整行/整列(飞书式抓手点击)----
     selectRow: (rowIndex?: number) => selectLine('row', rowIndex),
     selectColumn: (columnIndex?: number) => selectLine('col', columnIndex),
+    selectTable: () => { selectCurrentTable() },
+    selectCellRange: (anchor, head) => { selectCellRange(anchor, head) },
     hr: (variant) => {
       const ed = cmd()
       if (!ed) return
@@ -1053,9 +1338,17 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       }
       return null
     }
+    const anySel = sel as unknown as {
+      $anchorCell?: { pos: number }
+      $headCell?: { pos: number }
+    }
     const fromCell = cellAt(sel.$from)
     const toCell = cellAt(sel.$to)
-    const canMerge = !!fromCell && !!toCell && fromCell !== toCell
+    const canMerge = (
+      !!anySel.$anchorCell &&
+      !!anySel.$headCell &&
+      anySel.$anchorCell.pos !== anySel.$headCell.pos
+    ) || (!!fromCell && !!toCell && fromCell !== toCell)
 
     // 拆分判定:当前单元格(以 $from 为准)colspan 或 rowspan > 1。
     const attrs = fromCell?.attrs ?? { colspan: 1, rowspan: 1 }

@@ -190,6 +190,12 @@ export interface TableState {
   colCount: number
 }
 
+/** 表格单元格坐标,从 0 开始计数。 */
+export interface TableCellCoordinate {
+  row: number
+  col: number
+}
+
 /**
  * 命令契约。每个方法对应工具栏一个按钮。
  * adapter 的工具栏直接消费这个对象。
@@ -311,6 +317,10 @@ export interface ProEditorCommands {
   selectRow: (rowIndex?: number) => void
   /** 选中光标所在或指定整列(CellSelection.colSelection) */
   selectColumn: (columnIndex?: number) => void
+  /** 选中当前光标所在的整张表格。光标不在表格内时静默 no-op。 */
+  selectTable: () => void
+  /** 选中当前表格中的矩形单元格区域。用于 Shift+点击 / 后续拖拽框选。 */
+  selectCellRange: (anchor: TableCellCoordinate, head: TableCellCoordinate) => void
   hr: (variant?: HorizontalRuleVariant) => void
   clearNodes: () => void
   /** 设置字体族;fontFamily 为空字符串则清除字体 */

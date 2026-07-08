@@ -7,7 +7,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, h, type VNode } from 'vue'
 import { NDropdown } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
-import { GripVertical, ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
 import type { ProEditorContext, ProEditorDebugLogFn } from 'tiptap-vue-pro-core'
 
@@ -18,6 +18,9 @@ const props = defineProps<{
   /** adapter 层开发者诊断日志 */
   debugLog?: ProEditorDebugLogFn
 }>()
+const emit = defineEmits<{
+  'menu-open-change': [open: boolean]
+}>()
 
 const hoverRow = ref<number | null>(null)
 const hoverCol = ref<number | null>(null)
@@ -27,6 +30,23 @@ const gripPos = ref<{
 }>({ rows: [], cols: [] })
 const rowMenuShow = ref(false)
 const colMenuShow = ref(false)
+
+function emitMenuOpenChange() {
+  const open = rowMenuShow.value || colMenuShow.value
+  emit('menu-open-change', open)
+  if (open) setTableBubbleSuppressed(true)
+}
+
+function setTableBubbleSuppressed(suppressed: boolean) {
+  const editorRoot = props.editor?.view.dom.closest('.tvp-editor') as HTMLElement | null
+  if (suppressed) editorRoot?.setAttribute('data-table-grip-suppress-bubble', 'true')
+  else editorRoot?.removeAttribute('data-table-grip-suppress-bubble')
+}
+
+function clearTableBubbleSuppress() {
+  if (rowMenuShow.value || colMenuShow.value) return
+  setTableBubbleSuppressed(false)
+}
 const hasEditor = computed(() => !!props.editor && !!props.scrollContainer)
 
 // 菜单 options(Naive 用数据驱动)
@@ -54,7 +74,7 @@ const colOptions: DropdownOption[] = [
   { key: 'delete', label: '删除' },
 ]
 function renderLabel(opt: DropdownOption): VNode {
-  const Icon = iconMap[opt.key as string] ?? GripVertical
+  const Icon = iconMap[opt.key as string] ?? Plus
   const isRotated = opt.key === 'moveLeft' || opt.key === 'moveRight'
   return h('span', { style: 'display:inline-flex;align-items:center;gap:6px;line-height:1;vertical-align:middle;' }, [
     h(Icon, { size: 14, style: isRotated ? 'display:block;flex:0 0 auto;transform:rotate(-90deg)' : 'display:block;flex:0 0 auto;' }),
@@ -62,9 +82,9 @@ function renderLabel(opt: DropdownOption): VNode {
   ])
 }
 
-// 抓手尺寸 + 与表格的间隙(飞书贴边风格:2px 间隙)
+// 抓手尺寸 + 与表格的间隙。负值让小点阵更贴近表格边缘,热区仍保留 28px。
 const GRIP_SIZE = 22
-const GRIP_GAP = 2
+const GRIP_GAP = -3
 const RUN_AFTER_POPPER_CLOSE_MS = 240
 let destructiveTimer: number | null = null
 
@@ -214,6 +234,11 @@ function scheduleHide() {
 function onContainerMouseLeave() {
   scheduleHide()
 }
+function onContainerMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  if (target?.closest('.tvp-table-grip')) return
+  clearTableBubbleSuppress()
+}
 function onRowGripEnter(index: number) {
   cancelHide()
   hoverRow.value = index
@@ -326,7 +351,9 @@ function focusCell(cell: HTMLElement | null = activeCell) {
 // 菜单显隐回调:菜单打开瞬间执行 selectRow/Column(选中整行/列)。
 // 不在父 div 绑 click(会和 NDropdown 的触发器冲突),选中动作放到菜单打开时机。
 function onRowMenuShow(visible: boolean, index?: number) {
+  if (!visible && index != null && rowMenuIndex != null && rowMenuIndex !== index) return
   rowMenuShow.value = visible
+  emitMenuOpenChange()
   if (visible) {
     if (index != null) lockRowGripTarget(index)
     rowMenuCell = rowMenuCell ?? activeCell
@@ -343,7 +370,9 @@ function onRowMenuShow(visible: boolean, index?: number) {
   }
 }
 function onColMenuShow(visible: boolean, index?: number) {
+  if (!visible && index != null && colMenuIndex != null && colMenuIndex !== index) return
   colMenuShow.value = visible
+  emitMenuOpenChange()
   if (visible) {
     if (index != null) lockColGripTarget(index)
     colMenuCell = colMenuCell ?? activeCell
@@ -379,6 +408,8 @@ function runRowCmd(key: string | number) {
   else if (op === 'addDown') c.addRowAfter()
   else if (op === 'delete') {
     rowMenuShow.value = false
+    emitMenuOpenChange()
+    setTableBubbleSuppressed(true)
     clearHover()
     runAfterPopperClose(() => {
       tableGripDebug('row-command:delete-run', { cell: targetCell, rowMenuIndex })
@@ -395,6 +426,8 @@ function runRowCmd(key: string | number) {
   rowMenuCell = null
   rowMenuIndex = null
   rowMenuShow.value = false
+  emitMenuOpenChange()
+  setTableBubbleSuppressed(true)
   clearHover()
 }
 function runColCmd(key: string | number) {
@@ -416,6 +449,8 @@ function runColCmd(key: string | number) {
   else if (op === 'addRight') c.addColumnAfter()
   else if (op === 'delete') {
     colMenuShow.value = false
+    emitMenuOpenChange()
+    setTableBubbleSuppressed(true)
     clearHover()
     runAfterPopperClose(() => {
       tableGripDebug('col-command:delete-run', { cell: targetCell, colMenuIndex })
@@ -432,6 +467,8 @@ function runColCmd(key: string | number) {
   colMenuCell = null
   colMenuIndex = null
   colMenuShow.value = false
+  emitMenuOpenChange()
+  setTableBubbleSuppressed(true)
   clearHover()
 }
 
@@ -447,6 +484,7 @@ function setup() {
   ed.on('transaction', refresh)
   if (scrollEl) {
     scrollEl.addEventListener('mousemove', onContainerMouseMove)
+    scrollEl.addEventListener('mousedown', onContainerMouseDown)
     scrollEl.addEventListener('mouseleave', onContainerMouseLeave)
     scrollEl.addEventListener('scroll', updateGripPos, { passive: true })
   }
@@ -456,11 +494,14 @@ function setup() {
 function teardown() {
   cancelHide()
   clearDestructiveTimer()
+  const editorRoot = props.editor?.view.dom.closest('.tvp-editor') as HTMLElement | null
+  editorRoot?.removeAttribute('data-table-grip-suppress-bubble')
   const ed = activeEditor
   if (ed) ed.off('transaction', refresh)
   activeEditor = null
   if (scrollEl) {
     scrollEl.removeEventListener('mousemove', onContainerMouseMove)
+    scrollEl.removeEventListener('mousedown', onContainerMouseDown)
     scrollEl.removeEventListener('mouseleave', onContainerMouseLeave)
     scrollEl.removeEventListener('scroll', updateGripPos)
   }
@@ -492,7 +533,12 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
       @mousedown.stop="lockRowGripTarget(row.index)"
     >
       <NDropdown trigger="click" :show="rowMenuShow && rowMenuIndex === row.index" @update:show="(visible: boolean) => onRowMenuShow(visible, row.index)" placement="right-start" :options="rowOptions" :render-label="renderLabel" @select="runRowCmd">
-        <span class="tvp-table-grip__icon"><GripVertical :size="14" /></span>
+        <span class="tvp-table-grip__icon" aria-label="行操作菜单">
+          <span class="tvp-table-grip__dot" />
+          <span class="tvp-table-grip__dot" />
+          <span class="tvp-table-grip__dot" />
+          <span class="tvp-table-grip__dot" />
+        </span>
       </NDropdown>
     </div>
 
@@ -507,7 +553,12 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
       @mousedown.stop="lockColGripTarget(col.index)"
     >
       <NDropdown trigger="click" :show="colMenuShow && colMenuIndex === col.index" @update:show="(visible: boolean) => onColMenuShow(visible, col.index)" placement="top-start" :options="colOptions" :render-label="renderLabel" @select="runColCmd">
-        <span class="tvp-table-grip__icon"><GripVertical :size="14" /></span>
+        <span class="tvp-table-grip__icon" aria-label="列操作菜单">
+          <span class="tvp-table-grip__dot" />
+          <span class="tvp-table-grip__dot" />
+          <span class="tvp-table-grip__dot" />
+          <span class="tvp-table-grip__dot" />
+        </span>
       </NDropdown>
     </div>
   </template>
@@ -526,19 +577,27 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
 }
 /* 图标颜色强制指定,避免 NDropdown 触发器样式或继承把图标吃掉 */
 .tvp-table-grip__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, 2.5px);
+  grid-template-rows: repeat(2, 2.5px);
+  gap: 3px;
+  place-content: center;
   width: 28px;
   height: 28px;
   color: #595959;
   opacity: 0;
   transition: opacity 0.12s, color 0.15s;
 }
+.tvp-table-grip__dot {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
 .tvp-table-grip.is-active .tvp-table-grip__icon {
   opacity: 1;
 }
-/* NDropdown 的 trigger 只包住 6 点附近,但比 SVG 本身大,降低点击精度要求。 */
+/* NDropdown 的 trigger 只包住 4 点附近,但比点阵本身大,降低点击精度要求。 */
 .tvp-table-grip :deep(.n-dropdown-trigger) {
   width: 28px;
   height: 28px;

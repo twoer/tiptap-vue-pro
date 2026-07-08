@@ -32,7 +32,7 @@ interface ProEditorContext {
 | 链接 | `setLink(href, opts)`、`insertLinkText(href, text, opts)` |
 | 图片 | `setImage(src, alt)`、`uploadAndInsertImage(file)`、`setImageAlign(align)`、`setImageSize(preset)`、`setImageCaption(caption)`、`removeImage()` |
 | 视频 / 音频 / 文件 | `insertVideo(asset)`、`uploadAndInsertVideo(file)`、`insertAudio(asset)`、`uploadAndInsertAudio(file)`、`insertFile(asset)`、`uploadAndInsertFile(file)` |
-| 表格 | `insertTable(rows, cols)`、`addRowBefore()`、`addRowAfter()`、`deleteRow()`、`addColumnBefore()`、`addColumnAfter()`、`deleteColumn()`、`mergeCells()`、`splitCell()`、`deleteTable()` |
+| 表格 | `insertTable(rows, cols)`、`selectRow(rowIndex?)`、`selectColumn(columnIndex?)`、`selectTable()`、`selectCellRange(anchor, head)`、`addRowBefore()`、`addRowAfter()`、`moveRowUp()`、`moveRowDown()`、`deleteRow()`、`addColumnBefore()`、`addColumnAfter()`、`moveColumnLeft()`、`moveColumnRight()`、`deleteColumn()`、`mergeCells()`、`splitCell()`、`toggleHeaderRow()`、`toggleHeaderColumn()`、`deleteTable()` |
 | 清理 | `clearNodes()`、`clearTypography()`、`clearFormat()` |
 
 ## 自绘工具栏示例
@@ -51,3 +51,5 @@ interface ProEditorContext {
 `insertVideo` 和 `insertAudio` 会读取 `editorBehaviorOptions.media.video.render.displayMode` / `media.audio.render.displayMode`:配置为 `player` 时插入原生播放器,配置为 `file` 时插入文件卡片。
 
 `hr(variant?)` 支持 `solid`、`thick`、`dashed`、`dotted`;不传时插入普通实线分割线。
+
+表格选择命令使用从 0 开始的坐标,例如 `selectCellRange({ row: 0, col: 0 }, { row: 1, col: 1 })` 会选中左上角 2 × 2 区域。内置 adapter 会把这些命令用于 Shift 区域选择、Ctrl/⌘ + A 选中整表和飞书式行列抓手。

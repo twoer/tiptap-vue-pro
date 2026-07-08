@@ -1,18 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
 import type { ProEditorContext } from 'tiptap-vue-pro-core'
 
-vi.mock('@tiptap/extension-bubble-menu', () => ({
-  BubbleMenuPlugin: vi.fn(() => ({ key: 'proTableBubble' })),
-}))
-
 function createEditor() {
-  return {
-    registerPlugin: vi.fn(),
-    unregisterPlugin: vi.fn(),
-  }
+  return {}
 }
 
 function createCtx(state: { canMerge?: boolean; canSplit?: boolean } = {}) {
@@ -42,34 +36,6 @@ describe('Naive UI TableBubbleMenu', () => {
     vi.restoreAllMocks()
   })
 
-  it('注册并在卸载时清理表格 BubbleMenu 插件', () => {
-    const editor = createEditor()
-    wrapper = mount(TableBubbleMenu, {
-      attachTo: document.body,
-      props: { editor: editor as never, ctx: createCtx() },
-    })
-
-    expect(editor.registerPlugin).toHaveBeenCalledTimes(1)
-
-    wrapper.unmount()
-
-    expect(editor.unregisterPlugin).toHaveBeenCalledWith('proTableBubble')
-  })
-
-  it('editor 切换时从旧实例卸载表格 BubbleMenu 插件并注册新实例', async () => {
-    const first = createEditor()
-    const second = createEditor()
-    wrapper = mount(TableBubbleMenu, {
-      attachTo: document.body,
-      props: { editor: first as never, ctx: createCtx() },
-    })
-
-    await wrapper.setProps({ editor: second as never })
-
-    expect(first.unregisterPlugin).toHaveBeenCalledWith('proTableBubble')
-    expect(second.registerPlugin).toHaveBeenCalledTimes(1)
-  })
-
   it('合并/拆分按钮按 tableState 出现并调用对应命令', async () => {
     const ctx = createCtx({ canMerge: true, canSplit: true })
     wrapper = mount(TableBubbleMenu, {
@@ -82,6 +48,18 @@ describe('Naive UI TableBubbleMenu', () => {
 
     expect(ctx.commands.mergeCells).toHaveBeenCalledTimes(1)
     expect(ctx.commands.splitCell).toHaveBeenCalledTimes(1)
+  })
+
+  it('抓手菜单打开时 suppress 合并/拆分气泡入口', () => {
+    const ctx = createCtx({ canMerge: true, canSplit: true })
+    wrapper = mount(TableBubbleMenu, {
+      attachTo: document.body,
+      props: { editor: createEditor() as never, ctx, suppress: true },
+    })
+    const vm = wrapper.vm as unknown as { bubbleVisible: boolean }
+
+    expect(vm.bubbleVisible).toBe(false)
+    expect(wrapper.find('.tvp-table-bubble__sep').exists()).toBe(false)
   })
 
   it('更多菜单命令切换表头,删除整表延迟到浮层关闭后执行', async () => {
@@ -123,5 +101,9 @@ describe('Naive UI TableBubbleMenu', () => {
       '删除表格',
     ])
     expect(String(vm.renderMoreLabel({ key: 'deleteTable', label: '删除表格' }))).toContain('[object Object]')
+    const source = readFileSync(`${process.cwd()}/src/TableBubbleMenu.vue`, 'utf8')
+    expect(source).toContain('class="tvp-table-bubble-dropdown"')
+    expect(source).toContain('min-height: 50px')
+    expect(source).toContain('gap: 9px')
   })
 })

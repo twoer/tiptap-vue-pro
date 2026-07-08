@@ -56,6 +56,7 @@ function createCtx() {
 function createEnv() {
   const scroll = document.createElement('div')
   const root = document.createElement('div')
+  root.className = 'tvp-editor'
   root.innerHTML = `
     <table>
       <tbody>
@@ -154,6 +155,43 @@ describe('Ant Design Vue TableGripHandles', () => {
     expect(ctx.commands.selectColumn).toHaveBeenCalledTimes(1)
   })
 
+  it('行列抓手菜单显隐时通知父组件压住表格气泡', () => {
+    const ctx = createCtx()
+    const { scroll, editor } = createEnv()
+    wrapper = mount(TableGripHandles, {
+      attachTo: document.body,
+      props: { editor: editor as never, ctx, scrollContainer: scroll },
+    })
+    const vm = wrapper.vm as unknown as GripVm
+
+    vm.onRowMenuShow(true, 0)
+    vm.onRowMenuShow(false, 0)
+
+    expect(wrapper.emitted('menu-open-change')).toEqual([[true], [false]])
+  })
+
+  it('抓手命令执行后继续压住表格气泡,直到用户重新点击编辑区', async () => {
+    const ctx = createCtx()
+    const { scroll, cells, editor } = createEnv()
+    wrapper = mount(TableGripHandles, {
+      attachTo: document.body,
+      props: { editor: editor as never, ctx, scrollContainer: scroll },
+    })
+    const vm = wrapper.vm as unknown as GripVm
+    const editorRoot = editor.view.dom.closest('.tvp-editor') as HTMLElement
+
+    await hoverCell(cells[1])
+    vm.onColMenuShow(true, 1)
+    expect(editorRoot.getAttribute('data-table-grip-suppress-bubble')).toBe('true')
+
+    vm.runColCmd('moveRight')
+    expect(editorRoot.getAttribute('data-table-grip-suppress-bubble')).toBe('true')
+
+    scroll.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await nextTick()
+    expect(editorRoot.hasAttribute('data-table-grip-suppress-bubble')).toBe(false)
+  })
+
   it('行列菜单命令映射到 core 表格命令,删除命令延迟执行', () => {
     vi.useFakeTimers()
     const ctx = createCtx()
@@ -248,6 +286,7 @@ describe('Ant Design Vue TableGripHandles', () => {
     expect(source).not.toContain('插入行')
     expect(source).not.toContain('插入列')
     expect(source).toContain('gap: 6px')
+    expect(source).toContain('tvp-table-grip__dot')
     expect(source).toContain('.tvp-table-grip--col:hover')
     expect(source).toContain('background: transparent')
     expect(source).not.toContain('<AntButton')

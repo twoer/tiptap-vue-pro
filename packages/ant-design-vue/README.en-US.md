@@ -7,7 +7,7 @@ Ready-to-use rich text editor component built with Tiptap v3, Vue 3, and Ant Des
 ## Features
 
 - Ready-made toolbar: headings, formatting, font family, font size, line height, indent, colors, highlights, and alignment
-- Links, image upload/image URL, video/audio/file upload, table grid, and Markdown import/export
+- Links, image upload/image URL, video/audio/file upload, table grid, row/column grips, range selection, and Markdown import/export
 - Fullscreen, preview, dark mode, and word count
 
 Font family, font size, line height, and indent are HTML styling features. They may be lost when exporting to Markdown, but are preserved in HTML / JSON output.

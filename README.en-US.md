@@ -33,7 +33,7 @@ Tiptap Vue Pro packages those pieces as a UI-independent core plus three equival
 - Full toolbar: headings, formatting, font family, font size, line height, colors, highlights, alignment, lists, links, images, tables, divider styles, Markdown, print, preview, and fullscreen
 - Image upload, paste, drag/drop, replacement, alignment, sizing, and captions
 - Video, audio, and file upload with player/file-card display modes, multiple selection, type limits, size limits, and contextual editing after insertion
-- Table insertion, row/column operations, cell merge/split, and header toggles
+- Table insertion, row/column grips, Shift range selection, Ctrl/⌘ + A table selection, cell merge/split, and header toggles
 - Markdown import/export
 - Developer diagnostics logs with lifecycle, command, upload, table, and other channels
 - Component-level dark mode, readonly mode, and word count
@@ -111,6 +111,7 @@ pnpm docs:dev       # docs: http://localhost:5173/tiptap-vue-pro/
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm test:table:e2e # browser regression for table interactions across all adapters
 ```
 
 Deployment is handled by `.github/workflows/deploy.yml`: pushes to `main` build the VitePress docs site and copy the playground into the `/playground/` subpath.

@@ -16,7 +16,7 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { AntDropdown, AntDropdownMenu, AntDropdownItem } from './antDesignPrimitives'
-import { GripVertical, ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
 import type { ProEditorContext, ProEditorDebugLogFn } from 'tiptap-vue-pro-core'
 
@@ -27,6 +27,9 @@ const props = defineProps<{
   scrollContainer: HTMLElement | null
   /** adapter 层开发者诊断日志 */
   debugLog?: ProEditorDebugLogFn
+}>()
+const emit = defineEmits<{
+  'menu-open-change': [open: boolean]
 }>()
 
 // 当前 hover 的行号/列号(null = 未 hover 表格区域)
@@ -43,11 +46,28 @@ const gripPos = ref<{
 const rowMenuShow = ref(false)
 const colMenuShow = ref(false)
 
+function emitMenuOpenChange() {
+  const open = rowMenuShow.value || colMenuShow.value
+  emit('menu-open-change', open)
+  if (open) setTableBubbleSuppressed(true)
+}
+
+function setTableBubbleSuppressed(suppressed: boolean) {
+  const editorRoot = props.editor?.view.dom.closest('.tvp-editor') as HTMLElement | null
+  if (suppressed) editorRoot?.setAttribute('data-table-grip-suppress-bubble', 'true')
+  else editorRoot?.removeAttribute('data-table-grip-suppress-bubble')
+}
+
+function clearTableBubbleSuppress() {
+  if (rowMenuShow.value || colMenuShow.value) return
+  setTableBubbleSuppressed(false)
+}
+
 const hasEditor = computed(() => !!props.editor && !!props.scrollContainer)
 
-// 抓手尺寸 + 与表格的间隙(飞书贴边风格:2px 间隙,几乎贴着表格边缘)
+// 抓手尺寸 + 与表格的间隙。负值让小点阵更贴近表格边缘,热区仍保留 28px。
 const GRIP_SIZE = 22
-const GRIP_GAP = 2
+const GRIP_GAP = -3
 const RUN_AFTER_POPPER_CLOSE_MS = 240
 let destructiveTimer: number | null = null
 
@@ -217,6 +237,11 @@ function scheduleHide() {
 function onContainerMouseLeave() {
   scheduleHide()
 }
+function onContainerMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  if (target?.closest('.tvp-table-grip')) return
+  clearTableBubbleSuppress()
+}
 function onRowGripEnter(index: number) {
   cancelHide()
   hoverRow.value = index
@@ -326,10 +351,12 @@ function focusCell(cell: HTMLElement | null = activeCell) {
   ed.chain().focus().setTextSelection(pos).run()
 }
 
-// 点击 6 点热区打开菜单时,先把选区落到当前 hover 的 cell,再选中整行/整列。
+// 点击 4 点热区打开菜单时,先把选区落到当前 hover 的 cell,再选中整行/整列。
 // 外层长条只负责 hover 保活和视觉定位,不直接触发菜单。
 function onRowMenuShow(visible: boolean, index?: number) {
+  if (!visible && index != null && rowMenuIndex != null && rowMenuIndex !== index) return
   rowMenuShow.value = visible
+  emitMenuOpenChange()
   if (visible) {
     if (index != null) lockRowGripTarget(index)
     rowMenuCell = rowMenuCell ?? activeCell
@@ -350,7 +377,9 @@ function onRowMenuShow(visible: boolean, index?: number) {
   }
 }
 function onColMenuShow(visible: boolean, index?: number) {
+  if (!visible && index != null && colMenuIndex != null && colMenuIndex !== index) return
   colMenuShow.value = visible
+  emitMenuOpenChange()
   if (visible) {
     if (index != null) lockColGripTarget(index)
     colMenuCell = colMenuCell ?? activeCell
@@ -390,6 +419,8 @@ function runRowCmd(op: string) {
   else if (op === 'addDown') c.addRowAfter()
   else if (op === 'delete') {
     rowMenuShow.value = false
+    emitMenuOpenChange()
+    setTableBubbleSuppressed(true)
     clearHover()
     runAfterPopperClose(() => {
       tableGripDebug('row-command:delete-run', { cell: targetCell, rowMenuIndex })
@@ -406,6 +437,8 @@ function runRowCmd(op: string) {
   rowMenuCell = null
   rowMenuIndex = null
   rowMenuShow.value = false
+  emitMenuOpenChange()
+  setTableBubbleSuppressed(true)
   clearHover()
 }
 function runColCmd(op: string) {
@@ -426,6 +459,8 @@ function runColCmd(op: string) {
   else if (op === 'addRight') c.addColumnAfter()
   else if (op === 'delete') {
     colMenuShow.value = false
+    emitMenuOpenChange()
+    setTableBubbleSuppressed(true)
     clearHover()
     runAfterPopperClose(() => {
       tableGripDebug('col-command:delete-run', { cell: targetCell, colMenuIndex })
@@ -442,6 +477,8 @@ function runColCmd(op: string) {
   colMenuCell = null
   colMenuIndex = null
   colMenuShow.value = false
+  emitMenuOpenChange()
+  setTableBubbleSuppressed(true)
   clearHover()
 }
 
@@ -459,6 +496,7 @@ function setup() {
   ed.on('transaction', refresh)
   if (scrollEl) {
     scrollEl.addEventListener('mousemove', onContainerMouseMove)
+    scrollEl.addEventListener('mousedown', onContainerMouseDown)
     scrollEl.addEventListener('mouseleave', onContainerMouseLeave)
     scrollEl.addEventListener('scroll', updateGripPos, { passive: true })
   }
@@ -468,11 +506,14 @@ function setup() {
 function teardown() {
   cancelHide()
   clearDestructiveTimer()
+  const editorRoot = props.editor?.view.dom.closest('.tvp-editor') as HTMLElement | null
+  editorRoot?.removeAttribute('data-table-grip-suppress-bubble')
   const ed = activeEditor
   if (ed) ed.off('transaction', refresh)
   activeEditor = null
   if (scrollEl) {
     scrollEl.removeEventListener('mousemove', onContainerMouseMove)
+    scrollEl.removeEventListener('mousedown', onContainerMouseDown)
     scrollEl.removeEventListener('mouseleave', onContainerMouseLeave)
     scrollEl.removeEventListener('scroll', updateGripPos)
   }
@@ -515,7 +556,14 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
         @visible-change="(visible: boolean) => onRowMenuShow(visible, row.index)"
         @command="runRowCmd"
       >
-        <span class="tvp-table-grip__icon" aria-label="行操作菜单"><GripVertical :size="14" /></span>
+        <span class="tvp-table-grip__icon" aria-label="行操作菜单">
+          <span class="tvp-table-grip__dots">
+            <span class="tvp-table-grip__dot" />
+            <span class="tvp-table-grip__dot" />
+            <span class="tvp-table-grip__dot" />
+            <span class="tvp-table-grip__dot" />
+          </span>
+        </span>
         <template #dropdown>
           <AntDropdownMenu>
             <AntDropdownItem command="addUp"><span class="tvp-menu-item"><Plus :size="14" />在上方插入</span></AntDropdownItem>
@@ -545,7 +593,14 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
         @visible-change="(visible: boolean) => onColMenuShow(visible, col.index)"
         @command="runColCmd"
       >
-        <span class="tvp-table-grip__icon" aria-label="列操作菜单"><GripVertical :size="14" /></span>
+        <span class="tvp-table-grip__icon" aria-label="列操作菜单">
+          <span class="tvp-table-grip__dots">
+            <span class="tvp-table-grip__dot" />
+            <span class="tvp-table-grip__dot" />
+            <span class="tvp-table-grip__dot" />
+            <span class="tvp-table-grip__dot" />
+          </span>
+        </span>
         <template #dropdown>
           <AntDropdownMenu>
             <AntDropdownItem command="addLeft"><span class="tvp-menu-item"><Plus :size="14" />在左侧插入</span></AntDropdownItem>
@@ -572,7 +627,7 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
   border-radius: 4px;
   transition: background-color 0.15s, color 0.15s;
 }
-/* Dropdown 触发器只包住 6 点附近,但比 SVG 本身大,避免要求精确点中图标路径。 */
+/* Dropdown 触发器只包住 4 点附近,但比点阵本身大,避免要求精确点中。 */
 .tvp-table-grip :deep(.ant-dropdown-trigger) {
   display: inline-flex;
   align-items: center;
@@ -581,11 +636,21 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
   height: 28px;
 }
 /* 图标颜色强制指定,避免 AntDropdown 触发器样式或继承把图标吃掉 */
-.tvp-table-grip__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.tvp-table-grip :deep(.tvp-table-grip__dots) {
+  display: grid;
+  grid-template-columns: repeat(2, 2.5px);
+  grid-template-rows: repeat(2, 2.5px);
+  gap: 3px;
   color: #595959; /* 明确的深灰,不依赖 CSS 变量继承 */
+}
+.tvp-table-grip :deep(.tvp-table-grip__dot) {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.tvp-table-grip__icon {
+  color: #595959;
   opacity: 0;
   transition: opacity 0.12s, color 0.15s;
 }

@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h, ref, nextTick } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { AllSelection } from '@tiptap/pm/state'
+import type { EditorView } from '@tiptap/pm/view'
 import { useProEditor } from './useProEditor'
 import { getActiveLinkRange } from './linkRange'
 import { getSelectedFileAttachment } from './fileAttachmentSelection'
@@ -45,6 +46,7 @@ function mountEditor(opts: {
   notify?: NotifyFn
   debug?: boolean | ProEditorDebugOptions
   debugLogger?: ProEditorDebugLogger
+  editorProps?: Record<string, unknown>
   onModelValue?: (v: string | object) => void
 }) {
   let ctx: ProEditorContext | undefined
@@ -69,6 +71,7 @@ function mountEditor(opts: {
         notify: opts.notify,
         debug: opts.debug,
         debugLogger: opts.debugLogger,
+        editorProps: opts.editorProps,
       } as any)
       return () => h(EditorContent, { editor: ctx!.editor.value })
     },
@@ -772,6 +775,16 @@ function selectFirstCell(ctx: ProEditorContext) {
 
 function selectCell(ctx: ProEditorContext, index: number) {
   const ed = ctx.editor.value!
+  const cells = getTableCells(ctx)
+  if (!cells.length) return
+  // cell.pos 是单元格节点起始位置,+1 进入单元格内部
+  const cell = cells[index]
+  if (!cell) return
+  ed.chain().focus().setTextSelection({ from: cell.pos + 1, to: cell.pos + 1 }).run()
+}
+
+function getTableCells(ctx: ProEditorContext) {
+  const ed = ctx.editor.value!
   // 遍历文档找第一个 tableCell 节点。注意 descendants 的回调返回值会控制是否
   // 继续下降:返回 true 表示「不进入子节点」。这里用外部数组收集,回调只判定不返回,
   // 保证完整遍历(否则返回 false 时会被当作「不下降」从而漏掉)。
@@ -781,11 +794,27 @@ function selectCell(ctx: ProEditorContext, index: number) {
       cells.push({ pos })
     }
   })
-  if (!cells.length) return
-  // cell.pos 是单元格节点起始位置,+1 进入单元格内部
-  const cell = cells[index]
-  if (!cell) return
-  ed.chain().focus().setTextSelection({ from: cell.pos + 1, to: cell.pos + 1 }).run()
+  return cells
+}
+
+function getTableTextRows(ctx: ProEditorContext) {
+  const ed = ctx.editor.value!
+  const json = ed.getJSON() as any
+  const table = json.content?.find((node: any) => node.type === 'table')
+  const textOf = (node: any): string => {
+    if (typeof node.text === 'string') return node.text
+    return node.content?.map(textOf).join('') ?? ''
+  }
+  return table?.content?.map((row: any) => row.content?.map(textOf) ?? []) ?? []
+}
+
+function countSelectedCells(ctx: ProEditorContext) {
+  const sel = ctx.editor.value!.state.selection as unknown as {
+    forEachCell?: (fn: () => void) => void
+  }
+  let selectedCellCount = 0
+  sel.forEachCell?.(() => { selectedCellCount += 1 })
+  return selectedCellCount
 }
 
 describe('useProEditor — 表格结构操作', () => {
@@ -1086,6 +1115,7 @@ describe('useProEditor — 表格结构操作', () => {
     }
     expect(sel.constructor.name).toBe('CellSelection')
     expect(sel.isRowSelection()).toBe(true)
+    expect(ctx.tableState.value.canMerge).toBe(true)
   })
 
   it('selectColumn: 选中整列 → CellSelection + isColSelection', async () => {
@@ -1102,6 +1132,157 @@ describe('useProEditor — 表格结构操作', () => {
     }
     expect(sel.constructor.name).toBe('CellSelection')
     expect(sel.isColSelection()).toBe(true)
+    expect(ctx.tableState.value.canMerge).toBe(true)
+  })
+
+  it('selectTable: 选中整张表格 → CellSelection 覆盖所有单元格', async () => {
+    const { ctx } = mountEditor({ content: '<p>x</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertTable(3, 3)
+    await nextTick()
+    selectFirstCell(ctx)
+    ctx.commands.selectTable()
+    await nextTick()
+    const sel = ed.state.selection as unknown as {
+      constructor: { name: string }
+      isRowSelection: () => boolean
+      isColSelection: () => boolean
+      forEachCell: (fn: () => void) => void
+    }
+    let selectedCellCount = 0
+    sel.forEachCell(() => { selectedCellCount += 1 })
+    expect(sel.constructor.name).toBe('CellSelection')
+    expect(sel.isRowSelection()).toBe(true)
+    expect(sel.isColSelection()).toBe(true)
+    expect(selectedCellCount).toBe(9)
+  })
+
+  it('selectCellRange: 选中当前表格中的矩形单元格区域', async () => {
+    const { ctx } = mountEditor({ content: '<p>x</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertTable(3, 3)
+    await nextTick()
+    selectFirstCell(ctx)
+    ctx.commands.selectCellRange({ row: 0, col: 0 }, { row: 1, col: 1 })
+    await nextTick()
+    const sel = ed.state.selection as unknown as {
+      constructor: { name: string }
+      isRowSelection: () => boolean
+      isColSelection: () => boolean
+    }
+    expect(sel.constructor.name).toBe('CellSelection')
+    expect(sel.isRowSelection()).toBe(false)
+    expect(sel.isColSelection()).toBe(false)
+    expect(countSelectedCells(ctx)).toBe(4)
+    expect(ctx.tableState.value.canMerge).toBe(true)
+  })
+
+  it('Shift-click inside the same table extends the cell selection range', async () => {
+    const customHandleClick = vi.fn(() => false)
+    const { ctx } = mountEditor({
+      content: '<p>x</p>',
+      editorProps: { handleClick: customHandleClick },
+    })
+    const ed = await ready(ctx)
+    ctx.commands.insertTable(3, 3)
+    await nextTick()
+    selectFirstCell(ctx)
+
+    const targetCell = getTableCells(ctx)[4]
+    const event = new MouseEvent('click', {
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    let handled = false
+    ed.view.someProp('handleClick', (handler) => {
+      handled = handler(ed.view, targetCell.pos + 1, event) === true
+      return handled
+    })
+    await nextTick()
+
+    expect(customHandleClick).toHaveBeenCalledWith(expect.any(Object) as EditorView, targetCell.pos + 1, event)
+    expect(handled).toBe(true)
+    expect(event.defaultPrevented).toBe(true)
+    expect(ed.state.selection.constructor.name).toBe('CellSelection')
+    expect(countSelectedCells(ctx)).toBe(4)
+  })
+
+  it('custom mousedown DOM event handler is preserved', async () => {
+    const customMouseDown = vi.fn(() => true)
+    const { ctx } = mountEditor({
+      content: '<p>x</p>',
+      editorProps: {
+        handleDOMEvents: {
+          mousedown: customMouseDown,
+        },
+      },
+    })
+    const ed = await ready(ctx)
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+    })
+    let handled = false
+    ed.view.someProp('handleDOMEvents', (handlers) => {
+      handled = handlers.mousedown?.(ed.view, event) === true
+      return handled
+    })
+
+    expect(customMouseDown).toHaveBeenCalledWith(expect.any(Object) as EditorView, event)
+    expect(handled).toBe(true)
+  })
+
+  it('Mod-a inside a table selects the whole table and preserves custom handled keydown', async () => {
+    const customHandleKeyDown = vi.fn(() => false)
+    const { ctx } = mountEditor({
+      content: '<p>x</p>',
+      editorProps: { handleKeyDown: customHandleKeyDown },
+    })
+    const ed = await ready(ctx)
+    ctx.commands.insertTable(2, 2)
+    await nextTick()
+    selectFirstCell(ctx)
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'a',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    ed.view.dom.dispatchEvent(event)
+    await nextTick()
+
+    const sel = ed.state.selection as unknown as {
+      constructor: { name: string }
+      isRowSelection: () => boolean
+      isColSelection: () => boolean
+      forEachCell: (fn: () => void) => void
+    }
+    let selectedCellCount = 0
+    sel.forEachCell(() => { selectedCellCount += 1 })
+    expect(customHandleKeyDown).toHaveBeenCalledWith(expect.any(Object) as EditorView, event)
+    expect(sel.constructor.name).toBe('CellSelection')
+    expect(sel.isRowSelection()).toBe(true)
+    expect(sel.isColSelection()).toBe(true)
+    expect(selectedCellCount).toBe(4)
+  })
+
+  it('Mod-a outside a table keeps the default select-all behavior', async () => {
+    const { ctx } = mountEditor({ content: '<p>plain</p>' })
+    const ed = await ready(ctx)
+    ed.chain().focus().setTextSelection(2).run()
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'a',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    ed.view.dom.dispatchEvent(event)
+    await nextTick()
+
+    expect(ed.state.selection.constructor.name).not.toBe('CellSelection')
   })
 
   it('moveRowDown: 首行下移 → 内容位置变化', async () => {
@@ -1124,6 +1305,34 @@ describe('useProEditor — 表格结构操作', () => {
     expect(after).not.toBe(before)
     // C/D 现在应在首行(表头行下移后)
     expect(after.indexOf('C')).toBeLessThan(after.indexOf('A'))
+  })
+
+  it('moveColumnLeft / moveColumnRight: 当前列左右移动 → 内容列序变化', async () => {
+    const { ctx } = mountEditor({ content: '<p>x</p>' })
+    const ed = await ready(ctx)
+    ed.commands.setContent(
+      '<table><tbody>' +
+      '<tr><th>A</th><th>B</th><th>C</th></tr>' +
+      '<tr><td>1</td><td>2</td><td>3</td></tr>' +
+      '</tbody></table>',
+    )
+    await nextTick()
+
+    selectCell(ctx, 1)
+    ctx.commands.selectColumn(1)
+    ctx.commands.moveColumnLeft()
+    await nextTick()
+    expect(getTableTextRows(ctx)).toEqual([
+      ['B', 'A', 'C'],
+      ['2', '1', '3'],
+    ])
+
+    ctx.commands.moveColumnRight()
+    await nextTick()
+    expect(getTableTextRows(ctx)).toEqual([
+      ['A', 'B', 'C'],
+      ['1', '2', '3'],
+    ])
   })
 })
 

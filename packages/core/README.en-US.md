@@ -15,7 +15,7 @@ This package provides `useProEditor()`, default extensions, command aggregation,
 - Headings, bold/italic/strikethrough/underline, inline code, superscript, and subscript
 - Font family, font size, line height, text color, background highlight, and text alignment
 - Paragraph/heading indent and list-level indent
-- Links, images, video, audio, file attachments, tables, task lists, code blocks, and Markdown import/export
+- Links, images, video, audio, file attachments, table selection and row/column operations, task lists, code blocks, and Markdown import/export
 
 Font family, font size, line height, and indent are HTML styling features. They may be lost when exporting to Markdown, but are preserved in HTML / JSON output.
 

@@ -24,3 +24,7 @@ Markdown cannot represent every HTML styling detail. Font family, font size, lin
 ## What is the difference between `toolbar` and `toolbarOptions`?
 
 `toolbar` controls which buttons exist, how they are grouped, and their order. `toolbarOptions` controls the data behind those buttons, such as font lists, color palettes, divider styles, and Markdown export filename.
+
+## Are the three adapters really equivalent?
+
+Shared editing behavior lives in Core, while adapters only render with their own UI library. Element Plus, Naive UI, and Ant Design Vue each keep component tests for high-risk interactions; table grips, merge bubbles, and table menu density are also covered by the cross-adapter browser regression command `pnpm test:table:e2e`.
