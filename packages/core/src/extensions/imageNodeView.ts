@@ -98,6 +98,14 @@ export function createImageNodeView(
   // 但必须同时兜底 onerror——若 src 加载失败(404/网络),onload 永远不触发,
   // 手柄会被永久隐藏,用户无法调整大小。这里无论成功/失败都恢复显示。
   let imageLoaded = false
+  let destroyed = false
+  const getEditorView = (): Editor['view'] | null => {
+    try {
+      return (editor as Editor).view
+    } catch {
+      return null
+    }
+  }
   const syncInteractiveState = () => {
     const editable = (editor as Editor).isEditable
     captionInput.readOnly = !editable
@@ -112,9 +120,11 @@ export function createImageNodeView(
   // 用官方支持的 pluginKey meta 'updatePosition' 触发重定位(见 BubbleMenu 源码
   // transactionHandler)。
   const reveal = () => {
+    if (destroyed) return
     imageLoaded = true
     syncInteractiveState()
-    const view = (editor as Editor).view
+    const view = getEditorView()
+    if (!view) return
     view.dispatch(view.state.tr.setMeta('proImageBubbleMenu', 'updatePosition'))
   }
   img.addEventListener('load', reveal, { once: true })
@@ -193,7 +203,10 @@ export function createImageNodeView(
       return resizable.update(updatedNode as never, [] as never, undefined as never)
     },
     destroy() {
+      destroyed = true
       ;(editor as Editor).off('update', onEditorUpdate)
+      img.removeEventListener('load', reveal)
+      img.removeEventListener('error', reveal)
       captionInput.removeEventListener('input', onCaptionInput)
       captionInput.removeEventListener('keydown', onCaptionKeydown)
       resizable.destroy()

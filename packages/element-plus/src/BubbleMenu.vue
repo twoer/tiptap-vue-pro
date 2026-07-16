@@ -140,6 +140,10 @@ useEditorPluginRegistration({
   display: flex;
 }
 
+.tvp-bubble :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 /* 链接快捷输入 */
 .tvp-bubble-link-mask {
   position: fixed;

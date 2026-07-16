@@ -123,7 +123,14 @@ const toolbarConfig = computed<ToolbarConfig | undefined>(() =>
     : undefined,
 )
 const editorBehaviorOptions: EditorBehaviorOptions = {
-  image: { maxSize: IMAGE_UPLOAD_MAX_SIZE },
+  image: {
+    maxSize: IMAGE_UPLOAD_MAX_SIZE,
+    crop: {
+      enabled: true,
+      aspectRatio: 16 / 9,
+      quality: 0.9,
+    },
+  },
   media: {
     video: {
       maxSize: MEDIA_UPLOAD_MAX_SIZE,

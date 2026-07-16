@@ -19,4 +19,4 @@ const toolbarOptions: ToolbarOptions = {
 }
 ```
 
-Markdown is a lossy format. Some HTML styling features, such as font family, font size, line height, indent, and custom attachment card metadata, may not round-trip perfectly. Use HTML or JSON output when you need complete fidelity.
+Markdown is a lossy format. Some HTML styling and layout features, such as font family, font size, line height, indent, table column widths, and custom attachment card metadata, may not round-trip perfectly. Use HTML or JSON output when you need complete fidelity.

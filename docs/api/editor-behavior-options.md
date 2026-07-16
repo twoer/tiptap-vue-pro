@@ -17,6 +17,12 @@ interface EditorBehaviorOptions {
     maxSize?: number
     multiple?: boolean
     allowUrl?: boolean
+    crop?: boolean | {
+      enabled?: boolean
+      aspectRatio?: number
+      quality?: number
+      mimeType?: string
+    }
   }
   media?: {
     video?: {
@@ -87,6 +93,10 @@ interface EditorBehaviorOptions {
 | `image.maxSize` | `undefined` | 图片上传、替换、粘贴和拖拽的单图大小上限(字节) |
 | `image.multiple` | `false` | 工具栏图片上传是否允许一次选择多个文件 |
 | `image.allowUrl` | `true` | 是否显示工具栏网络图片入口;与上传入口同时存在时合并为图片下拉菜单 |
+| `image.crop` | `false` | 是否在工具栏选图后打开裁剪弹窗;仅作用于按钮选图,粘贴和拖拽不会触发裁剪 |
+| `image.crop.aspectRatio` | `1` | 裁剪比例,如 `1` 表示正方形,`16 / 9` 表示横向封面 |
+| `image.crop.quality` | `0.92` | Canvas 输出质量,仅对 JPEG/WebP 等有损格式生效 |
+| `image.crop.mimeType` | 原文件 MIME | 裁剪后输出 MIME 类型;不传时沿用原文件类型 |
 | `media.video.accept` | `'video/*'` | 视频上传入口接受的文件类型 |
 | `media.video.maxSize` | `undefined` | 视频文件大小上限(字节) |
 | `media.video.multiple` | `false` | 视频上传入口是否允许一次选择多个文件 |

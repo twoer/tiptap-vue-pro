@@ -4,7 +4,7 @@ import { nextTick, ref } from 'vue'
 import { readFileSync } from 'node:fs'
 import ProEditorElementPlus from './ProEditorElementPlus.vue'
 import { useProEditor } from 'tiptap-vue-pro-core'
-import type { EditorBehaviorOptions, ProEditorContext, ToolbarOptions } from 'tiptap-vue-pro-core'
+import type { EditorBehaviorOptions, FindReplaceState, ProEditorContext, SlashCommandRenderState, ToolbarOptions } from 'tiptap-vue-pro-core'
 
 const mockState = vi.hoisted(() => ({
   ctx: undefined as ProEditorContext | undefined,
@@ -18,7 +18,7 @@ vi.mock('tiptap-vue-pro-core', async (importOriginal) => {
   }
 })
 
-function createCtx() {
+function createCtx(findReplace?: Partial<FindReplaceState>) {
   return {
     editor: ref({
       on: vi.fn(),
@@ -28,6 +28,15 @@ function createCtx() {
     isActive: vi.fn(() => false),
     commands: {
       ensureFocusAtEnd: vi.fn(),
+      setFindReplaceQuery: vi.fn(),
+      setFindReplaceReplacement: vi.fn(),
+      setFindReplaceCaseSensitive: vi.fn(),
+      findReplaceNext: vi.fn(),
+      findReplacePrevious: vi.fn(),
+      replaceFindReplaceCurrent: vi.fn(),
+      replaceFindReplaceAll: vi.fn(),
+      closeFindReplace: vi.fn(),
+      openFindReplace: vi.fn(),
     },
     getHTML: vi.fn(() => '<p>hello</p>'),
     getJSON: vi.fn(() => ({})),
@@ -42,6 +51,15 @@ function createCtx() {
       tablePos: null,
       rowCount: 0,
       colCount: 0,
+    }),
+    findReplaceState: ref({
+      open: false,
+      query: '',
+      replacement: '',
+      caseSensitive: false,
+      activeIndex: 0,
+      matches: [],
+      ...findReplace,
     }),
     notify: vi.fn(),
   } as unknown as ProEditorContext
@@ -86,8 +104,36 @@ const childStubs = {
     props: ['editorBehaviorOptions'],
     template: '<div data-testid="image-bubble-menu" />',
   },
+  SlashCommandMenu: {
+    name: 'SlashCommandMenu',
+    props: ['state'],
+    template: '<button v-if="state" data-testid="slash-menu" @click="state.command(state.items[0])">{{ state.items[0].label }}</button>',
+  },
   TableGripHandles: { template: '<div data-testid="table-grip-handles" />' },
   EditorContent: { template: '<div data-testid="editor-content" />' },
+}
+
+function createSlashState(command = vi.fn()): SlashCommandRenderState {
+  return {
+    editor: {} as SlashCommandRenderState['editor'],
+    range: { from: 1, to: 2 },
+    query: '',
+    text: '/',
+    selectedIndex: 0,
+    loading: false,
+    clientRect: () => new DOMRect(0, 0, 0, 0),
+    command,
+    items: [
+      {
+        id: 'table',
+        label: '表格',
+        hint: '插入 3 x 3 表格',
+        icon: 'Table',
+        aliases: ['table'],
+        keywords: ['表格'],
+      },
+    ],
+  }
 }
 
 describe('ProEditorElementPlus', () => {
@@ -119,7 +165,45 @@ describe('ProEditorElementPlus', () => {
     expect(wrapper.find('[data-testid="hr-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="slash-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-grip-handles"]').exists()).toBe(false)
+  })
+
+  it('查找面板打开时显示命中计数', () => {
+    mockState.ctx = createCtx({
+      open: true,
+      query: 'hello',
+      activeIndex: 1,
+      matches: [
+        { from: 1, to: 6, text: 'hello' },
+        { from: 8, to: 13, text: 'hello' },
+      ],
+    })
+    wrapper = mount(ProEditorElementPlus, {
+      attachTo: document.body,
+      global: { stubs: childStubs },
+    })
+
+    expect(wrapper.find('.tvp-find-panel').exists()).toBe(true)
+    expect(wrapper.text()).toContain('2 / 2')
+  })
+
+  it('readonly=true 时查找面板保留查找但隐藏替换操作', () => {
+    mockState.ctx = createCtx({
+      open: true,
+      query: 'hello',
+      matches: [{ from: 1, to: 6, text: 'hello' }],
+    })
+    wrapper = mount(ProEditorElementPlus, {
+      attachTo: document.body,
+      props: { readonly: true },
+      global: { stubs: childStubs },
+    })
+
+    expect(wrapper.find('.tvp-find-panel').exists()).toBe(true)
+    expect(wrapper.text()).toContain('1 / 1')
+    expect(wrapper.text()).not.toContain('替换')
+    expect(wrapper.text()).not.toContain('全部')
   })
 
   it('透传 developer diagnostics 配置到 core', () => {
@@ -153,10 +237,68 @@ describe('ProEditorElementPlus', () => {
     expect(wrapper.find('[data-testid="hr-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="slash-menu"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('预览模式(只读)')
     expect(wrapper.find('.tvp-preview-bar__edit-btn').exists()).toBe(true)
     expect(wrapper.find('.tvp-preview-bar__edit-btn').text()).toContain('编辑')
     expect(mockState.ctx!.setEditable).toHaveBeenCalledWith(false)
+  })
+
+  it('把 Slash Command bridge 传给 core,菜单 state 更新后渲染菜单', async () => {
+    wrapper = mount(ProEditorElementPlus, {
+      attachTo: document.body,
+      global: { stubs: childStubs },
+    })
+
+    const calls = vi.mocked(useProEditor).mock.calls
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    const state = createSlashState()
+    useProEditorOptions.slashCommand.onOpen(state)
+    await nextTick()
+
+    expect(useProEditorOptions.slashCommand.items).toHaveLength(8)
+    expect(wrapper.find('[data-testid="slash-menu"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="slash-menu"]').text()).toContain('表格')
+  })
+
+  it('Slash 菜单点击时通过 state.command 执行候选项', async () => {
+    const command = vi.fn()
+    wrapper = mount(ProEditorElementPlus, {
+      attachTo: document.body,
+      global: { stubs: childStubs },
+    })
+
+    const calls = vi.mocked(useProEditor).mock.calls
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    useProEditorOptions.slashCommand.onOpen(createSlashState(command))
+    await nextTick()
+    await wrapper.find('[data-testid="slash-menu"]').trigger('click')
+
+    expect(command).toHaveBeenCalledWith(expect.objectContaining({ id: 'table' }))
+  })
+
+  it('Slash 执行回调会复用 core 命令执行表格插入', () => {
+    const ctx = createCtx()
+    ;(ctx.commands as any).insertTable = vi.fn()
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorElementPlus, {
+      attachTo: document.body,
+      global: { stubs: childStubs },
+    })
+
+    const calls = vi.mocked(useProEditor).mock.calls
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    useProEditorOptions.slashCommand.onExecute({
+      item: {
+        id: 'table',
+        label: '表格',
+        icon: 'Table',
+        aliases: ['table'],
+        keywords: ['表格'],
+      },
+    })
+
+    expect((ctx.commands as any).insertTable).toHaveBeenCalledWith(3, 3)
   })
 
   it('预览编辑按钮保持图标和文字水平居中且间距一致', () => {

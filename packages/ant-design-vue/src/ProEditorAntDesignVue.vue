@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, shallowRef, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
-import { AntButton, AntTooltip, antMessage } from './antDesignPrimitives'
+import { AntButton, AntInput, AntModal, AntTooltip, antMessage } from './antDesignPrimitives'
 import { Pencil } from 'lucide-vue-next'
-import { createDebugLogger, resolveLocale, useEditorEventBridge, useImageDropPaste, useProEditor, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
+import { SLASH_COMMAND_ITEMS, createDebugLogger, resolveEditorBehaviorOptions, resolveLocale, runSlashCommandItem, useEditorEventBridge, useImageDropPaste, useProEditor, type SlashCommandItem, type SlashCommandRenderState, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
 import TableGripHandles from './TableGripHandles.vue'
 import ImageBubbleMenu from './ImageBubbleMenu.vue'
+import SlashCommandMenu from './SlashCommandMenu.vue'
+import FindReplacePanel from './FindReplacePanel.vue'
 import LinkBubbleMenu from './LinkBubbleMenu.vue'
 import FileBubbleMenu from './FileBubbleMenu.vue'
 import MediaBubbleMenu from './MediaBubbleMenu.vue'
@@ -83,6 +85,26 @@ const emit = defineEmits<{
 
 // Core 的 content 用一个可变 ref,把 v-model 和 Core 内部双向绑定桥接起来
 const content = ref(props.modelValue)
+const slashCommandState = shallowRef<SlashCommandRenderState | null>(null)
+const slashImageInput = ref<HTMLInputElement | null>(null)
+const slashImageUrlDialogVisible = ref(false)
+const slashImageUrl = ref('')
+const resolvedEditorBehaviorOptions = computed(() => resolveEditorBehaviorOptions(props.editorBehaviorOptions))
+const slashImageAccept = computed(() => resolvedEditorBehaviorOptions.value.image.accept)
+const slashImageMultiple = computed(() => resolvedEditorBehaviorOptions.value.image.multiple)
+const slashImageAllowUrl = computed(() => resolvedEditorBehaviorOptions.value.image.allowUrl)
+const slashImageAvailable = computed(() => Boolean(props.uploadImage) || slashImageAllowUrl.value)
+
+function slashCommandItems(): SlashCommandItem[] {
+  return SLASH_COMMAND_ITEMS.map((item) => {
+    if (item.id !== 'image' || slashImageAvailable.value) return item
+    return {
+      ...item,
+      hiddenInDefault: true,
+      disabledReason: '未配置图片入口',
+    }
+  })
+}
 
 // 外部 modelValue 变化 → 同步到 content
 watch(
@@ -118,6 +140,21 @@ const ctx = useProEditor({
   },
   editable: !props.readonly,
   extensions: props.extensions,
+  slashCommand: {
+    items: slashCommandItems(),
+    onOpen: (state: SlashCommandRenderState) => {
+      slashCommandState.value = state
+    },
+    onUpdate: (state: SlashCommandRenderState) => {
+      slashCommandState.value = state
+    },
+    onClose: () => {
+      slashCommandState.value = null
+    },
+    onExecute: ({ item }: { item: SlashCommandItem }) => {
+      executeSlashCommand(item)
+    },
+  },
   get debug() {
     return props.debug
   },
@@ -157,7 +194,10 @@ const { selectionTick, editorHasBeenFocused } = useEditorEventBridge(ctx.editor)
 // readonly 变化
 watch(
   () => props.readonly,
-  (v) => ctx.setEditable(!v),
+  (v) => {
+    slashCommandState.value = null
+    ctx.setEditable(!v)
+  },
 )
 
 // ---- 全屏 / 预览 ----
@@ -178,6 +218,7 @@ function toggleFullscreen() {
 function togglePreview() {
   const next = !isPreview.value
   isPreview.value = next
+  slashCommandState.value = null
   // 进入预览 → 只读;退出预览 → 恢复到 props.readonly 决定的可编辑性
   ctx.setEditable(!next && !props.readonly)
 }
@@ -186,7 +227,9 @@ function togglePreview() {
 // 全屏/预览都是编辑器自身的临时态,Esc 作为通用「退出」手势符合直觉。
 function onKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
-  if (isFullscreen.value) {
+  if (ctx.findReplaceState.value.open) {
+    ctx.commands.closeFindReplace()
+  } else if (isFullscreen.value) {
     isFullscreen.value = false
   } else if (isPreview.value) {
     isPreview.value = false
@@ -214,6 +257,69 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
 
 // 图片粘贴/拖拽:挂到 EditorContent 的容器上。
 const { onPaste, onDrop } = useImageDropPaste(ctx, () => props.uploadImage, () => props.editorBehaviorOptions)
+
+function isSupportedSlashImageUrl(url: string) {
+  try {
+    const parsed = new URL(url, 'http://tiptap-vue-pro.local')
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function openSlashImageUrlDialog() {
+  slashImageUrl.value = ''
+  slashImageUrlDialogVisible.value = true
+  debugLog('adapter', 'dialog-open', { dialog: 'slash-image-url' })
+}
+
+function triggerSlashImageUpload() {
+  slashImageInput.value?.click()
+}
+
+function runSlashImageFlow() {
+  if (props.uploadImage) {
+    triggerSlashImageUpload()
+    return
+  }
+  if (slashImageAllowUrl.value) {
+    openSlashImageUrlDialog()
+    return
+  }
+  ctx.notify('未配置图片入口', 'warning')
+}
+
+function executeSlashCommand(item: SlashCommandItem) {
+  debugLog('adapter', 'slash-command', { command: item.id })
+  runSlashCommandItem(toolbarCtx.value, item, {
+    onImage: runSlashImageFlow,
+  })
+}
+
+async function onSlashImageSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  const selected = slashImageMultiple.value ? files : files.slice(0, 1)
+  input.value = ''
+  for (const file of selected) {
+    await ctx.commands.uploadAndInsertImage(file)
+  }
+}
+
+function confirmSlashUrlImage() {
+  debugLog('adapter', 'dialog-confirm', { dialog: 'slash-image-url' })
+  const url = slashImageUrl.value.trim()
+  if (!url) {
+    slashImageUrlDialogVisible.value = false
+    return
+  }
+  if (!isSupportedSlashImageUrl(url)) {
+    ctx.notify(t('notify.invalidImageUrl'), 'warning')
+    return
+  }
+  ctx.commands.setImage(url)
+  slashImageUrlDialogVisible.value = false
+}
 
 // 字数
 const wordCount = computed(() => ctx.wordCount.value)
@@ -278,15 +384,28 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       </AntTooltip>
     </div>
 
-    <div
-      ref="contentWrap"
-      class="tvp-content-wrap"
-      @paste="onPaste"
-      @drop="onDrop"
-      @dragover.prevent
-    >
-      <EditorContent :editor="ctx.editor.value" class="tvp-content" />
+    <div class="tvp-content-shell">
+      <div
+        ref="contentWrap"
+        class="tvp-content-wrap"
+        @paste="onPaste"
+        @drop="onDrop"
+        @dragover.prevent
+      >
+        <EditorContent :editor="ctx.editor.value" class="tvp-content" />
+      </div>
+
+      <FindReplacePanel
+        v-if="ctx.editor.value"
+        :ctx="toolbarCtx"
+        :readonly="readonly || isPreview"
+      />
     </div>
+
+    <SlashCommandMenu
+      v-if="!readonly && !isPreview"
+      :state="slashCommandState"
+    />
 
     <!-- 表格行/列抓手(飞书式):fixed 浮层,放 content-wrap 外避免 overflow 裁剪 -->
     <TableGripHandles
@@ -352,12 +471,34 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
     <div v-if="!readonly && !isPreview && showWordCount" class="tvp-footer">
       <span>{{ t('wordCount.characters', { count: wordCount.characters }) }}</span>
     </div>
+
+    <input
+      ref="slashImageInput"
+      type="file"
+      :accept="slashImageAccept"
+      :multiple="slashImageMultiple"
+      class="tvp-image-input"
+      @change="onSlashImageSelected"
+    />
+
+    <AntModal v-model="slashImageUrlDialogVisible" :title="t('toolbar.image.urlDialogTitle')" width="420px" append-to-body>
+      <AntInput
+        v-model="slashImageUrl"
+        :placeholder="t('toolbar.image.urlPlaceholder')"
+        @keyup.enter="confirmSlashUrlImage"
+      />
+      <template #footer>
+        <AntButton @click="slashImageUrlDialogVisible = false">{{ t('toolbar.action.cancel') }}</AntButton>
+        <AntButton type="primary" @click="confirmSlashUrlImage">{{ t('toolbar.action.confirm') }}</AntButton>
+      </template>
+    </AntModal>
   </div>
 </template>
 
 <style>
 /* 编辑器容器 */
 .tvp-editor {
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -496,8 +637,13 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   --tvp-ant-color-primary-light-9: #18222c;
 }
 
+.tvp-content-shell {
+  position: relative;
+  min-width: 0;
+}
+
 .tvp-content-wrap {
-  position: relative; /* 表格抓手覆盖层的定位锚点 */
+  position: relative;
   min-width: 0;
   min-height: 200px;
   max-height: 600px;
@@ -514,6 +660,16 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
 
 .tvp-content .ProseMirror p {
   margin: 0.5em 0;
+}
+
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror .tvp-find-match {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--tvp-ant-color-primary, #1677ff) 22%, transparent);
+}
+
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror .tvp-find-match--active {
+  background: color-mix(in srgb, var(--tvp-ant-color-primary, #1677ff) 42%, transparent);
+  box-shadow: 0 0 0 1px var(--tvp-ant-color-primary, #1677ff);
 }
 
 .tvp-content .ProseMirror hr {
@@ -1204,33 +1360,60 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   color: #334155;
 }
 
-.tvp-content .ProseMirror table {
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror table {
   border-collapse: collapse;
   width: 100%;
   margin: 0.5em 0;
 }
 
-.tvp-content .ProseMirror th,
-.tvp-content .ProseMirror td {
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror th,
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror td {
+  position: relative;
   border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
   padding: 6px 10px;
 }
 
-.tvp-content .ProseMirror th {
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror th {
   background: var(--tvp-ant-fill-color-light, #f5f7fa);
 }
 
-.tvp-content .ProseMirror .selectedCell {
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror .selectedCell {
   position: relative;
 }
 
-.tvp-content .ProseMirror .selectedCell::after {
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror .selectedCell::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: rgba(22, 119, 255, 0.12);
   box-shadow: inset 0 0 0 1px var(--tvp-ant-color-primary, #1677ff);
+}
+
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror .column-resize-handle {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  bottom: -1px;
+  z-index: 20;
+  width: 6px;
+  pointer-events: none;
+}
+
+.tvp-editor--ant-design-vue .tvp-content .ProseMirror .column-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--tvp-ant-color-primary, #1677ff);
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.16);
 }
 
 /* placeholder */
@@ -1251,4 +1434,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   border-top: 1px solid var(--tvp-ant-border-color-lighter, #ebeef5);
 }
 
+.tvp-image-input {
+  display: none;
+}
 </style>

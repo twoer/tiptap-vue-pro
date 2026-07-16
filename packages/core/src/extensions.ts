@@ -23,6 +23,8 @@ import { codeBlockLowlight } from './codeBlock'
 import { BlockIndent } from './extensions/blockIndent'
 import { HorizontalRuleExtended } from './extensions/horizontalRule'
 import { RangeSelectionDecorations } from './extensions/rangeSelection'
+import { SlashCommandExtension, type SlashCommandExtensionOptions } from './extensions/slashCommand'
+import { FindReplaceExtension, type FindReplaceExtensionOptions } from './extensions/findReplace'
 import type { EditorExtensionConfig } from './extensionRegistry'
 
 export type { Extensions } from '@tiptap/core'
@@ -62,6 +64,8 @@ export function createDefaultExtensions(
   config: EditorExtensionConfig = {},
   options: {
     fileAttachment?: FileAttachmentOptions
+    slashCommand?: Partial<SlashCommandExtensionOptions>
+    findReplace?: Partial<FindReplaceExtensionOptions>
   } = {},
 ): Extensions {
   const enabled = {
@@ -79,6 +83,8 @@ export function createDefaultExtensions(
     taskList: true,
     media: true,
     rangeSelection: true,
+    slashCommand: true,
+    findReplace: true,
     markdown: true,
     ...config,
   }
@@ -185,6 +191,19 @@ export function createDefaultExtensions(
 
   if (enabled.rangeSelection) {
     extensions.push(RangeSelectionDecorations)
+  }
+
+  if (enabled.slashCommand && options.slashCommand) {
+    extensions.push(
+      SlashCommandExtension.configure({
+        ...options.slashCommand,
+        enabled: options.slashCommand.enabled ?? true,
+      }),
+    )
+  }
+
+  if (enabled.findReplace) {
+    extensions.push(FindReplaceExtension.configure(options.findReplace ?? {}))
   }
 
   if (enabled.markdown) {

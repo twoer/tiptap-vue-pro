@@ -14,6 +14,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import { createDefaultExtensions } from './extensions'
 import { insertHorizontalRule } from './extensions/horizontalRule'
 import { detectFileAttachmentIcon } from './extensions/media'
+import { EMPTY_FIND_REPLACE_STATE } from './findReplace'
 import { getSelectedMediaNode } from './mediaSelection'
 import { getMarkdown, importMarkdown } from './markdown'
 import { resolveEditorBehaviorOptions, type EditorFileRenderOptions } from './editorBehaviorOptions'
@@ -116,12 +117,21 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   const getOutput = () => options.output ?? 'html'
   const getBehaviorOptions = () => resolveEditorBehaviorOptions(options.editorBehaviorOptions)
   const resolvedLocale = computed(() => resolveLocale(options.locale))
+  const findReplaceState = ref(EMPTY_FIND_REPLACE_STATE)
   const t = ((key, paramsOrFallback, fallback) =>
     resolvedLocale.value.t(key, paramsOrFallback, fallback)) as ReturnType<typeof resolveLocale>['t']
   const exts = extensions ?? createDefaultExtensions(
     placeholder ?? t('placeholder.default'),
     {},
-    { fileAttachment: { fileTypeLabel: localizedFileTypeText } },
+    {
+      fileAttachment: { fileTypeLabel: localizedFileTypeText },
+      slashCommand: options.slashCommand === false ? undefined : options.slashCommand,
+      findReplace: {
+        onUpdate: (state) => {
+          findReplaceState.value = state
+        },
+      },
+    },
   )
 
   // ---- 通过官方 useEditor 创建实例 ----
@@ -1238,6 +1248,51 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     clearFormat: () =>
       cmd()?.chain().focus().clearNodes().unsetAllMarks().run(),
     taskList: () => cmd()?.chain().focus().toggleTaskList().run(),
+    openFindReplace: () => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).openFindReplace?.()
+    },
+    closeFindReplace: () => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).closeFindReplace?.()
+    },
+    setFindReplaceQuery: (query) => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).setFindReplaceQuery?.(query)
+    },
+    setFindReplaceReplacement: (replacement) => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).setFindReplaceReplacement?.(replacement)
+    },
+    setFindReplaceCaseSensitive: (caseSensitive) => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).setFindReplaceCaseSensitive?.(caseSensitive)
+    },
+    findReplaceNext: () => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).findReplaceNext?.()
+    },
+    findReplacePrevious: () => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).findReplacePrevious?.()
+    },
+    replaceFindReplaceCurrent: (replacement) => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).replaceFindReplaceCurrent?.(replacement)
+    },
+    replaceFindReplaceAll: (replacement) => {
+      const ed = cmd()
+      if (!ed) return
+      ;(ed.commands as any).replaceFindReplaceAll?.(replacement)
+    },
   }
 
   function withDebugCommands(commandMap: ProEditorCommands): ProEditorCommands {
@@ -1401,6 +1456,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     wordCount,
     setEditable,
     tableState,
+    findReplaceState,
     notify: notifyFn,
     t,
   }

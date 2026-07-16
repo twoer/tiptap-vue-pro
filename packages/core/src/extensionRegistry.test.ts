@@ -13,6 +13,7 @@ describe('extension registry', () => {
     expect(names).toContain('horizontalRule')
     expect(names).toContain('placeholder')
     expect(names).toContain('characterCount')
+    expect(names).toContain('findReplace')
     expect(names).toContain('markdown')
   })
 
@@ -28,6 +29,14 @@ describe('extension registry', () => {
     expect(names).not.toContain('markdown')
     expect(names).not.toContain('tableKit')
     expect(names).not.toContain('image')
+  })
+
+  it('keeps slashCommand disabled until a bridge is provided through createDefaultExtensions', () => {
+    const extensions = createEditorExtensions()
+    const names = extensions.map((extension) => extension.name)
+
+    expect(DEFAULT_EXTENSION_CONFIG.slashCommand).toBe(true)
+    expect(names).not.toContain('slashCommand')
   })
 
   it('passes placeholder text through the registry', () => {
@@ -60,6 +69,8 @@ describe('extension registry', () => {
     ['script', ['superscript', 'subscript']],
     ['taskList', ['taskList', 'taskItem']],
     ['media', ['video', 'audio', 'fileAttachment']],
+    ['slashCommand', ['slashCommand']],
+    ['findReplace', ['findReplace']],
     ['markdown', ['markdown']],
   ] as const)('allows disabling the %s extension group', (key, disabledNames) => {
     const extensions = createEditorExtensions({
@@ -98,6 +109,7 @@ describe('extension registry', () => {
       'video',
       'audio',
       'fileAttachment',
+      'findReplace',
       'markdown',
     ]) {
       expect(names).toContain(enabledName)

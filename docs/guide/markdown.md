@@ -26,5 +26,5 @@ const toolbarOptions: ToolbarOptions = {
 ```
 
 ::: warning
-Markdown 导出基于 Markdown 语义,字体、字号、行高、缩进等 HTML 样式能力可能无法完整保留。需要保真时建议使用 HTML 或 JSON 输出。
+Markdown 导出基于 Markdown 语义,字体、字号、行高、缩进、表格列宽等 HTML 布局能力可能无法完整保留。需要保真时建议使用 HTML 或 JSON 输出。
 :::

@@ -8,6 +8,7 @@
 | 限制可选文件类型 | `editorBehaviorOptions.image.accept` |
 | 工具栏图片上传是否允许多选 | `editorBehaviorOptions.image.multiple` |
 | 是否显示网络图片入口 | `editorBehaviorOptions.image.allowUrl` |
+| 上传前裁剪 | `editorBehaviorOptions.image.crop` |
 
 ```vue
 <script setup lang="ts">
@@ -26,6 +27,11 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
     accept: 'image/png,image/jpeg,image/webp',
     multiple: true,
     allowUrl: true,
+    crop: {
+      enabled: true,
+      aspectRatio: 16 / 9,
+      quality: 0.9,
+    },
   },
 }
 </script>
@@ -42,6 +48,8 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
 `image.multiple` 默认 `false`,保持一次只选择一个文件。设置为 `true` 后,工具栏图片上传会按选择顺序逐个调用 `uploadImage` 并插入。粘贴和拖拽仍沿用已有批量图片处理能力。
 
 `image.allowUrl` 默认 `true`,用于显示「网络图片」入口。设置为 `false` 后,如果只配置了 `uploadImage`,工具栏会直接显示「上传图片」按钮,不会再出现图片下拉菜单。
+
+`image.crop` 默认关闭。设置为 `true` 时会在工具栏选图后打开裁剪弹窗,默认按 1:1 居中裁剪;也可以传 `{ enabled: true, aspectRatio: 16 / 9 }` 这类配置用于封面图。裁剪只作用于工具栏按钮选图,粘贴和拖拽图片仍直接上传原图,避免打断截图粘贴流程。
 
 `uploadImage` 返回 `null` 时会跳过插入;抛错时会触发 Adapter 注入的消息提示。Core 不关心文件上传到 OSS、COS、S3 还是业务后端,只关心最后拿到可访问的 URL。
 

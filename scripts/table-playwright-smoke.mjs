@@ -18,7 +18,7 @@ const requireFromVisualCompare = createRequire(visualComparePackage)
 const { chromium } = requireFromVisualCompare('playwright')
 
 const basePlaygroundUrl = process.env.PLAYGROUND_URL ??
-  'http://127.0.0.1:5173/tiptap-vue-pro/playground/'
+  'http://localhost:5173/tiptap-vue-pro/playground/'
 const adapters = [
   {
     name: 'element-plus',
@@ -29,6 +29,7 @@ const adapters = [
     bubbleMenu: '.tvp-table-bubble-dropdown .el-dropdown-menu',
     bubbleItem: '.tvp-table-bubble-dropdown .el-dropdown-menu__item',
     bubbleLabel: '.tvp-table-bubble-dropdown .tvp-menu-item',
+    resizeHandleColor: 'rgb(64, 158, 255)',
   },
   {
     name: 'naive',
@@ -39,6 +40,7 @@ const adapters = [
     bubbleMenu: '.tvp-table-bubble-dropdown.n-dropdown-menu, .tvp-table-bubble-dropdown .n-dropdown-menu',
     bubbleItem: '.tvp-table-bubble-dropdown .n-dropdown-option',
     bubbleLabel: '.tvp-table-bubble-dropdown .n-dropdown-option-body__label span',
+    resizeHandleColor: 'rgb(24, 160, 88)',
   },
   {
     name: 'ant-design-vue',
@@ -49,6 +51,7 @@ const adapters = [
     bubbleMenu: '.tvp-table-bubble-dropdown .ant-dropdown-menu',
     bubbleItem: '.tvp-table-bubble-dropdown .tvp-ant-dropdown-menu__item',
     bubbleLabel: '.tvp-table-bubble-dropdown .tvp-menu-item',
+    resizeHandleColor: 'rgb(22, 119, 255)',
   },
 ]
 
@@ -204,11 +207,117 @@ async function assertTableBubbleDropdownDensity(page, adapter) {
   assert(density.labelGap === '9px', `${adapter.name}: table bubble dropdown icon/text gap should be 9px`, density)
 }
 
+async function assertColumnResizePersists(page, adapter) {
+  await gotoAdapter(page, adapter)
+
+  const table = page.locator(`${adapter.root} table`).first()
+  await table.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
+
+  const before = await page.evaluate((rootSelector) => {
+    const firstCell = document.querySelector(`${rootSelector} table tr:first-child th, ${rootSelector} table tr:first-child td`)
+    const rect = firstCell?.getBoundingClientRect()
+    return {
+      width: rect?.width ?? 0,
+      right: rect?.right ?? 0,
+      top: rect?.top ?? 0,
+      height: rect?.height ?? 0,
+    }
+  }, adapter.root)
+  assert(before.width > 0, `${adapter.name}: first table cell should have a measurable width`, before)
+
+  const dragY = before.top + Math.min(12, Math.max(4, before.height / 2))
+  const dragX = before.right - 2
+  await page.mouse.move(dragX, dragY)
+  await page.waitForTimeout(150)
+
+  const resizeState = await page.evaluate((rootSelector) => {
+    const editor = document.querySelector(`${rootSelector} .ProseMirror`)
+    const handle = document.querySelector(`${rootSelector} .column-resize-handle`)
+    const rect = handle?.getBoundingClientRect()
+    const style = handle ? window.getComputedStyle(handle) : null
+    const beforeStyle = handle ? window.getComputedStyle(handle, '::before') : null
+    const beforeBackground = beforeStyle?.backgroundColor ?? ''
+    const opacity = Number(style?.opacity ?? 0)
+    const hasVisibleColor =
+      beforeBackground !== '' &&
+      beforeBackground !== 'transparent' &&
+      !beforeBackground.endsWith(', 0)') &&
+      beforeBackground !== 'rgba(0, 0, 0, 0)'
+    return {
+      editorClass: editor?.getAttribute('class') ?? '',
+      hasHandle: Boolean(handle),
+      handleWidth: rect?.width ?? 0,
+      handleHeight: rect?.height ?? 0,
+      handleDisplay: style?.display ?? '',
+      handleVisibility: style?.visibility ?? '',
+      handleOpacity: style?.opacity ?? '',
+      beforeBackground,
+      hasVisibleColor,
+      isVisible:
+        Boolean(handle) &&
+        (rect?.width ?? 0) >= 4 &&
+        (rect?.height ?? 0) >= 16 &&
+        style?.display !== 'none' &&
+        style?.visibility !== 'hidden' &&
+        opacity > 0 &&
+        hasVisibleColor,
+    }
+  }, adapter.root)
+  assert(resizeState.editorClass.includes('resize-cursor'), `${adapter.name}: column boundary hover should enable resize cursor`, resizeState)
+  assert(resizeState.hasHandle, `${adapter.name}: column boundary hover should render resize handle`, resizeState)
+  assert(resizeState.isVisible, `${adapter.name}: column resize handle should be visibly styled`, resizeState)
+  assert(
+    resizeState.beforeBackground === adapter.resizeHandleColor,
+    `${adapter.name}: column resize handle should use the adapter primary color`,
+    resizeState,
+  )
+
+  await page.mouse.down()
+  await page.mouse.move(dragX + 80, dragY, { steps: 12 })
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+
+  const after = await page.evaluate((rootSelector) => {
+    const firstCell = document.querySelector(`${rootSelector} table tr:first-child th, ${rootSelector} table tr:first-child td`)
+    const firstCol = document.querySelector(`${rootSelector} table col`)
+    const rect = firstCell?.getBoundingClientRect()
+    return {
+      width: rect?.width ?? 0,
+      colStyle: firstCol?.getAttribute('style') ?? '',
+      colwidth: firstCell?.getAttribute('colwidth') ?? '',
+      tableHTML: document.querySelector(`${rootSelector} table`)?.outerHTML ?? '',
+    }
+  }, adapter.root)
+
+  assert(
+    after.width - before.width >= 40,
+    `${adapter.name}: dragging the first column boundary should increase first column width`,
+    { before, after },
+  )
+  assert(
+    /width:\s*\d+px/.test(after.colStyle),
+    `${adapter.name}: resized column should persist width on col style`,
+    after,
+  )
+  assert(
+    /^\d+$/.test(after.colwidth),
+    `${adapter.name}: resized header cell should persist colwidth`,
+    after,
+  )
+
+  const secondHeader = page.locator(`${adapter.root} table tr:first-child th, ${adapter.root} table tr:first-child td`).nth(1)
+  await secondHeader.hover()
+  const visibleGripCount = await visibleCount(page, `${adapter.root} .tvp-table-grip`)
+  assert(visibleGripCount > 0, `${adapter.name}: table grips should remain visible after column resize`, { visibleGripCount })
+}
+
 const browser = await chromium.launch({ headless: process.env.HEADLESS !== '0' })
 try {
   for (const adapter of selectedAdapters) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
     try {
+      await assertColumnResizePersists(page, adapter)
       await assertMoveRightSuppressesBubble(page, adapter)
       await assertTableBubbleDropdownDensity(page, adapter)
       console.log(`table-playwright-smoke ${adapter.name} passed`)

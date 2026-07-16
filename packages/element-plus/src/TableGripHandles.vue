@@ -52,8 +52,28 @@ function emitMenuOpenChange() {
   if (open) setTableBubbleSuppressed(true)
 }
 
+function getEditorView(editor = props.editor): Editor['view'] | null {
+  try {
+    return editor?.view ?? null
+  } catch {
+    return null
+  }
+}
+
+function getEditorDom(editor = props.editor): HTMLElement | null {
+  try {
+    return getEditorView(editor)?.dom ?? null
+  } catch {
+    return null
+  }
+}
+
+function getEditorRoot(editor = props.editor): HTMLElement | null {
+  return getEditorDom(editor)?.closest('.tvp-editor') as HTMLElement | null
+}
+
 function setTableBubbleSuppressed(suppressed: boolean) {
-  const editorRoot = props.editor?.view.dom.closest('.tvp-editor') as HTMLElement | null
+  const editorRoot = getEditorRoot()
   if (suppressed) editorRoot?.setAttribute('data-table-grip-suppress-bubble', 'true')
   else editorRoot?.removeAttribute('data-table-grip-suppress-bubble')
 }
@@ -63,7 +83,7 @@ function clearTableBubbleSuppress() {
   setTableBubbleSuppressed(false)
 }
 
-const hasEditor = computed(() => !!props.editor && !!props.scrollContainer)
+const hasEditor = computed(() => !!getEditorDom() && !!props.scrollContainer)
 
 // 抓手尺寸 + 与表格的间隙。负值让小点阵更贴近表格边缘,热区仍保留 28px。
 const GRIP_SIZE = 22
@@ -124,7 +144,12 @@ function getTableEl(): HTMLTableElement | null {
   if (activeTable) return activeTable
   const pos = props.ctx.tableState.value.tablePos
   if (pos == null) return null
-  const node = props.editor?.view.nodeDOM(pos) as HTMLElement | null
+  let node: HTMLElement | null = null
+  try {
+    node = getEditorView()?.nodeDOM(pos) as HTMLElement | null
+  } catch {
+    node = null
+  }
   // nodeDOM 可能返回 table 本身或其包装(TableView 的 tableWrapper)
   return (node?.querySelector('table') as HTMLTableElement) ?? (node as HTMLTableElement)
 }
@@ -194,12 +219,14 @@ const activeGripPos = computed(getActiveGripPositions)
 function onContainerMouseMove(e: MouseEvent) {
   // 一进表格区域就取消任何挂起的隐藏(覆盖延迟隐藏)
   cancelHide()
+  const editorDom = getEditorDom()
+  if (!editorDom) return
   const target = e.target as HTMLElement
   const td = target.closest('td, th') as HTMLElement | null
-  if (!td || !props.editor?.view.dom.contains(td)) return
+  if (!td || !editorDom.contains(td)) return
   const tr = td.parentElement as HTMLTableRowElement
   const table = tr?.closest('table') as HTMLTableElement
-  if (!table || !props.editor.view.dom.contains(table)) return
+  if (!table || !editorDom.contains(table)) return
   // 行号 = tr 在 table 中的索引;列号 = td 在 tr 中的索引
   const rowIndex = Array.from(table.querySelectorAll('tr')).indexOf(tr)
   const colIndex = Array.from(tr.children).indexOf(td)
@@ -298,7 +325,8 @@ function clearHover() {
 
 function focusCell(cell: HTMLElement | null = activeCell) {
   const ed = props.editor
-  if (!ed || !cell) {
+  const view = getEditorView(ed)
+  if (!ed || !view || !getEditorDom(ed) || !cell) {
     tableGripDebug('focusCell:skip', { hasEditor: !!ed, cell: describeCell(cell) })
     return
   }
@@ -308,7 +336,7 @@ function focusCell(cell: HTMLElement | null = activeCell) {
   }
   const addDomPos = (node: Node, offset: number, deltas: number[] = [0]) => {
     try {
-      const base = ed.view.posAtDOM(node, offset)
+      const base = view.posAtDOM(node, offset)
       for (const delta of deltas) addCandidate(base + delta)
     } catch {
       // Some DOM nodes are outside ProseMirror's managed tree.
@@ -324,7 +352,7 @@ function focusCell(cell: HTMLElement | null = activeCell) {
   addDomPos(cell, 0, [2, 1, 3])
 
   const rect = cell.getBoundingClientRect()
-  const hit = ed.view.posAtCoords({
+  const hit = view.posAtCoords({
     left: rect.left + Math.min(8, Math.max(1, rect.width / 2)),
     top: rect.top + Math.min(8, Math.max(1, rect.height / 2)),
   })
@@ -483,7 +511,7 @@ let scrollEl: HTMLElement | null = null
 function setup() {
   const ed = props.editor
   scrollEl = props.scrollContainer
-  if (!ed) return
+  if (!ed || !getEditorDom(ed)) return
   activeEditor = ed
   ed.on('transaction', refresh)
   if (scrollEl) {
@@ -498,7 +526,7 @@ function setup() {
 function teardown() {
   cancelHide()
   clearDestructiveTimer()
-  const editorRoot = props.editor?.view.dom.closest('.tvp-editor') as HTMLElement | null
+  const editorRoot = getEditorRoot(activeEditor ?? props.editor)
   editorRoot?.removeAttribute('data-table-grip-suppress-bubble')
   const ed = activeEditor
   if (ed) ed.off('transaction', refresh)

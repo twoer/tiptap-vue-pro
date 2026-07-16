@@ -271,6 +271,25 @@ describe('Element Plus TableGripHandles', () => {
     expect(nextEditor.on).toHaveBeenCalledWith('transaction', expect.any(Function))
   })
 
+  it('editor view 已不可用时卸载和编辑区点击不会抛错', () => {
+    const ctx = createCtx()
+    const { scroll, editor } = createEnv()
+    wrapper = mount(TableGripHandles, {
+      attachTo: document.body,
+      props: { editor: editor as never, ctx, scrollContainer: scroll },
+    })
+    Object.defineProperty(editor, 'view', {
+      configurable: true,
+      get() {
+        throw new Error('[tiptap error]: The editor view is not available.')
+      },
+    })
+
+    expect(() => scroll.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))).not.toThrow()
+    expect(() => wrapper?.unmount()).not.toThrow()
+    wrapper = undefined
+  })
+
   it('行列菜单文案保持简化,图标和文字使用统一 6px 间距', () => {
     const source = readFileSync(`${process.cwd()}/src/TableGripHandles.vue`, 'utf8')
 

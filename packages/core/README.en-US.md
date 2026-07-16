@@ -15,9 +15,11 @@ This package provides `useProEditor()`, default extensions, command aggregation,
 - Headings, bold/italic/strikethrough/underline, inline code, superscript, and subscript
 - Font family, font size, line height, text color, background highlight, and text alignment
 - Paragraph/heading indent and list-level indent
-- Links, images, video, audio, file attachments, table selection and row/column operations, task lists, code blocks, and Markdown import/export
+- Links, images, video, audio, file attachments, table column width dragging, table selection and row/column operations, task lists, code blocks, and Markdown import/export
+- Slash Command protocol, intent search, Suggestion lifecycle, and command runner helpers. Adapters own the menu UI.
+- Find/replace state, match decorations, previous/next navigation, case-sensitive search, and replace commands. Adapters own the panel UI.
 
-Font family, font size, line height, and indent are HTML styling features. They may be lost when exporting to Markdown, but are preserved in HTML / JSON output.
+Font family, font size, line height, indent, table column widths, Slash Command, and find/replace are editor experience features. Markdown export does not preserve these UI behaviors.
 
 ## Install
 

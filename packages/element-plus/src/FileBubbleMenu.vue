@@ -293,6 +293,10 @@ useEditorPluginRegistration({
   flex: 0 0 auto;
 }
 
+.tvp-file-bubble :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .tvp-file-bubble :deep(.el-button.is-text:not(.is-disabled):hover),
 .tvp-file-bubble :deep(.el-button.is-text:not(.is-disabled):focus) {
   color: var(--el-color-primary, #409eff);

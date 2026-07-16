@@ -31,9 +31,11 @@ Tiptap Vue Pro packages those pieces as a UI-independent core plus three equival
 - Tiptap v3 + Vue 3 + TypeScript
 - HTML / JSON output with `v-model`
 - Full toolbar: headings, formatting, font family, font size, line height, colors, highlights, alignment, lists, links, images, tables, divider styles, Markdown, print, preview, and fullscreen
-- Image upload, paste, drag/drop, replacement, alignment, sizing, and captions
+- Slash Command quick insert: type `/` to insert headings, tasks, lists, tables, images, dividers, and code blocks
+- Editor-native find and replace: Ctrl/⌘ + F opens a panel with highlights, previous/next navigation, case-sensitive search, replace current, and replace all
+- Image upload, crop before upload, paste, drag/drop, replacement, alignment, sizing, and captions
 - Video, audio, and file upload with player/file-card display modes, multiple selection, type limits, size limits, and contextual editing after insertion
-- Table insertion, row/column grips, Shift range selection, Ctrl/⌘ + A table selection, cell merge/split, and header toggles
+- Table insertion, column width dragging, row/column grips, Shift range selection, Ctrl/⌘ + A table selection, cell merge/split, and header toggles
 - Markdown import/export
 - Developer diagnostics logs with lifecycle, command, upload, table, and other channels
 - Component-level dark mode, readonly mode, and word count
@@ -112,6 +114,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm test:table:e2e # browser regression for table interactions across all adapters
+pnpm test:slash:e2e # browser regression for Slash Command across all adapters
+pnpm test:find-replace:e2e # browser regression for find/replace across all adapters
 ```
 
 Deployment is handled by `.github/workflows/deploy.yml`: pushes to `main` build the VitePress docs site and copy the playground into the `/playground/` subpath.

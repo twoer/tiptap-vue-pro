@@ -15,6 +15,9 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r --filter=./packages/* run test",
     "test:table:e2e": "node scripts/table-playwright-smoke.mjs",
+    "test:slash:e2e": "node scripts/slash-command-playwright-smoke.mjs",
+    "test:find-replace:e2e": "node scripts/find-replace-playwright-smoke.mjs",
+    "test:image-crop:e2e": "node scripts/image-crop-playwright-smoke.mjs",
     "postinstall": "node node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild/install.js || true"
   },
   "devDependencies": {

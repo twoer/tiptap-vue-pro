@@ -516,6 +516,41 @@ describe('Ant Design Vue Toolbar', () => {
     expect(input.value).toBe('')
   })
 
+  it('图片裁剪开启时先显示裁剪弹窗,跳过裁剪后上传原图', async () => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:crop-preview'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: {
+        ctx,
+        uploadImage: vi.fn(),
+        editorBehaviorOptions: { image: { crop: true } },
+      },
+    })
+    const input = wrapper.find('input[accept="image/*"]').element as HTMLInputElement
+    const file = new File(['img'], 'a.png', { type: 'image/png' })
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [file],
+    })
+
+    await wrapper.find('input[accept="image/*"]').trigger('change')
+
+    expect(ctx.commands.uploadAndInsertImage).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('裁剪图片')
+
+    await clickBodyButton('跳过裁剪')
+
+    expect(ctx.commands.uploadAndInsertImage).toHaveBeenCalledWith(file)
+  })
+
   it('图片入口合并上传和网络图片菜单', async () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {

@@ -50,6 +50,7 @@ export type {
   EditorBehaviorOptions,
   EditorAudioRenderOptions,
   EditorImageBehaviorOptions,
+  EditorImageCropOptions,
   EditorMediaAssetMetadata,
   EditorMediaBehaviorOptions,
   EditorFileRenderOptions,
@@ -60,6 +61,7 @@ export type {
   EditorLinkTarget,
   ResolvedEditorAudioRenderOptions,
   ResolvedEditorImageBehaviorOptions,
+  ResolvedEditorImageCropOptions,
   ResolvedEditorFileRenderOptions,
   ResolvedEditorMediaBehaviorOptions,
   ResolvedEditorVideoRenderOptions,
@@ -93,6 +95,11 @@ export {
   validateImageFile,
 } from './handleImageUpload'
 export type { ImageFileValidationFailure, ImageUploadErrorFn } from './handleImageUpload'
+export {
+  cropImageFile,
+  getCenteredImageCropSourceRect,
+} from './imageCrop'
+export type { CropImageFileOptions, ImageCropSourceRect } from './imageCrop'
 export { getActiveLinkRange } from './linkRange'
 export type { ActiveLinkRange } from './linkRange'
 export { getSelectedFileAttachment } from './fileAttachmentSelection'
@@ -172,6 +179,55 @@ export {
   runToolbarCommand,
 } from './commandRegistry'
 export type { CommandMeta, ToolbarCommandPayload } from './commandRegistry'
+export {
+  SLASH_COMMAND_DEFAULT_ITEM_IDS,
+  SLASH_COMMAND_ITEMS,
+  filterSlashCommandItems,
+  getDefaultSlashCommandItems,
+  getSlashCommandItem,
+  isSlashCommandItemExecutable,
+  normalizeSlashCommandInput,
+  runSlashCommandItem,
+} from './slashCommand'
+export type {
+  RunSlashCommandItemOptions,
+  SlashCommandId,
+  SlashCommandItem,
+  SlashCommandRunnerContext,
+} from './slashCommand'
+export {
+  SlashCommandExtension,
+  createSlashCommandExtension,
+  exitSlashCommand,
+  slashCommandPluginKey,
+} from './extensions/slashCommand'
+export type {
+  SlashCommandExecuteState,
+  SlashCommandExtensionOptions,
+  SlashCommandRenderState,
+} from './extensions/slashCommand'
+export {
+  FindReplaceExtension,
+  findReplacePluginKey,
+  getFindReplaceActiveSelection,
+  getFindReplacePluginState,
+  getFindReplaceSelectionIndex,
+} from './extensions/findReplace'
+export {
+  EMPTY_FIND_REPLACE_STATE,
+  clampFindReplaceIndex,
+  createFindReplaceState,
+  findMatchesInText,
+  findTextMatches,
+  nextFindReplaceIndex,
+  normalizeFindReplaceQuery,
+  sortedMatchesForReplacement,
+} from './findReplace'
+export type {
+  FindReplaceMatch,
+  FindReplaceOptions,
+  FindReplaceState,
+} from './findReplace'
 export type {
   ToolbarBuiltinKey,
   ToolbarConfig,

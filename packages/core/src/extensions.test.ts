@@ -69,6 +69,14 @@ describe('createDefaultExtensions', () => {
     expect(names).toContain('tableKit')
   })
 
+  it('启用表格列宽拖动配置', () => {
+    const exts = createDefaultExtensions()
+    const tableKit: any = exts.find((e: any) => e.name === 'tableKit')
+
+    expect(tableKit).toBeTruthy()
+    expect(tableKit.options.table.resizable).toBe(true)
+  })
+
   it('包含视频、音频和文件附件扩展', () => {
     const names = createDefaultExtensions().map((e: any) => e.name)
     expect(names).toContain('video')
@@ -103,6 +111,38 @@ describe('createDefaultExtensions', () => {
   it('包含 Markdown 扩展(导入/导出 MD)', () => {
     const names = createDefaultExtensions().map((e: any) => e.name)
     expect(names).toContain('markdown')
+  })
+
+  it('默认不加载 slashCommand,避免没有 adapter 菜单时触发不可见交互', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).not.toContain('slashCommand')
+  })
+
+  it('默认加载 findReplace,提供编辑器内查找替换能力', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).toContain('findReplace')
+  })
+
+  it('传入 slashCommand bridge 配置时加载 slashCommand', () => {
+    const names = createDefaultExtensions(undefined, {}, {
+      slashCommand: { onOpen: () => undefined },
+    }).map((e: any) => e.name)
+
+    expect(names).toContain('slashCommand')
+  })
+
+  it('可通过扩展开关禁用 slashCommand bridge', () => {
+    const names = createDefaultExtensions(undefined, { slashCommand: false }, {
+      slashCommand: { onOpen: () => undefined },
+    }).map((e: any) => e.name)
+
+    expect(names).not.toContain('slashCommand')
+  })
+
+  it('可通过扩展开关禁用 findReplace', () => {
+    const names = createDefaultExtensions(undefined, { findReplace: false }).map((e: any) => e.name)
+
+    expect(names).not.toContain('findReplace')
   })
 
   it('使用增强 horizontalRule 扩展承载分割线样式', () => {

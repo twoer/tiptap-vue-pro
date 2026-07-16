@@ -3,6 +3,8 @@ import type { Extensions } from '@tiptap/core'
 import type { CodeBlockLanguage } from './codeBlock'
 import type { HorizontalRuleVariant } from './extensions/horizontalRule'
 import type { ImageAlign, ImageSizePreset } from './extensions/image'
+import type { SlashCommandExtensionOptions } from './extensions/slashCommand'
+import type { FindReplaceState } from './findReplace'
 import type { EditorBehaviorOptions } from './editorBehaviorOptions'
 import type { LocaleProp, LocaleTranslate } from './locale'
 import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
@@ -103,6 +105,8 @@ export interface ProEditorOptions {
   uploadAsset?: UploadAsset
   /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
   editorBehaviorOptions?: EditorBehaviorOptions
+  /** Slash Command 配置。false 表示关闭;传 bridge callbacks 时启用 core suggestion extension */
+  slashCommand?: false | Partial<SlashCommandExtensionOptions>
   /** 是否只读 */
   editable?: boolean
   /**
@@ -157,6 +161,8 @@ export interface ProEditorContext {
    * 光标不在表格内时,几何字段为默认值(inTable=false)。
    */
   tableState: Ref<TableState>
+  /** 查找替换状态。adapter 用它显示面板、匹配数量和当前命中项。 */
+  findReplaceState: Ref<FindReplaceState>
   /**
    * 消息提示。adapter 注入的 UI 库实现(EP 的 ElMessage / Naive 的 useMessage),
    * 供工具栏等组件在「导入成功 / 链接校验失败」等场景统一调用,文案与触发点对齐。
@@ -347,6 +353,24 @@ export interface ProEditorCommands {
   clearFormat: () => void
   /** 任务列表(toggle) */
   taskList: () => void
+  /** 打开查找替换面板 */
+  openFindReplace: () => void
+  /** 关闭查找替换面板并清除高亮 */
+  closeFindReplace: () => void
+  /** 设置查找关键字 */
+  setFindReplaceQuery: (query: string) => void
+  /** 设置替换文本 */
+  setFindReplaceReplacement: (replacement: string) => void
+  /** 切换大小写敏感 */
+  setFindReplaceCaseSensitive: (caseSensitive: boolean) => void
+  /** 跳到下一个匹配 */
+  findReplaceNext: () => void
+  /** 跳到上一个匹配 */
+  findReplacePrevious: () => void
+  /** 替换当前匹配 */
+  replaceFindReplaceCurrent: (replacement?: string) => void
+  /** 替换全部匹配 */
+  replaceFindReplaceAll: (replacement?: string) => void
 }
 
 // 局部类型引入,避免污染对外导出

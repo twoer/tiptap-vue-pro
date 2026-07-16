@@ -28,6 +28,7 @@ export type ToolbarBuiltinKey =
   | 'attachment'
   | 'table'
   | 'clearFormat'
+  | 'findReplace'
   | 'markdown'
   | 'print'
   | 'fullscreen'
@@ -45,7 +46,7 @@ export const DEFAULT_TOOLBAR: ToolbarConfig = [
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
   ['link', 'image', 'attachment', 'table', 'hr'],
-  ['markdown', 'print'],
+  ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
 

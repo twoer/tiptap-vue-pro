@@ -8,6 +8,7 @@ Image support is made of two parts:
 | Restrict selectable file types | `editorBehaviorOptions.image.accept` |
 | Allow multiple image selection in the toolbar | `editorBehaviorOptions.image.multiple` |
 | Show the image URL entry | `editorBehaviorOptions.image.allowUrl` |
+| Crop before upload | `editorBehaviorOptions.image.crop` |
 
 ```vue
 <script setup lang="ts">
@@ -26,6 +27,11 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
     accept: 'image/png,image/jpeg,image/webp',
     multiple: true,
     allowUrl: true,
+    crop: {
+      enabled: true,
+      aspectRatio: 16 / 9,
+      quality: 0.9,
+    },
   },
 }
 </script>
@@ -42,6 +48,8 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
 `image.multiple` defaults to `false`, preserving one-file-at-a-time toolbar selection. When set to `true`, toolbar image upload calls `uploadImage` and inserts images sequentially in the selected order. Paste and drag/drop keep their existing batch image handling.
 
 `image.allowUrl` defaults to `true` and controls the image URL entry. When set to `false`, a toolbar with only `uploadImage` configured shows a direct upload button instead of an image dropdown.
+
+`image.crop` is disabled by default. Set it to `true` to open a crop dialog after toolbar image selection; the default crop is centered and square. You can also pass options such as `{ enabled: true, aspectRatio: 16 / 9 }` for cover images. Cropping only applies to toolbar file selection. Pasted and dropped images still upload the original file to avoid interrupting screenshot workflows.
 
 When `uploadImage` returns `null`, insertion is skipped. When it throws, the adapter-injected message UI is notified. Core does not care whether files go to OSS, COS, S3, or your own backend; it only needs a final accessible URL.
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, h, ref, nextTick } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
@@ -197,5 +197,19 @@ describe('ImageExtended — NodeView 渲染(题注/对齐)', () => {
     ctx.setEditable(true)
     await nextTick()
     expect(resizable.style.pointerEvents).toBe('')
+  })
+
+  it('NodeView 销毁后图片 load/error 回调不会继续派发 transaction', async () => {
+    const ctx = await mountWithImage('<img src="a.png">')
+    const view = ctx.editor.value!.view
+    const dispatch = vi.spyOn(view, 'dispatch')
+    const img = query(ctx, '.tvp-img-resizable img') as HTMLImageElement
+
+    wrapper?.unmount()
+    wrapper = undefined
+
+    expect(() => img.dispatchEvent(new Event('load'))).not.toThrow()
+    expect(() => img.dispatchEvent(new Event('error'))).not.toThrow()
+    expect(dispatch).not.toHaveBeenCalled()
   })
 })

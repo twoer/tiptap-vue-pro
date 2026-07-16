@@ -7,6 +7,7 @@ import {
   Menu,
   MenuItem,
   Modal,
+  Slider,
   Tooltip,
   message,
 } from 'ant-design-vue'
@@ -214,12 +215,18 @@ export const AntInput = defineComponent({
     placeholder: String,
   },
   emits: ['update:modelValue'],
-  setup(props, { attrs, emit, slots }) {
+  setup(props, { attrs, emit, slots, expose }) {
+    const inputRef = ref<{ focus?: () => void } | null>(null)
+    expose({
+      focus: () => inputRef.value?.focus?.(),
+    })
+
     return () =>
       h(
         Input,
         {
           ...attrs,
+          ref: inputRef,
           value: props.modelValue,
           placeholder: props.placeholder,
           'onUpdate:value': (v: string) => emit('update:modelValue', v),
@@ -246,6 +253,33 @@ export const AntCheckbox = defineComponent({
           'onUpdate:checked': (v: boolean) => emit('update:modelValue', v),
         },
         slots,
+      )
+  },
+})
+
+export const AntSlider = defineComponent({
+  name: 'AntSlider',
+  inheritAttrs: false,
+  props: {
+    modelValue: Number,
+    min: Number,
+    max: Number,
+    step: Number,
+  },
+  emits: ['update:modelValue'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h(
+        Slider,
+        {
+          ...attrs,
+          value: props.modelValue,
+          min: props.min,
+          max: props.max,
+          step: props.step,
+          'onUpdate:value': (v: number) => emit('update:modelValue', v),
+          onChange: (v: number) => emit('update:modelValue', v),
+        } as VNodeProps & Record<string, unknown>,
       )
   },
 })

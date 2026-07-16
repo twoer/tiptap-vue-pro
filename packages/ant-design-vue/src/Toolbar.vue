@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, h, defineComponent, markRaw } from 'vue'
-import { AntButton, AntTooltip, AntDropdown, AntDropdownMenu, AntDropdownItem, AntModal, AntInput, AntCheckbox } from './antDesignPrimitives'
+import { computed, ref, watch, onBeforeUnmount, h, defineComponent, markRaw } from 'vue'
+import { AntButton, AntTooltip, AntDropdown, AntDropdownMenu, AntDropdownItem, AntModal, AntInput, AntCheckbox, AntSlider } from './antDesignPrimitives'
 import {
   Undo2, Redo2, ChevronDown,
   Bold, Italic, Strikethrough, Underline,
@@ -13,12 +13,13 @@ import {
   Link, ImagePlus, Link2, Table,
   Video, File,
   FileDown, FileUp,
-  Eraser, Printer,
+  Eraser, Search, Printer,
   Maximize2, Minimize2, Eye, Pencil,
 } from 'lucide-vue-next'
 import {
   DEFAULT_TOOLBAR,
   codeBlockLanguageLabel,
+  cropImageFile,
   exportMarkdownFile,
   getActiveHeadingLevel,
   getActiveLinkRange,
@@ -169,7 +170,7 @@ const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
   ['link', 'image', 'attachment', 'table', 'hr'],
-  ['markdown', 'print'],
+  ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
 const toolbarGroups = computed(() => {
@@ -197,9 +198,193 @@ function triggerImageUpload() {
 }
 function onImageSelected(e: Event) {
   const input = e.target as HTMLInputElement
-  void uploadSelectedFiles(input, IMAGE_MULTIPLE.value, ctx.value.commands.uploadAndInsertImage)
+  const files = selectedFiles(input, IMAGE_MULTIPLE.value)
+  if (IMAGE_CROP.value.enabled && files.length > 0) {
+    openImageCropQueue(files)
+  } else {
+    void uploadFiles(files, ctx.value.commands.uploadAndInsertImage)
+  }
   // 清空 value,允许重复选同一文件
   input.value = ''
+}
+
+const imageCropVisible = ref(false)
+const imageCropQueue = ref<File[]>([])
+const imageCropFile = ref<File | null>(null)
+const imageCropUrl = ref('')
+const imageCropPreview = ref<HTMLDivElement | null>(null)
+const imageCropImg = ref<HTMLImageElement | null>(null)
+const imageCropZoom = ref(1)
+const imageCropPan = ref({ x: 0, y: 0 })
+const imageCropDragging = ref<{
+  pointerId: number
+  startX: number
+  startY: number
+  panX: number
+  panY: number
+} | null>(null)
+const imageCropImageStyle = computed(() => ({
+  transform: `translate(${imageCropPan.value.x}px, ${imageCropPan.value.y}px) scale(${imageCropZoom.value})`,
+  cursor: imageCropZoom.value > 1 ? (imageCropDragging.value ? 'grabbing' : 'grab') : 'default',
+}))
+
+function revokeImageCropUrl() {
+  if (imageCropUrl.value) URL.revokeObjectURL(imageCropUrl.value)
+  imageCropUrl.value = ''
+}
+
+function openImageCropQueue(files: File[]) {
+  imageCropQueue.value = [...files]
+  openNextImageCrop()
+}
+
+function openNextImageCrop() {
+  revokeImageCropUrl()
+  imageCropImg.value = null
+  resetImageCropTransform()
+  const [file] = imageCropQueue.value
+  imageCropFile.value = file ?? null
+  if (!file) {
+    imageCropVisible.value = false
+    return
+  }
+  imageCropUrl.value = URL.createObjectURL(file)
+  imageCropVisible.value = true
+}
+
+function finishCurrentImageCrop() {
+  imageCropQueue.value = imageCropQueue.value.slice(1)
+  openNextImageCrop()
+}
+
+function cancelImageCrop() {
+  stopImageCropDragging()
+  imageCropQueue.value = []
+  imageCropFile.value = null
+  imageCropVisible.value = false
+  revokeImageCropUrl()
+}
+
+function resetImageCropTransform() {
+  stopImageCropDragging()
+  imageCropZoom.value = 1
+  imageCropPan.value = { x: 0, y: 0 }
+}
+
+function getImageCropMaxPan() {
+  const box = imageCropPreview.value?.getBoundingClientRect()
+  const zoomOverflow = Math.max(0, imageCropZoom.value - 1)
+  return {
+    x: box ? (box.width * zoomOverflow) / 2 : 0,
+    y: box ? (box.height * zoomOverflow) / 2 : 0,
+  }
+}
+
+function clampImageCropPan(next = imageCropPan.value) {
+  const maxPan = getImageCropMaxPan()
+  imageCropPan.value = {
+    x: Math.min(maxPan.x, Math.max(-maxPan.x, next.x)),
+    y: Math.min(maxPan.y, Math.max(-maxPan.y, next.y)),
+  }
+}
+
+watch(imageCropZoom, () => clampImageCropPan())
+
+function getImageCropOffsets() {
+  const maxPan = getImageCropMaxPan()
+  return {
+    offsetX: maxPan.x > 0 ? -imageCropPan.value.x / maxPan.x : 0,
+    offsetY: maxPan.y > 0 ? -imageCropPan.value.y / maxPan.y : 0,
+  }
+}
+
+function onImageCropPointerDown(event: PointerEvent) {
+  if (imageCropZoom.value <= 1) return
+  event.preventDefault()
+  stopImageCropDragging()
+  try {
+    imageCropPreview.value?.setPointerCapture(event.pointerId)
+  } catch {
+    // Pointer capture can fail if the pointer is already released.
+  }
+  imageCropDragging.value = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    panX: imageCropPan.value.x,
+    panY: imageCropPan.value.y,
+  }
+  window.addEventListener('pointerup', onImageCropPointerUp)
+  window.addEventListener('pointercancel', onImageCropPointerUp)
+  window.addEventListener('blur', onImageCropWindowBlur)
+}
+
+function onImageCropPointerMove(event: PointerEvent) {
+  const dragging = imageCropDragging.value
+  if (!dragging || dragging.pointerId !== event.pointerId) return
+  if (event.pointerType === 'mouse' && event.buttons === 0) {
+    stopImageCropDragging(event.pointerId)
+    return
+  }
+  event.preventDefault()
+  clampImageCropPan({
+    x: dragging.panX + event.clientX - dragging.startX,
+    y: dragging.panY + event.clientY - dragging.startY,
+  })
+}
+
+function onImageCropPointerUp(event: PointerEvent) {
+  stopImageCropDragging(event.pointerId)
+}
+
+function onImageCropWindowBlur() {
+  stopImageCropDragging()
+}
+
+function stopImageCropDragging(pointerId?: number) {
+  const dragging = imageCropDragging.value
+  if (!dragging) return
+  if (typeof pointerId === 'number' && dragging.pointerId !== pointerId) return
+  try {
+    if (imageCropPreview.value?.hasPointerCapture(dragging.pointerId)) {
+      imageCropPreview.value.releasePointerCapture(dragging.pointerId)
+    }
+  } catch {
+    // The browser may already have released capture.
+  }
+  imageCropDragging.value = null
+  window.removeEventListener('pointerup', onImageCropPointerUp)
+  window.removeEventListener('pointercancel', onImageCropPointerUp)
+  window.removeEventListener('blur', onImageCropWindowBlur)
+}
+
+onBeforeUnmount(() => stopImageCropDragging())
+
+async function confirmImageCrop() {
+  const file = imageCropFile.value
+  if (!file) return
+  let uploadFile = file
+  try {
+    if (imageCropImg.value) {
+      const cropOffsets = getImageCropOffsets()
+      uploadFile = await cropImageFile(file, imageCropImg.value, {
+        ...IMAGE_CROP.value,
+        zoom: imageCropZoom.value,
+        ...cropOffsets,
+      })
+    }
+  } catch {
+    ctx.value.notify(t('notify.imageCropFailed'), 'warning')
+  }
+  await ctx.value.commands.uploadAndInsertImage(uploadFile)
+  finishCurrentImageCrop()
+}
+
+async function skipImageCrop() {
+  const file = imageCropFile.value
+  if (!file) return
+  await ctx.value.commands.uploadAndInsertImage(file)
+  finishCurrentImageCrop()
 }
 
 const videoInput = ref<HTMLInputElement | null>(null)
@@ -237,7 +422,14 @@ async function uploadSelectedFiles(
   multiple: boolean,
   upload: (file: File) => Promise<void>,
 ) {
-  for (const file of selectedFiles(input, multiple)) {
+  await uploadFiles(selectedFiles(input, multiple), upload)
+}
+
+async function uploadFiles(
+  files: File[],
+  upload: (file: File) => Promise<void>,
+) {
+  for (const file of files) {
     await upload(file)
   }
 }
@@ -399,6 +591,7 @@ const resolvedEditorBehaviorOptions = computed(() => resolveEditorBehaviorOption
 const IMAGE_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.image.accept)
 const IMAGE_MULTIPLE = computed(() => resolvedEditorBehaviorOptions.value.image.multiple)
 const IMAGE_ALLOW_URL = computed(() => resolvedEditorBehaviorOptions.value.image.allowUrl)
+const IMAGE_CROP = computed(() => resolvedEditorBehaviorOptions.value.image.crop)
 const HAS_IMAGE_UPLOAD = computed(() => Boolean(props.uploadImage))
 const SHOW_IMAGE_BUTTON = computed(() => HAS_IMAGE_UPLOAD.value || IMAGE_ALLOW_URL.value)
 const SHOW_IMAGE_DROPDOWN = computed(() => HAS_IMAGE_UPLOAD.value && IMAGE_ALLOW_URL.value)
@@ -641,8 +834,10 @@ function confirmLink() {
                 :key="font.label"
                 :command="font.value"
               >
-                <span class="tvp-menu-check">{{ currentTextStyle.fontFamily === font.value ? '✓' : '' }}</span>
-                <span :style="{ fontFamily: font.value || undefined }">{{ font.label }}</span>
+                <span class="tvp-menu-item">
+                  <span class="tvp-menu-check">{{ currentTextStyle.fontFamily === font.value ? '✓' : '' }}</span>
+                  <span :style="{ fontFamily: font.value || undefined }">{{ font.label }}</span>
+                </span>
               </AntDropdownItem>
             </AntDropdownMenu>
           </template>
@@ -787,7 +982,7 @@ function confirmLink() {
 
         <AntDropdown v-else-if="item === 'highlight'" trigger="click">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('highlight')">
-            <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
+            <Highlighter :size="18" :style="{ color: currentHighlight || 'inherit' }" />
           </AntButton>
           <template #dropdown>
             <div class="tvp-color-panel">
@@ -818,7 +1013,7 @@ function confirmLink() {
 
         <AntDropdown v-else-if="item === 'align'" trigger="click" @command="onAlign">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('align')">
-            <component :is="alignIcon" :size="16" />
+            <component :is="alignIcon" :size="18" />
           </AntButton>
           <template #dropdown>
             <AntDropdownMenu>
@@ -1016,6 +1211,10 @@ function confirmLink() {
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="18" /></AntButton>
         </AntTooltip>
 
+        <AntTooltip v-else-if="item === 'findReplace'" :content="commandLabel('findReplace')" placement="top" :show-after="300">
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="18" /></AntButton>
+        </AntTooltip>
+
         <AntTooltip v-else-if="item === 'markdown'" :content="commandLabel('markdown')" placement="top" :show-after="300">
           <AntDropdown trigger="click" @command="onMarkdownCommand">
             <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="18" /></AntButton>
@@ -1101,6 +1300,48 @@ function confirmLink() {
       </template>
     </AntModal>
 
+    <AntModal
+      v-model="imageCropVisible"
+      :title="t('image.crop.title')"
+      width="520px"
+      append-to-body
+      :mask-closable="false"
+      @update:model-value="(show) => { if (!show) cancelImageCrop() }"
+    >
+      <div class="tvp-image-crop">
+        <div
+          ref="imageCropPreview"
+          class="tvp-image-crop__preview"
+          :style="{ aspectRatio: String(IMAGE_CROP.aspectRatio) }"
+          @pointerdown="onImageCropPointerDown"
+          @pointermove="onImageCropPointerMove"
+          @pointerup="onImageCropPointerUp"
+          @pointercancel="onImageCropPointerUp"
+          @lostpointercapture="onImageCropPointerUp"
+        >
+          <img
+            v-if="imageCropUrl"
+            ref="imageCropImg"
+            :src="imageCropUrl"
+            :style="imageCropImageStyle"
+            draggable="false"
+            alt=""
+            @load="clampImageCropPan()"
+          >
+        </div>
+        <p class="tvp-image-crop__hint">{{ t('image.crop.hint') }}</p>
+        <label class="tvp-image-crop__slider">
+          <span>{{ t('image.crop.zoom') }}</span>
+          <AntSlider v-model="imageCropZoom" :min="1" :max="3" :step="0.1" />
+        </label>
+      </div>
+      <template #footer>
+        <AntButton @click="cancelImageCrop">{{ t('toolbar.action.cancel') }}</AntButton>
+        <AntButton @click="skipImageCrop">{{ t('image.crop.skip') }}</AntButton>
+        <AntButton type="primary" @click="confirmImageCrop">{{ t('image.crop.confirm') }}</AntButton>
+      </template>
+    </AntModal>
+
     <input
       ref="mdInput"
       type="file"
@@ -1169,6 +1410,20 @@ function confirmLink() {
   line-height: 1;
 }
 
+.tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn) {
+  border: 1px solid var(--tvp-ant-color-primary-light-5, #91caff);
+  background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
+  box-shadow: none;
+  color: var(--tvp-ant-color-primary, #1677ff);
+}
+
+.tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn:hover),
+.tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn:focus-visible) {
+  border-color: var(--tvp-ant-color-primary-light-4, #69b1ff);
+  background: var(--tvp-ant-color-primary-light-8, #bae0ff);
+  color: var(--tvp-ant-color-primary, #1677ff);
+}
+
 .tvp-toolbar :deep(.tvp-ant-button.tvp-icon-btn > span) {
   display: inline-flex;
   align-items: center;
@@ -1223,6 +1478,47 @@ function confirmLink() {
   display: none;
 }
 
+.tvp-image-crop {
+  display: grid;
+  gap: 12px;
+}
+
+.tvp-image-crop__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  touch-action: none;
+  border: 1px solid var(--tvp-ant-border-color-light, #e4e7ed);
+  border-radius: 6px;
+  background: var(--tvp-ant-fill-color-light, #f5f7fa);
+}
+
+.tvp-image-crop__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+.tvp-image-crop__hint {
+  margin: 0;
+  color: var(--tvp-ant-text-color-secondary, #606266);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tvp-image-crop__slider {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
 /* 标题级别下拉项:克制的小幅字号差异 + 字重区分,看清层级但不撑爆菜单 */
 .tvp-heading-preview {
   display: inline-block;
@@ -1245,6 +1541,7 @@ function confirmLink() {
 
 .tvp-menu-item {
   display: inline-flex;
+  min-width: 88px;
   align-items: center;
   gap: 6px;
   line-height: 1;

@@ -38,6 +38,7 @@ function createCtx(active: Array<string | Record<string, unknown>> = []) {
     codeBlock: vi.fn(),
     hr: vi.fn(),
     clearFormat: vi.fn(),
+    openFindReplace: vi.fn(),
   }
   const isActive = vi.fn((nameOrAttrs: string | Record<string, unknown>, attrs?: Record<string, unknown>) =>
     active.some((item) => {
@@ -92,9 +93,11 @@ describe('command registry', () => {
 
     expect(runToolbarCommand(ctx, 'bold')).toBe(true)
     expect(runToolbarCommand(ctx, 'clearFormat')).toBe(true)
+    expect(runToolbarCommand(ctx, 'findReplace')).toBe(true)
 
     expect(ctx.commands.bold).toHaveBeenCalledTimes(1)
     expect(ctx.commands.clearFormat).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.openFindReplace).toHaveBeenCalledTimes(1)
   })
 
   it('runs registered parameterized editor commands', () => {

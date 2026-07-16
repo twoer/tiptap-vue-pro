@@ -7,10 +7,12 @@ Ready-to-use rich text editor component built with Tiptap v3, Vue 3, and Element
 ## Features
 
 - Ready-made toolbar: headings, formatting, font family, font size, line height, indent, colors, highlights, and alignment
-- Links, image upload/image URL, video/audio/file upload, table grid, row/column grips, range selection, and Markdown import/export
+- Links, image upload/image URL, video/audio/file upload, table grid, column width dragging, row/column grips, range selection, and Markdown import/export
+- Slash Command quick insert: type `/` to search and insert headings, tasks, lists, tables, images, dividers, and code blocks
+- Ctrl/⌘ + F find/replace with match highlights, previous/next navigation, case-sensitive search, replace current, and replace all
 - Fullscreen, preview, dark mode, and word count
 
-Font family, font size, line height, and indent are HTML styling features. They may be lost when exporting to Markdown, but are preserved in HTML / JSON output.
+Font family, font size, line height, indent, table column widths, Slash Command, and find/replace interactions are editor experience features. Markdown export does not preserve these UI behaviors.
 
 ## Install
 

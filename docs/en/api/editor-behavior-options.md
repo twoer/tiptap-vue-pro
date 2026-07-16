@@ -17,6 +17,12 @@ interface EditorBehaviorOptions {
     maxSize?: number
     multiple?: boolean
     allowUrl?: boolean
+    crop?: boolean | {
+      enabled?: boolean
+      aspectRatio?: number
+      quality?: number
+      mimeType?: string
+    }
   }
   media?: {
     video?: {
@@ -87,6 +93,10 @@ interface EditorBehaviorOptions {
 | `image.maxSize` | `undefined` | Single-image size limit for upload, replacement, paste, and drop, in bytes |
 | `image.multiple` | `false` | Whether toolbar image upload can select multiple files at once |
 | `image.allowUrl` | `true` | Whether to show the toolbar image URL entry; when upload and URL are both available, they are merged into one image dropdown |
+| `image.crop` | `false` | Whether toolbar image selection opens the crop dialog; paste and drag/drop are not cropped |
+| `image.crop.aspectRatio` | `1` | Crop ratio, such as `1` for square images or `16 / 9` for landscape covers |
+| `image.crop.quality` | `0.92` | Canvas output quality, used by lossy formats such as JPEG/WebP |
+| `image.crop.mimeType` | Original file MIME | Output MIME type after cropping; when omitted, the original file type is reused |
 | `media.video.accept` | `'video/*'` | Accepted file types for video upload |
 | `media.video.maxSize` | `undefined` | Video file size limit, in bytes |
 | `media.video.multiple` | `false` | Whether video upload can select multiple files at once |

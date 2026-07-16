@@ -12,7 +12,13 @@ describe('editor behavior options', () => {
   it('allows partial overrides without replacing unrelated defaults', () => {
     const options = resolveEditorBehaviorOptions({
       link: { defaultTarget: '_self' },
-      image: { accept: 'image/png,image/jpeg', maxSize: 1024, multiple: true, allowUrl: false },
+      image: {
+        accept: 'image/png,image/jpeg',
+        maxSize: 1024,
+        multiple: true,
+        allowUrl: false,
+        crop: { enabled: true, aspectRatio: 16 / 9, quality: 0.8, mimeType: 'image/jpeg' },
+      },
       media: {
         video: {
           accept: 'video/mp4',
@@ -43,6 +49,12 @@ describe('editor behavior options', () => {
     expect(options.image.maxSize).toBe(1024)
     expect(options.image.multiple).toBe(true)
     expect(options.image.allowUrl).toBe(false)
+    expect(options.image.crop).toEqual({
+      enabled: true,
+      aspectRatio: 16 / 9,
+      quality: 0.8,
+      mimeType: 'image/jpeg',
+    })
     expect(options.table).toEqual(DEFAULT_EDITOR_BEHAVIOR_OPTIONS.table)
     expect(options.media.video.accept).toBe('video/mp4')
     expect(options.media.video.multiple).toBe(true)
@@ -63,5 +75,24 @@ describe('editor behavior options', () => {
     expect(resolveEditorBehaviorOptions({
       table: { withHeaderRow: false },
     }).table.withHeaderRow).toBe(false)
+  })
+
+  it('enables image crop with boolean shorthand', () => {
+    expect(resolveEditorBehaviorOptions({
+      image: { crop: true },
+    }).image.crop).toEqual({
+      ...DEFAULT_EDITOR_BEHAVIOR_OPTIONS.image.crop,
+      enabled: true,
+    })
+  })
+
+  it('normalizes unsafe image crop values', () => {
+    expect(resolveEditorBehaviorOptions({
+      image: { crop: { enabled: true, aspectRatio: 0, quality: 2 } },
+    }).image.crop).toEqual({
+      ...DEFAULT_EDITOR_BEHAVIOR_OPTIONS.image.crop,
+      enabled: true,
+      quality: 1,
+    })
   })
 })

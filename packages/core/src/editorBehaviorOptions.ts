@@ -13,6 +13,14 @@ export interface EditorImageBehaviorOptions {
   maxSize?: number
   multiple?: boolean
   allowUrl?: boolean
+  crop?: boolean | EditorImageCropOptions
+}
+
+export interface EditorImageCropOptions {
+  enabled?: boolean
+  aspectRatio?: number
+  quality?: number
+  mimeType?: string
 }
 
 export interface EditorAssetBehaviorOptions {
@@ -96,6 +104,14 @@ export interface ResolvedEditorImageBehaviorOptions {
   maxSize?: number
   multiple: boolean
   allowUrl: boolean
+  crop: ResolvedEditorImageCropOptions
+}
+
+export interface ResolvedEditorImageCropOptions {
+  enabled: boolean
+  aspectRatio: number
+  quality: number
+  mimeType?: string
 }
 
 export interface ResolvedEditorVideoRenderOptions
@@ -145,6 +161,11 @@ export const DEFAULT_EDITOR_BEHAVIOR_OPTIONS: ResolvedEditorBehaviorOptions = {
     accept: 'image/*',
     multiple: false,
     allowUrl: true,
+    crop: {
+      enabled: false,
+      aspectRatio: 1,
+      quality: 0.92,
+    },
   },
   media: {
     video: {
@@ -217,10 +238,32 @@ function resolveAssetOptions(
 export function resolveEditorBehaviorOptions(
   options: EditorBehaviorOptions = {},
 ): ResolvedEditorBehaviorOptions {
+  const cropOptions = options.image?.crop
+  const cropDefaults = DEFAULT_EDITOR_BEHAVIOR_OPTIONS.image.crop
+  const rawCrop: ResolvedEditorImageCropOptions = typeof cropOptions === 'boolean'
+    ? {
+        ...cropDefaults,
+        enabled: cropOptions,
+      }
+    : {
+        ...cropDefaults,
+        ...(cropOptions ?? {}),
+        enabled: cropOptions?.enabled ?? false,
+      }
+  const crop: ResolvedEditorImageCropOptions = {
+    ...rawCrop,
+    aspectRatio: Number.isFinite(rawCrop.aspectRatio) && rawCrop.aspectRatio > 0
+      ? rawCrop.aspectRatio
+      : cropDefaults.aspectRatio,
+    quality: Number.isFinite(rawCrop.quality)
+      ? Math.min(1, Math.max(0, rawCrop.quality))
+      : cropDefaults.quality,
+  }
   const image: ResolvedEditorImageBehaviorOptions = {
     accept: options.image?.accept ?? DEFAULT_EDITOR_BEHAVIOR_OPTIONS.image.accept,
     multiple: options.image?.multiple ?? DEFAULT_EDITOR_BEHAVIOR_OPTIONS.image.multiple,
     allowUrl: options.image?.allowUrl ?? DEFAULT_EDITOR_BEHAVIOR_OPTIONS.image.allowUrl,
+    crop,
   }
   if (options.image?.maxSize !== undefined) {
     image.maxSize = options.image.maxSize

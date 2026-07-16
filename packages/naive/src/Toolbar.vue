@@ -13,7 +13,7 @@
  * - 颜色色板 / 表格网格用 NPopover + 自绘
  * - 链接弹窗用 NModal
  */
-import { computed, ref, h, defineComponent, markRaw } from 'vue'
+import { computed, ref, watch, onBeforeUnmount, h, defineComponent, markRaw } from 'vue'
 import {
   NButton,
   NTooltip,
@@ -22,6 +22,7 @@ import {
   NModal,
   NInput,
   NCheckbox,
+  NSlider,
   type DropdownOption,
 } from 'naive-ui'
 import {
@@ -36,12 +37,13 @@ import {
   Link, ImagePlus, Link2, Table,
   Video, File,
   FileDown, FileUp,
-  Eraser, Printer,
+  Eraser, Search, Printer,
   Maximize2, Minimize2, Eye, Pencil,
 } from 'lucide-vue-next'
 import {
   DEFAULT_TOOLBAR,
   codeBlockLanguageLabel,
+  cropImageFile,
   exportMarkdownFile,
   getActiveHeadingLevel,
   getActiveLinkRange,
@@ -176,7 +178,7 @@ const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
   ['link', 'image', 'attachment', 'table', 'hr'],
-  ['markdown', 'print'],
+  ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
 const toolbarGroups = computed(() => {
@@ -203,8 +205,192 @@ function triggerImageUpload() {
 }
 function onImageSelected(e: Event) {
   const input = e.target as HTMLInputElement
-  void uploadSelectedFiles(input, IMAGE_MULTIPLE.value, ctx.value.commands.uploadAndInsertImage)
+  const files = selectedFiles(input, IMAGE_MULTIPLE.value)
+  if (IMAGE_CROP.value.enabled && files.length > 0) {
+    openImageCropQueue(files)
+  } else {
+    void uploadFiles(files, ctx.value.commands.uploadAndInsertImage)
+  }
   input.value = ''
+}
+
+const imageCropVisible = ref(false)
+const imageCropQueue = ref<File[]>([])
+const imageCropFile = ref<File | null>(null)
+const imageCropUrl = ref('')
+const imageCropPreview = ref<HTMLDivElement | null>(null)
+const imageCropImg = ref<HTMLImageElement | null>(null)
+const imageCropZoom = ref(1)
+const imageCropPan = ref({ x: 0, y: 0 })
+const imageCropDragging = ref<{
+  pointerId: number
+  startX: number
+  startY: number
+  panX: number
+  panY: number
+} | null>(null)
+const imageCropImageStyle = computed(() => ({
+  transform: `translate(${imageCropPan.value.x}px, ${imageCropPan.value.y}px) scale(${imageCropZoom.value})`,
+  cursor: imageCropZoom.value > 1 ? (imageCropDragging.value ? 'grabbing' : 'grab') : 'default',
+}))
+
+function revokeImageCropUrl() {
+  if (imageCropUrl.value) URL.revokeObjectURL(imageCropUrl.value)
+  imageCropUrl.value = ''
+}
+
+function openImageCropQueue(files: File[]) {
+  imageCropQueue.value = [...files]
+  openNextImageCrop()
+}
+
+function openNextImageCrop() {
+  revokeImageCropUrl()
+  imageCropImg.value = null
+  resetImageCropTransform()
+  const [file] = imageCropQueue.value
+  imageCropFile.value = file ?? null
+  if (!file) {
+    imageCropVisible.value = false
+    return
+  }
+  imageCropUrl.value = URL.createObjectURL(file)
+  imageCropVisible.value = true
+}
+
+function finishCurrentImageCrop() {
+  imageCropQueue.value = imageCropQueue.value.slice(1)
+  openNextImageCrop()
+}
+
+function cancelImageCrop() {
+  stopImageCropDragging()
+  imageCropQueue.value = []
+  imageCropFile.value = null
+  imageCropVisible.value = false
+  revokeImageCropUrl()
+}
+
+function resetImageCropTransform() {
+  stopImageCropDragging()
+  imageCropZoom.value = 1
+  imageCropPan.value = { x: 0, y: 0 }
+}
+
+function getImageCropMaxPan() {
+  const box = imageCropPreview.value?.getBoundingClientRect()
+  const zoomOverflow = Math.max(0, imageCropZoom.value - 1)
+  return {
+    x: box ? (box.width * zoomOverflow) / 2 : 0,
+    y: box ? (box.height * zoomOverflow) / 2 : 0,
+  }
+}
+
+function clampImageCropPan(next = imageCropPan.value) {
+  const maxPan = getImageCropMaxPan()
+  imageCropPan.value = {
+    x: Math.min(maxPan.x, Math.max(-maxPan.x, next.x)),
+    y: Math.min(maxPan.y, Math.max(-maxPan.y, next.y)),
+  }
+}
+
+watch(imageCropZoom, () => clampImageCropPan())
+
+function getImageCropOffsets() {
+  const maxPan = getImageCropMaxPan()
+  return {
+    offsetX: maxPan.x > 0 ? -imageCropPan.value.x / maxPan.x : 0,
+    offsetY: maxPan.y > 0 ? -imageCropPan.value.y / maxPan.y : 0,
+  }
+}
+
+function onImageCropPointerDown(event: PointerEvent) {
+  if (imageCropZoom.value <= 1) return
+  event.preventDefault()
+  stopImageCropDragging()
+  try {
+    imageCropPreview.value?.setPointerCapture(event.pointerId)
+  } catch {
+    // Pointer capture can fail if the pointer is already released.
+  }
+  imageCropDragging.value = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    panX: imageCropPan.value.x,
+    panY: imageCropPan.value.y,
+  }
+  window.addEventListener('pointerup', onImageCropPointerUp)
+  window.addEventListener('pointercancel', onImageCropPointerUp)
+  window.addEventListener('blur', onImageCropWindowBlur)
+}
+
+function onImageCropPointerMove(event: PointerEvent) {
+  const dragging = imageCropDragging.value
+  if (!dragging || dragging.pointerId !== event.pointerId) return
+  if (event.pointerType === 'mouse' && event.buttons === 0) {
+    stopImageCropDragging(event.pointerId)
+    return
+  }
+  event.preventDefault()
+  clampImageCropPan({
+    x: dragging.panX + event.clientX - dragging.startX,
+    y: dragging.panY + event.clientY - dragging.startY,
+  })
+}
+
+function onImageCropPointerUp(event: PointerEvent) {
+  stopImageCropDragging(event.pointerId)
+}
+
+function onImageCropWindowBlur() {
+  stopImageCropDragging()
+}
+
+function stopImageCropDragging(pointerId?: number) {
+  const dragging = imageCropDragging.value
+  if (!dragging) return
+  if (typeof pointerId === 'number' && dragging.pointerId !== pointerId) return
+  try {
+    if (imageCropPreview.value?.hasPointerCapture(dragging.pointerId)) {
+      imageCropPreview.value.releasePointerCapture(dragging.pointerId)
+    }
+  } catch {
+    // The browser may already have released capture.
+  }
+  imageCropDragging.value = null
+  window.removeEventListener('pointerup', onImageCropPointerUp)
+  window.removeEventListener('pointercancel', onImageCropPointerUp)
+  window.removeEventListener('blur', onImageCropWindowBlur)
+}
+
+onBeforeUnmount(() => stopImageCropDragging())
+
+async function confirmImageCrop() {
+  const file = imageCropFile.value
+  if (!file) return
+  let uploadFile = file
+  try {
+    if (imageCropImg.value) {
+      const cropOffsets = getImageCropOffsets()
+      uploadFile = await cropImageFile(file, imageCropImg.value, {
+        ...IMAGE_CROP.value,
+        zoom: imageCropZoom.value,
+        ...cropOffsets,
+      })
+    }
+  } catch {
+    ctx.value.notify(t('notify.imageCropFailed'), 'warning')
+  }
+  await ctx.value.commands.uploadAndInsertImage(uploadFile)
+  finishCurrentImageCrop()
+}
+
+async function skipImageCrop() {
+  const file = imageCropFile.value
+  if (!file) return
+  await ctx.value.commands.uploadAndInsertImage(file)
+  finishCurrentImageCrop()
 }
 
 const videoInput = ref<HTMLInputElement | null>(null)
@@ -242,7 +428,14 @@ async function uploadSelectedFiles(
   multiple: boolean,
   upload: (file: File) => Promise<void>,
 ) {
-  for (const file of selectedFiles(input, multiple)) {
+  await uploadFiles(selectedFiles(input, multiple), upload)
+}
+
+async function uploadFiles(
+  files: File[],
+  upload: (file: File) => Promise<void>,
+) {
+  for (const file of files) {
     await upload(file)
   }
 }
@@ -459,6 +652,7 @@ const resolvedEditorBehaviorOptions = computed(() => resolveEditorBehaviorOption
 const IMAGE_ACCEPT = computed(() => resolvedEditorBehaviorOptions.value.image.accept)
 const IMAGE_MULTIPLE = computed(() => resolvedEditorBehaviorOptions.value.image.multiple)
 const IMAGE_ALLOW_URL = computed(() => resolvedEditorBehaviorOptions.value.image.allowUrl)
+const IMAGE_CROP = computed(() => resolvedEditorBehaviorOptions.value.image.crop)
 const HAS_IMAGE_UPLOAD = computed(() => Boolean(props.uploadImage))
 const SHOW_IMAGE_BUTTON = computed(() => HAS_IMAGE_UPLOAD.value || IMAGE_ALLOW_URL.value)
 const SHOW_IMAGE_DROPDOWN = computed(() => HAS_IMAGE_UPLOAD.value && IMAGE_ALLOW_URL.value)
@@ -552,7 +746,11 @@ const lineHeightOptions = computed<DropdownOption[]>(() => LINE_HEIGHTS.value.ma
   key: lineHeight,
 })))
 function renderFontFamilyLabel(opt: DropdownOption) {
-  return h('span', { style: { fontFamily: (opt.fontFamily as string) || undefined } }, opt.label as string)
+  const selected = currentTextStyle.value.fontFamily === opt.key
+  return h('span', { style: 'display:inline-flex;min-width:104px;align-items:center;gap:6px;line-height:1;' }, [
+    h('span', { style: 'display:inline-block;width:14px;color:var(--n-primary-color,#18a058);' }, selected ? '✓' : ''),
+    h('span', { style: { fontFamily: (opt.fontFamily as string) || undefined } }, opt.label as string),
+  ])
 }
 function onFontFamilySelect(key: string | number) {
   runCommand('fontFamily', key)
@@ -573,7 +771,7 @@ const mdOptions = computed<DropdownOption[]>(() =>
 )
 function renderMdLabel(opt: DropdownOption) {
   const Icon = (opt.key as ToolbarMarkdownAction) === 'import' ? FileUp : FileDown
-  return h('span', { style: 'display:inline-flex;align-items:center;gap:6px;' }, [
+  return h('span', { style: 'display:inline-flex;min-width:88px;align-items:center;gap:6px;line-height:1;' }, [
     h(Icon, { size: 15 }),
     opt.label as string,
   ])
@@ -898,7 +1096,7 @@ function confirmLink() {
               <NPopover trigger="click" placement="bottom" :width="260">
                 <template #trigger>
                   <NButton text class="tvp-icon-btn" :aria-label="commandLabel('highlight')">
-                    <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
+                    <Highlighter :size="18" :style="{ color: currentHighlight || 'inherit' }" />
                   </NButton>
                 </template>
                 <div class="tvp-color-panel">
@@ -940,7 +1138,7 @@ function confirmLink() {
                 @select="onAlignSelect"
               >
                 <NButton text class="tvp-icon-btn" :aria-label="commandLabel('align')">
-                  <component :is="alignIcon" :size="16" />
+                  <component :is="alignIcon" :size="18" />
                 </NButton>
               </NDropdown>
             </span>
@@ -1155,6 +1353,13 @@ function confirmLink() {
           {{ commandLabel('clearFormat') }}
         </NTooltip>
 
+        <NTooltip v-else-if="item === 'findReplace'" placement="top" :show-arrow="false">
+          <template #trigger>
+            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="18" /></NButton>
+          </template>
+          {{ commandLabel('findReplace') }}
+        </NTooltip>
+
         <NTooltip v-else-if="item === 'markdown'" placement="top" :show-arrow="false">
           <template #trigger>
             <span class="tvp-tooltip-trigger">
@@ -1250,6 +1455,50 @@ function confirmLink() {
       />
     </NModal>
 
+    <NModal
+      v-model:show="imageCropVisible"
+      preset="card"
+      :title="t('image.crop.title')"
+      style="width: 520px; max-width: 92vw;"
+      :mask-closable="false"
+      @update:show="(show) => { if (!show) cancelImageCrop() }"
+    >
+      <div class="tvp-image-crop">
+        <div
+          ref="imageCropPreview"
+          class="tvp-image-crop__preview"
+          :style="{ aspectRatio: String(IMAGE_CROP.aspectRatio) }"
+          @pointerdown="onImageCropPointerDown"
+          @pointermove="onImageCropPointerMove"
+          @pointerup="onImageCropPointerUp"
+          @pointercancel="onImageCropPointerUp"
+          @lostpointercapture="onImageCropPointerUp"
+        >
+          <img
+            v-if="imageCropUrl"
+            ref="imageCropImg"
+            :src="imageCropUrl"
+            :style="imageCropImageStyle"
+            draggable="false"
+            alt=""
+            @load="clampImageCropPan()"
+          >
+        </div>
+        <p class="tvp-image-crop__hint">{{ t('image.crop.hint') }}</p>
+        <label class="tvp-image-crop__slider">
+          <span>{{ t('image.crop.zoom') }}</span>
+          <NSlider v-model:value="imageCropZoom" :min="1" :max="3" :step="0.1" :tooltip="false" />
+        </label>
+      </div>
+      <template #footer>
+        <div class="tvp-image-crop__footer">
+          <NButton @click="cancelImageCrop">{{ t('toolbar.action.cancel') }}</NButton>
+          <NButton @click="skipImageCrop">{{ t('image.crop.skip') }}</NButton>
+          <NButton type="primary" @click="confirmImageCrop">{{ t('image.crop.confirm') }}</NButton>
+        </div>
+      </template>
+    </NModal>
+
     <input
       ref="mdInput"
       type="file"
@@ -1309,6 +1558,19 @@ function confirmLink() {
   padding: 0;
 }
 
+.tvp-toolbar .tvp-icon-btn.n-button--primary-type {
+  border-color: var(--n-primary-color, #18a058);
+  background: color-mix(in srgb, var(--n-primary-color, #18a058) 10%, transparent);
+  color: var(--n-primary-color, #18a058);
+}
+
+.tvp-toolbar .tvp-icon-btn.n-button--primary-type:hover,
+.tvp-toolbar .tvp-icon-btn.n-button--primary-type:focus-visible {
+  border-color: var(--n-primary-color-hover, #36ad6a);
+  background: color-mix(in srgb, var(--n-primary-color, #18a058) 16%, transparent);
+  color: var(--n-primary-color-hover, #36ad6a);
+}
+
 .tvp-tooltip-trigger {
   display: inline-flex;
   align-items: center;
@@ -1365,6 +1627,53 @@ function confirmLink() {
 
 .tvp-image-input {
   display: none;
+}
+
+.tvp-image-crop {
+  display: grid;
+  gap: 12px;
+}
+
+.tvp-image-crop__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  touch-action: none;
+  border: 1px solid var(--n-border-color, #e4e7ed);
+  border-radius: 6px;
+  background: var(--n-color-modal, #f5f7fa);
+}
+
+.tvp-image-crop__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+.tvp-image-crop__hint {
+  margin: 0;
+  color: var(--n-text-color-3, #606266);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tvp-image-crop__slider {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.tvp-image-crop__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .tvp-heading-preview {
@@ -1479,6 +1788,19 @@ function confirmLink() {
   margin-left: 6px;
   font-size: 10px;
   opacity: 0.6;
+}
+
+.tvp-menu-item {
+  display: inline-flex;
+  min-width: 88px;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.tvp-menu-item svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .tvp-hr-menu-item {

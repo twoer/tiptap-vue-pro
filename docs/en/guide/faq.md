@@ -19,7 +19,15 @@ Check these points:
 
 ## Why does Markdown export lose styles?
 
-Markdown cannot represent every HTML styling detail. Font family, font size, line height, indent, alignment details, and rich attachment metadata may be simplified or lost. Use HTML / JSON output when fidelity matters.
+Markdown cannot represent every HTML styling detail. Font family, font size, line height, indent, table column widths, alignment details, and rich attachment metadata may be simplified or lost. Use HTML / JSON output when fidelity matters.
+
+## Does Slash Command affect Markdown import/export?
+
+No. Slash Command only turns `/query` into normal editor commands while editing, such as inserting a table, task list, or code block. The document still contains regular Tiptap nodes, so Markdown import/export keeps using the existing node semantics.
+
+## Does find/replace affect Markdown import/export?
+
+No. Find/replace only creates temporary match decorations and normal replacement transactions inside the editor. It does not write extra nodes or marks, and decorations are cleared when the panel closes. Markdown import/export keeps using the existing document semantics.
 
 ## What is the difference between `toolbar` and `toolbarOptions`?
 
@@ -27,4 +35,4 @@ Markdown cannot represent every HTML styling detail. Font family, font size, lin
 
 ## Are the three adapters really equivalent?
 
-Shared editing behavior lives in Core, while adapters only render with their own UI library. Element Plus, Naive UI, and Ant Design Vue each keep component tests for high-risk interactions; table grips, merge bubbles, and table menu density are also covered by the cross-adapter browser regression command `pnpm test:table:e2e`.
+Shared editing behavior lives in Core, while adapters only render with their own UI library. Element Plus, Naive UI, and Ant Design Vue each keep component tests for high-risk interactions, including Slash Command and find/replace. Table column width dragging, table grips, merge bubbles, and table menu density are covered by `pnpm test:table:e2e`; Slash Command keyboard, click, Escape, and adapter switching are covered by `pnpm test:slash:e2e`; find/replace panel, matching, replacement, and adapter switching are covered by `pnpm test:find-replace:e2e`.

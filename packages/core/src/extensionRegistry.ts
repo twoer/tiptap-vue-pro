@@ -17,6 +17,8 @@ export interface EditorExtensionConfig {
   taskList?: boolean
   media?: boolean
   rangeSelection?: boolean
+  slashCommand?: boolean
+  findReplace?: boolean
   markdown?: boolean
 }
 
@@ -37,6 +39,8 @@ export const DEFAULT_EXTENSION_CONFIG: Required<
   taskList: true,
   media: true,
   rangeSelection: true,
+  slashCommand: true,
+  findReplace: true,
   markdown: true,
 }
 

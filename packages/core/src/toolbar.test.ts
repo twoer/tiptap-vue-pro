@@ -34,7 +34,7 @@ describe('toolbar config', () => {
       ['align', 'decreaseIndent', 'increaseIndent'],
       ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
       ['link', 'image', 'attachment', 'table', 'hr'],
-      ['markdown', 'print'],
+      ['findReplace', 'markdown', 'print'],
       ['preview', 'fullscreen'],
     ])
   })

@@ -243,6 +243,10 @@ useEditorPluginRegistration({
   flex: 0 0 auto;
 }
 
+.tvp-link-bubble :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .tvp-link-bubble :deep(.el-button.is-text:not(.is-disabled):hover),
 .tvp-link-bubble :deep(.el-button.is-text:not(.is-disabled):focus) {
   color: var(--el-color-primary, #409eff);

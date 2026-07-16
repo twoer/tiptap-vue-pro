@@ -42,6 +42,18 @@ const content = ref('<p>hello world</p>')
 
 Naive UI and Ant Design Vue use the same props. Replace the component name, style entry, and package names. See [Examples](/en/guide/examples) for complete usage.
 
+## Slash Command
+
+Ready-made adapter components enable Slash Command by default. Put the cursor in an editable paragraph and type `/` to open the quick insert menu. You can keep typing Chinese, English, or pinyin aliases such as `/表`, `/table`, `/todo`, `/img`, and `/code`.
+
+The default menu stays compact: heading, task, bullet list, ordered list, table, image, divider, and code block. `Enter` runs the active item, and `Escape` closes the menu while keeping the typed `/query` text. Slash Command is an editor interaction feature and does not change Markdown import/export semantics.
+
+## Find And Replace
+
+Ready-made adapter components support editor-native find and replace by default. Click the find icon in the toolbar, or press `Ctrl/⌘ + F` when the cursor is inside the editor, to open the panel. Typing a query highlights all matches and shows the current match index plus total count. The panel supports previous/next navigation, case-sensitive search, replace current, and replace all.
+
+Readonly and preview states still allow finding and navigating matches, but replace actions are hidden. Find/replace only searches ProseMirror document text; it does not search toolbar, dialog, or other UI text, and it does not change Markdown import/export semantics.
+
 ## Image Upload
 
 Pass `uploadImage` and toolbar upload, pasted images, and dropped images will all use the same upload function. Once the function returns an image URL, Core inserts it into the editor.
@@ -71,4 +83,6 @@ pnpm docs:dev
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm test:slash:e2e
+pnpm test:find-replace:e2e
 ```
