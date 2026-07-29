@@ -316,6 +316,9 @@ describe('ProEditorNaive', () => {
   })
 
   it('contextual bubble 根节点默认不可见,避免插件接管前裸露在文档流中', () => {
+    const editorSource = readFileSync('src/ProEditorNaive.vue', 'utf8')
+    expect(editorSource).toMatch(/\.tvp-bubble,[\s\S]*?\.tvp-table-bubble \{[\s\S]*?position: absolute;/)
+
     for (const [file, className] of [
       ['src/LinkBubbleMenu.vue', 'tvp-link-bubble'],
       ['src/FileBubbleMenu.vue', 'tvp-file-bubble'],
@@ -325,6 +328,14 @@ describe('ProEditorNaive', () => {
       const source = readFileSync(file, 'utf8')
       expect(source).toMatch(new RegExp(`\\.${className} \\{[\\s\\S]*?visibility: hidden;`))
     }
+  })
+
+  it('内容区域使用纵向 flex 占满工具栏外的剩余高度', () => {
+    const source = readFileSync('src/ProEditorNaive.vue', 'utf8')
+
+    expect(source).toMatch(/\.tvp-editor \{[\s\S]*?display: flex;[\s\S]*?flex-direction: column;/)
+    expect(source).toMatch(/\.tvp-content-shell \{[\s\S]*?flex: 1 1 auto;[\s\S]*?min-height: 0;/)
+    expect(source).toMatch(/\.tvp-content-wrap \{[\s\S]*?flex: 1 1 auto;/)
   })
 
   it('output 动态切换到 json 时立即按 JSON 更新 v-model', async () => {
