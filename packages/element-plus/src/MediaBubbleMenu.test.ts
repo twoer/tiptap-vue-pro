@@ -133,10 +133,9 @@ describe('Element Plus MediaBubbleMenu', () => {
     expect(editor.registerPlugin).toHaveBeenCalledTimes(1)
     expect(editor.on).toHaveBeenCalledWith('selectionUpdate', expect.any(Function))
     expect(options?.pluginKey).toBe('proMediaBubbleMenu')
-    expect(typeof options?.appendTo).toBe('function')
-    expect((options?.appendTo as () => HTMLElement)()).toBe(editor.editorRoot)
+    expect(options?.appendTo).toBeUndefined()
+    expect(options?.options?.strategy).toBeUndefined()
     expect(options?.options).toEqual(expect.objectContaining({
-      strategy: 'fixed',
       placement: 'top',
       flip: { padding: 8 },
       shift: { padding: 8 },
