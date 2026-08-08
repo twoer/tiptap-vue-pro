@@ -4,7 +4,7 @@ import { ElButton } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import { Bold, Italic, Underline, Strikethrough, Link, Eraser } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import { getActiveLinkRange, getSelectedFileAttachment, getSelectedHorizontalRule, getSelectedMediaNode, resolveLocale, useEditorPluginRegistration, type LocaleKey, type ProEditorContext } from 'tiptap-vue-pro-core'
+import { getActiveCodeBlock, getActiveLinkRange, getSelectedFileAttachment, getSelectedHorizontalRule, getSelectedMediaNode, resolveLocale, useEditorPluginRegistration, type LocaleKey, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 /**
  * 气泡菜单:选中文字时浮现的小工具条。
@@ -81,6 +81,7 @@ useEditorPluginRegistration({
       if (getSelectedFileAttachment(editor)) return false
       if (getSelectedMediaNode(editor)) return false
       if (getSelectedHorizontalRule(editor)) return false
+      if (getActiveCodeBlock(editor)) return false
       // 在表格内选文字时不弹文字气泡——表格气泡(proTableBubble)独占,
       // 避免两个气泡同时浮现在同一位置打架。表格内的文字格式化用顶部工具栏。
       const { $from } = state.selection

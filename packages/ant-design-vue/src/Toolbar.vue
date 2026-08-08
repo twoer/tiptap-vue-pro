@@ -18,6 +18,7 @@ import {
 } from 'lucide-vue-next'
 import {
   DEFAULT_TOOLBAR,
+  codeBlockLanguageIcon,
   codeBlockLanguageLabel,
   cropImageFile,
   exportMarkdownFile,
@@ -118,6 +119,8 @@ const props = withDefaults(
     isFullscreen?: boolean
     /** 是否预览态(控制预览图标切换) */
     isPreview?: boolean
+    /** 是否使用暗色菜单主题 */
+    dark?: boolean
     /** 工具栏配置。false 表示不渲染内置按钮 */
     toolbar?: ToolbarProp
     /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
@@ -583,6 +586,10 @@ const FONT_FAMILIES = computed(() =>
 const FONT_SIZES = computed(() => resolvedToolbarOptions.value.fontSizes)
 const LINE_HEIGHTS = computed(() => resolvedToolbarOptions.value.lineHeights)
 const CODE_BLOCK_LANGUAGE_OPTIONS = computed(() => resolvedToolbarOptions.value.codeBlockLanguages)
+const CODE_BLOCK_LANGUAGE_MENU_OPTIONS = computed(() => CODE_BLOCK_LANGUAGE_OPTIONS.value.map((language) => ({
+  ...language,
+  icon: codeBlockLanguageIcon(language.value),
+})))
 const HORIZONTAL_RULE_OPTIONS = computed(() => resolvedToolbarOptions.value.horizontalRules)
 const TABLE_MAX_ROWS = computed(() => resolvedToolbarOptions.value.tableGrid.maxRows)
 const TABLE_MAX_COLS = computed(() => resolvedToolbarOptions.value.tableGrid.maxCols)
@@ -1089,7 +1096,7 @@ function confirmLink() {
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'codeBlock'" :content="`${commandLabel('codeBlock')}:${currentCodeBlockLabel}`" placement="top" :show-after="300">
-          <AntDropdown trigger="click" @command="onCodeBlockLanguage">
+          <AntDropdown trigger="click" overlayClassName="tvp-ant-code-language-dropdown" @command="onCodeBlockLanguage">
             <AntButton
               text
               class="tvp-icon-btn"
@@ -1097,13 +1104,32 @@ function confirmLink() {
               :type="commandActive('codeBlock') ? 'primary' : 'default'"
             ><Code :size="18" /></AntButton>
             <template #dropdown>
-              <AntDropdownMenu>
+              <AntDropdownMenu :theme="props.dark ? 'dark' : 'light'">
                 <AntDropdownItem
-                  v-for="language in CODE_BLOCK_LANGUAGE_OPTIONS"
+                  v-for="language in CODE_BLOCK_LANGUAGE_MENU_OPTIONS"
                   :key="language.value"
                   :command="language.value"
                 >
-                  <span class="tvp-menu-item"><Code :size="15" />{{ language.label }}</span>
+                  <span class="tvp-menu-item">
+                    <svg
+                      v-if="language.icon"
+                      class="tvp-code-block-language-icon"
+                      :viewBox="language.icon.viewBox"
+                      :data-toolbar-language-icon="language.value"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        v-for="part in language.icon.parts"
+                        :key="part.d"
+                        :d="part.d"
+                        :fill="part.fill"
+                        :stroke="part.stroke"
+                      />
+                    </svg>
+                    <Code v-else :size="15" aria-hidden="true" />
+                    <span>{{ language.label }}</span>
+                  </span>
                 </AntDropdownItem>
               </AntDropdownMenu>
             </template>
@@ -1389,6 +1415,26 @@ function confirmLink() {
 </template>
 
 <style scoped>
+/* Ant 的默认按钮 token 不感知编辑器局部暗色变量,在 toolbar 内显式桥接。 */
+.tvp-toolbar :deep(.tvp-ant-button) {
+  color: var(--tvp-ant-text-color-regular, rgba(0, 0, 0, 0.88));
+}
+
+.tvp-toolbar :deep(.tvp-ant-button:not(.tvp-ant-button--primary):not(:disabled):not(.ant-btn-disabled):hover),
+.tvp-toolbar :deep(.tvp-ant-button:not(.tvp-ant-button--primary):not(:disabled):not(.ant-btn-disabled):focus-visible) {
+  color: var(--tvp-ant-text-color-primary, rgba(0, 0, 0, 0.88));
+  background: var(--tvp-ant-fill-color-light, rgba(0, 0, 0, 0.06));
+}
+
+.tvp-toolbar :deep(.tvp-ant-button:disabled),
+.tvp-toolbar :deep(.tvp-ant-button.ant-btn-disabled) {
+  color: var(--tvp-ant-text-color-disabled, rgba(0, 0, 0, 0.25));
+}
+
+.tvp-toolbar :deep(.tvp-ant-button svg) {
+  color: inherit;
+}
+
 /*
  * 纯图标按钮:统一为 32×32 正方形击中区。
  *
@@ -1410,16 +1456,20 @@ function confirmLink() {
   line-height: 1;
 }
 
+.tvp-toolbar :deep(.tvp-ant-button.tvp-icon-btn:focus-visible) {
+  outline: 2px solid var(--tvp-ant-color-primary, #1677ff);
+  outline-offset: 1px;
+}
+
 .tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn) {
-  border: 1px solid var(--tvp-ant-color-primary-light-5, #91caff);
+  border-color: transparent;
   background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
   box-shadow: none;
   color: var(--tvp-ant-color-primary, #1677ff);
 }
 
-.tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn:hover),
-.tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn:focus-visible) {
-  border-color: var(--tvp-ant-color-primary-light-4, #69b1ff);
+.tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn:hover) {
+  border-color: transparent;
   background: var(--tvp-ant-color-primary-light-8, #bae0ff);
   color: var(--tvp-ant-color-primary, #1677ff);
 }
@@ -1551,6 +1601,36 @@ function confirmLink() {
 .tvp-menu-item svg {
   display: block;
   flex: 0 0 auto;
+}
+
+.tvp-code-block-language-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+:global(.tvp-ant-code-language-dropdown .ant-dropdown-menu) {
+  max-height: 328px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark) {
+  background: #1d1e1f;
+  border: 1px solid #414243;
+}
+
+:global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark .tvp-ant-dropdown-menu__item) {
+  color: #cfd3dc;
+}
+
+:global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark .tvp-ant-dropdown-menu__item:hover) {
+  color: #e5eaf3;
+  background: #303030;
+}
+
+:global(.tvp-ant-code-language-dropdown) {
+  z-index: 2200 !important;
 }
 
 /* 表格网格选择器 */

@@ -14,7 +14,7 @@ import { NButton, NInput } from 'naive-ui'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import { Bold, Italic, Underline, Strikethrough, Link, Eraser } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import { getActiveLinkRange, getSelectedFileAttachment, getSelectedHorizontalRule, getSelectedMediaNode, resolveLocale, useEditorPluginRegistration, type LocaleKey, type ProEditorContext } from 'tiptap-vue-pro-core'
+import { getActiveCodeBlock, getActiveLinkRange, getSelectedFileAttachment, getSelectedHorizontalRule, getSelectedMediaNode, resolveLocale, useEditorPluginRegistration, type LocaleKey, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 const props = defineProps<{
   editor: Editor | undefined
@@ -75,6 +75,7 @@ useEditorPluginRegistration({
       if (getSelectedFileAttachment(editor)) return false
       if (getSelectedMediaNode(editor)) return false
       if (getSelectedHorizontalRule(editor)) return false
+      if (getActiveCodeBlock(editor)) return false
       // 在表格内选文字时不弹文字气泡,让表格气泡独占。
       const { $from } = state.selection
       for (let d = $from.depth; d > 0; d--) {

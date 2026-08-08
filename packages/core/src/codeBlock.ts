@@ -11,7 +11,16 @@ export const CODE_BLOCK_LANGUAGES = [
   { label: 'HTML / Vue', value: 'xml' },
   { label: 'CSS', value: 'css' },
   { label: 'JSON', value: 'json' },
+  { label: 'Python', value: 'python' },
+  { label: 'Java', value: 'java' },
+  { label: 'C', value: 'c' },
+  { label: 'C++', value: 'cpp' },
+  { label: 'C#', value: 'csharp' },
+  { label: 'Go', value: 'go' },
+  { label: 'Rust', value: 'rust' },
   { label: 'Bash', value: 'bash' },
+  { label: 'SQL', value: 'sql' },
+  { label: 'YAML', value: 'yaml' },
   { label: 'Markdown', value: 'markdown' },
 ] as const
 

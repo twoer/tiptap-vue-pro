@@ -26,7 +26,8 @@
   "type": "module",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "main": "./dist/index.umd.cjs",
   "module": "./dist/index.js",

@@ -13,7 +13,8 @@ Each package under `packages/*` is an adapter for one UI library. Keep adapter c
 - Do not copy another adapter's theme variables into a different adapter. Adapter-local CSS variables should be named after the target adapter, for example `--tvp-ant-*` in the Ant Design Vue adapter.
 - If a small wrapper is needed, name it after the target adapter, such as `AntModal`, `AntButton`, or `NaiveMessageBridge`, and implement it with that adapter's UI library.
 - Shared editor behavior belongs in `packages/core`; UI rendering, dialogs, dropdowns, messages, and styling belong in the adapter package.
-- Menu items with an icon and text must use a consistent 6px icon/text gap across adapters.
+- Any UI element containing an icon and text (including buttons, menu items, dropdown options, and toolbar actions) must use an `inline-flex` or `flex` wrapper with `align-items: center` and a consistent 6px `gap`; before finishing, visually verify that the icon and text have clear horizontal spacing and are vertically centered across all three adapters. Do not use child margins or rely on the icon/text baseline for alignment.
+- Element Plus general action dropdowns must use `popper-class="tvp-el-action-dropdown"` so menu items keep the shared 32px minimum height and 12px horizontal padding; use a feature-specific popper class only when the interaction intentionally needs a different density.
 - Menu labels should avoid repeating context already conveyed by the trigger icon or parent menu. For example, under the Markdown trigger use `导入` and `导出`, not `导入 Markdown` and `导出 Markdown`.
 
 Before finishing adapter work, run a boundary check:
