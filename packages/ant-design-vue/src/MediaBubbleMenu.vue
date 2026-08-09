@@ -75,10 +75,6 @@ function getSelectedMediaVirtualElement() {
   }
 }
 
-function getMediaBubbleAppendTarget(ed: Editor) {
-  return ed.view.dom.closest('.tvp-editor') as HTMLElement | null ?? document.body
-}
-
 function openEditDialog() {
   const media = currentMedia()
   if (!media) return
@@ -182,11 +178,9 @@ useEditorPluginRegistration({
     pluginKey: 'proMediaBubbleMenu',
     editor: ed,
     element,
-    appendTo: () => getMediaBubbleAppendTarget(ed),
     updateDelay: 0,
     getReferencedVirtualElement: getSelectedMediaVirtualElement,
     options: {
-      strategy: 'fixed',
       placement: 'top',
       offset: 8,
       flip: { padding: 8 },

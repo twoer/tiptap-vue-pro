@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { h, nextTick, shallowRef } from 'vue'
+import { h, nextTick, shallowRef, type VNode } from 'vue'
 import Toolbar from './Toolbar.vue'
 import { getCommandLabel, TOOLBAR_MARKDOWN_OPTIONS } from 'tiptap-vue-pro-core'
 import type { ProEditorContext, ToolbarOptions } from 'tiptap-vue-pro-core'
@@ -407,11 +407,23 @@ describe('Naive Toolbar', () => {
       props: { ctx },
     })
     const vm = wrapper.vm as unknown as {
-      codeBlockOptions: Array<{ label: string; key: string }>
+      codeBlockOptions: Array<{
+        label: string
+        key: string
+        languageIcon: { title: string } | null
+      }>
+      renderCodeBlockLabel: (option: { label: string; key: string; languageIcon: { title: string } | null }) => VNode
       onCodeBlockSelect: (key: string | number) => void
     }
 
-    expect(vm.codeBlockOptions).toContainEqual({ label: 'TypeScript', key: 'typescript' })
+    const typeScriptOption = vm.codeBlockOptions.find((option) => option.key === 'typescript')!
+    expect(typeScriptOption).toMatchObject({
+      label: 'TypeScript',
+      key: 'typescript',
+      languageIcon: { title: 'TypeScript' },
+    })
+    const typeScriptLabel = vm.renderCodeBlockLabel(typeScriptOption)
+    expect((typeScriptLabel.children as VNode[])[0]?.props?.['data-toolbar-language-icon']).toBe('typescript')
     vm.onCodeBlockSelect('typescript')
 
     expect(ctx.commands.codeBlock).toHaveBeenCalledWith('typescript')
@@ -422,6 +434,8 @@ describe('Naive Toolbar', () => {
 
     expect(source).toContain(':options="codeBlockOptions"')
     expect(source).toContain(':render-label="renderCodeBlockLabel"')
+    expect(source).toContain(':menu-props="CODE_BLOCK_DROPDOWN_MENU_PROPS"')
+    expect(source).toContain('tvp-naive-code-language-dropdown')
     expect(source).not.toContain('tvp-code-language-menu')
   })
 

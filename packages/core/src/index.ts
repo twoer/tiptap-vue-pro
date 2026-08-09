@@ -41,6 +41,10 @@ export {
   codeBlockLanguageLabel,
 } from './codeBlock'
 export type { CodeBlockLanguage } from './codeBlock'
+export { codeBlockLanguageIcon } from './codeBlockLanguageIcon'
+export type { CodeBlockLanguageIcon, CodeBlockLanguageIconPart } from './codeBlockLanguageIcon'
+export { getActiveCodeBlock } from './codeBlockSelection'
+export type { ActiveCodeBlock } from './codeBlockSelection'
 export {
   DEFAULT_EDITOR_BEHAVIOR_OPTIONS,
   resolveEditorBehaviorOptions,

@@ -77,6 +77,8 @@ export const ZH_CN_LOCALE_MESSAGES = {
   'toolbar.link.remove': '移除链接',
   'toolbar.action.cancel': '取消',
   'toolbar.action.confirm': '确定',
+  'codeBlock.language': '代码语言',
+  'codeBlock.action.copy': '复制代码',
 
   'table.mergeCells': '合并单元格',
   'table.splitCell': '拆分单元格',
@@ -174,6 +176,7 @@ export const ZH_CN_LOCALE_MESSAGES = {
   'notify.fileDeleted': '已删除文件',
   'notify.mediaCopied': '已复制媒体链接',
   'notify.mediaDeleted': '已删除媒体',
+  'notify.codeBlockCopied': '已复制代码',
   'notify.clipboardUnavailable': '当前环境不支持剪贴板复制',
   'notify.linkEmpty': '请填写链接地址',
   'notify.linkInvalid': '链接格式不正确,请输入完整网址(如 https://example.com)',
@@ -278,6 +281,8 @@ export const EN_US_LOCALE_MESSAGES: LocaleMessages = {
   'toolbar.link.remove': 'Remove link',
   'toolbar.action.cancel': 'Cancel',
   'toolbar.action.confirm': 'Confirm',
+  'codeBlock.language': 'Code language',
+  'codeBlock.action.copy': 'Copy code',
 
   'table.mergeCells': 'Merge cells',
   'table.splitCell': 'Split cell',
@@ -375,6 +380,7 @@ export const EN_US_LOCALE_MESSAGES: LocaleMessages = {
   'notify.fileDeleted': 'File deleted',
   'notify.mediaCopied': 'Media link copied',
   'notify.mediaDeleted': 'Media deleted',
+  'notify.codeBlockCopied': 'Code copied',
   'notify.clipboardUnavailable': 'Clipboard copy is not available in this environment',
   'notify.linkEmpty': 'Enter a link URL',
   'notify.linkInvalid': 'Invalid link format, enter a full URL such as https://example.com',

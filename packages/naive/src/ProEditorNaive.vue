@@ -68,6 +68,7 @@ import LinkBubbleMenu from './LinkBubbleMenu.vue'
 import FileBubbleMenu from './FileBubbleMenu.vue'
 import MediaBubbleMenu from './MediaBubbleMenu.vue'
 import HorizontalRuleBubbleMenu from './HorizontalRuleBubbleMenu.vue'
+import CodeBlockBubbleMenu from './CodeBlockBubbleMenu.vue'
 import MessageBridge from './MessageBridge.vue'
 
 const props = withDefaults(
@@ -503,6 +504,14 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           :suppress="tableGripMenuOpen"
         />
 
+        <CodeBlockBubbleMenu
+          v-if="!readonly && !isPreview && ctx.editor.value"
+          :editor="ctx.editor.value"
+          :ctx="toolbarCtx"
+          :toolbar-options="props.toolbarOptions"
+          :editor-behavior-options="props.editorBehaviorOptions"
+        />
+
         <LinkBubbleMenu
           v-if="!readonly && !isPreview && ctx.editor.value"
           :editor="ctx.editor.value"
@@ -609,7 +618,8 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 .tvp-file-bubble,
 .tvp-media-bubble,
 .tvp-hr-bubble,
-.tvp-table-bubble {
+.tvp-table-bubble,
+.tvp-code-block-bubble {
   position: absolute;
   z-index: 2100;
 }

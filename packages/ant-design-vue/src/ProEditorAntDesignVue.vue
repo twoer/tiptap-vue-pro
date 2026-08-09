@@ -15,6 +15,7 @@ import LinkBubbleMenu from './LinkBubbleMenu.vue'
 import FileBubbleMenu from './FileBubbleMenu.vue'
 import MediaBubbleMenu from './MediaBubbleMenu.vue'
 import HorizontalRuleBubbleMenu from './HorizontalRuleBubbleMenu.vue'
+import CodeBlockBubbleMenu from './CodeBlockBubbleMenu.vue'
 
 /**
  * Tiptap Vue Pro 的 Ant Design Vue 适配主组件。
@@ -345,6 +346,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       :ctx="toolbarCtx"
       :is-fullscreen="isFullscreen"
       :is-preview="isPreview"
+      :dark="props.dark"
       :toggle-fullscreen="toggleFullscreen"
       :toggle-preview="togglePreview"
       :toolbar-options="props.toolbarOptions"
@@ -358,6 +360,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       :upload-asset="props.uploadAsset"
       :is-fullscreen="isFullscreen"
       :is-preview="isPreview"
+      :dark="props.dark"
       :toolbar="props.toolbar"
       :toolbar-options="props.toolbarOptions"
       :editor-behavior-options="props.editorBehaviorOptions"
@@ -437,6 +440,15 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       :editor="ctx.editor.value"
       :ctx="toolbarCtx"
       :suppress="tableGripMenuOpen"
+    />
+
+    <CodeBlockBubbleMenu
+      v-if="!readonly && !isPreview && ctx.editor.value"
+      :editor="ctx.editor.value"
+      :ctx="toolbarCtx"
+      :dark="props.dark"
+      :toolbar-options="props.toolbarOptions"
+      :editor-behavior-options="props.editorBehaviorOptions"
     />
 
     <LinkBubbleMenu
@@ -624,7 +636,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   --tvp-ant-text-color-regular: #cfd3dc;
   --tvp-ant-text-color-secondary: #a3a6ad;
   --tvp-ant-text-color-placeholder: #8d9095;
-  --tvp-ant-text-color-disabled: #0c0c0c;
+  --tvp-ant-text-color-disabled: rgba(255, 255, 255, 0.25);
   --tvp-ant-border-color: #414243;
   --tvp-ant-border-color-light: #414243;
   --tvp-ant-border-color-lighter: #363637;
@@ -636,6 +648,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   --tvp-ant-fill-color-lighter: #1d1e1f;
   --tvp-ant-fill-color-dark: #363637;
   --tvp-ant-color-primary: #409eff;
+  --tvp-ant-color-primary-light-8: #1d3043;
   --tvp-ant-color-primary-light-9: #18222c;
 }
 

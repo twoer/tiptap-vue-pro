@@ -18,6 +18,7 @@ import {
 } from 'lucide-vue-next'
 import {
   DEFAULT_TOOLBAR,
+  codeBlockLanguageIcon,
   codeBlockLanguageLabel,
   cropImageFile,
   exportMarkdownFile,
@@ -582,6 +583,10 @@ const FONT_FAMILIES = computed(() =>
 const FONT_SIZES = computed(() => resolvedToolbarOptions.value.fontSizes)
 const LINE_HEIGHTS = computed(() => resolvedToolbarOptions.value.lineHeights)
 const CODE_BLOCK_LANGUAGE_OPTIONS = computed(() => resolvedToolbarOptions.value.codeBlockLanguages)
+const CODE_BLOCK_LANGUAGE_MENU_OPTIONS = computed(() => CODE_BLOCK_LANGUAGE_OPTIONS.value.map((language) => ({
+  ...language,
+  icon: codeBlockLanguageIcon(language.value),
+})))
 const HORIZONTAL_RULE_OPTIONS = computed(() => resolvedToolbarOptions.value.horizontalRules)
 const TABLE_MAX_ROWS = computed(() => resolvedToolbarOptions.value.tableGrid.maxRows)
 const TABLE_MAX_COLS = computed(() => resolvedToolbarOptions.value.tableGrid.maxCols)
@@ -1088,7 +1093,7 @@ function confirmLink() {
         </ElTooltip>
 
         <ElTooltip v-else-if="item === 'codeBlock'" :content="`${commandLabel('codeBlock')}:${currentCodeBlockLabel}`" placement="top" :show-after="300">
-          <ElDropdown trigger="click" @command="onCodeBlockLanguage">
+          <ElDropdown trigger="click" popper-class="tvp-el-action-dropdown tvp-el-code-language-dropdown" @command="onCodeBlockLanguage">
             <ElButton
               text
               class="tvp-icon-btn"
@@ -1098,11 +1103,30 @@ function confirmLink() {
             <template #dropdown>
               <ElDropdownMenu>
                 <ElDropdownItem
-                  v-for="language in CODE_BLOCK_LANGUAGE_OPTIONS"
+                  v-for="language in CODE_BLOCK_LANGUAGE_MENU_OPTIONS"
                   :key="language.value"
                   :command="language.value"
                 >
-                  <span class="tvp-menu-item"><Code :size="15" />{{ language.label }}</span>
+                  <span class="tvp-menu-item">
+                    <svg
+                      v-if="language.icon"
+                      class="tvp-code-block-language-icon"
+                      :viewBox="language.icon.viewBox"
+                      :data-toolbar-language-icon="language.value"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        v-for="part in language.icon.parts"
+                        :key="part.d"
+                        :d="part.d"
+                        :fill="part.fill"
+                        :stroke="part.stroke"
+                      />
+                    </svg>
+                    <Code v-else :size="15" aria-hidden="true" />
+                    <span>{{ language.label }}</span>
+                  </span>
                 </ElDropdownItem>
               </ElDropdownMenu>
             </template>
@@ -1405,15 +1429,19 @@ function confirmLink() {
   padding: 0;
 }
 
+.tvp-toolbar :deep(.el-button.tvp-icon-btn:focus-visible) {
+  outline: 2px solid var(--el-color-primary, #409eff);
+  outline-offset: 1px;
+}
+
 .tvp-toolbar :deep(.el-button--primary.is-text.tvp-icon-btn) {
-  border: 1px solid var(--el-color-primary-light-5, #a0cfff);
+  border-color: transparent;
   background: var(--el-color-primary-light-9, #ecf5ff);
   color: var(--el-color-primary, #409eff);
 }
 
-.tvp-toolbar :deep(.el-button--primary.is-text.tvp-icon-btn:hover),
-.tvp-toolbar :deep(.el-button--primary.is-text.tvp-icon-btn:focus-visible) {
-  border-color: var(--el-color-primary-light-3, #79bbff);
+.tvp-toolbar :deep(.el-button--primary.is-text.tvp-icon-btn:hover) {
+  border-color: transparent;
   background: var(--el-color-primary-light-8, #d9ecff);
   color: var(--el-color-primary, #409eff);
 }
@@ -1531,6 +1559,31 @@ function confirmLink() {
 .tvp-menu-item svg {
   display: block;
   flex: 0 0 auto;
+}
+
+.tvp-code-block-language-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+:global(.tvp-el-action-dropdown .el-dropdown-menu) {
+  padding: 4px 0;
+}
+
+:global(.tvp-el-action-dropdown .el-dropdown-menu__item) {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+:global(.tvp-el-code-language-dropdown .el-dropdown-menu) {
+  max-height: 328px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:global(.tvp-el-code-language-dropdown) {
+  z-index: 2200 !important;
 }
 
 :global(.el-dropdown-menu__item:has(.tvp-menu-item)),

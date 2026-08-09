@@ -147,8 +147,14 @@ export const AntDropdown = defineComponent({
 
 export const AntDropdownMenu = defineComponent({
   name: 'AntDropdownMenu',
-  setup(_, { slots }) {
-    return () => h(Menu, {}, slots)
+  props: {
+    theme: {
+      type: String as PropType<'light' | 'dark'>,
+      default: 'light',
+    },
+  },
+  setup(props, { slots }) {
+    return () => h(Menu, { theme: props.theme }, slots)
   },
 })
 

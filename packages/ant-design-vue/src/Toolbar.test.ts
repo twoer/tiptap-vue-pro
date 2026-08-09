@@ -379,10 +379,14 @@ describe('Ant Design Vue Toolbar', () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
       attachTo: document.body,
-      props: { ctx },
+      props: { ctx, dark: true },
     })
 
     await wrapper.find('button[aria-label="代码块"]').trigger('click')
+    await nextTick()
+    expect(document.body.querySelector('[data-toolbar-language-icon="typescript"]')).toBeTruthy()
+    expect(document.body.querySelector('.tvp-ant-code-language-dropdown')).toBeTruthy()
+    expect(document.body.querySelector('.ant-dropdown-menu-dark')).toBeTruthy()
     await clickBodyText('TypeScript')
 
     expect(ctx.commands.codeBlock).toHaveBeenCalledWith('typescript')
@@ -798,6 +802,10 @@ describe('Ant Design Vue Toolbar', () => {
   it('Ant 纯图标按钮保持居中且图标尺寸稳定', () => {
     const source = readFileSync(`${process.cwd()}/src/Toolbar.vue`, 'utf8')
 
+    expect(source).toContain('.tvp-toolbar :deep(.tvp-ant-button)')
+    expect(source).toContain('color: var(--tvp-ant-text-color-regular')
+    expect(source).toContain('.tvp-toolbar :deep(.tvp-ant-button svg)')
+    expect(source).toContain('color: inherit')
     expect(source).toContain('.tvp-toolbar :deep(.tvp-ant-button.tvp-icon-btn)')
     expect(source).toContain('align-items: center')
     expect(source).toContain('justify-content: center')

@@ -98,6 +98,11 @@ const childStubs = {
     name: 'HorizontalRuleBubbleMenu',
     template: '<div data-testid="hr-bubble-menu" />',
   },
+  CodeBlockBubbleMenu: {
+    name: 'CodeBlockBubbleMenu',
+    props: ['toolbarOptions', 'editorBehaviorOptions'],
+    template: '<div data-testid="code-block-bubble-menu" />',
+  },
   TableBubbleMenu: { template: '<div data-testid="table-bubble-menu" />' },
   ImageBubbleMenu: {
     name: 'ImageBubbleMenu',
@@ -163,6 +168,7 @@ describe('ProEditorElementPlus', () => {
     expect(wrapper.find('[data-testid="file-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="media-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="hr-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="code-block-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="slash-menu"]').exists()).toBe(false)

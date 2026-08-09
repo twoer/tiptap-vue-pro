@@ -382,6 +382,10 @@ describe('Element Plus Toolbar', () => {
     })
 
     await wrapper.find('button[aria-label="代码块"]').trigger('click')
+    await nextTick()
+    expect(document.body.querySelector('[data-toolbar-language-icon="typescript"]')).toBeTruthy()
+    expect(document.body.querySelector('.tvp-el-action-dropdown')).toBeTruthy()
+    expect(document.body.querySelector('.tvp-el-code-language-dropdown')).toBeTruthy()
     await clickBodyText('TypeScript')
 
     expect(ctx.commands.codeBlock).toHaveBeenCalledWith('typescript')

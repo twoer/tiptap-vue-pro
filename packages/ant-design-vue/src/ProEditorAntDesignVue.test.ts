@@ -70,7 +70,7 @@ const childStubs = {
   AntModal: { template: '<div><slot /><slot name="footer" /></div>' },
   Toolbar: {
     name: 'Toolbar',
-    props: ['toolbar', 'toolbarOptions', 'editorBehaviorOptions'],
+    props: ['toolbar', 'toolbarOptions', 'editorBehaviorOptions', 'dark'],
     emits: ['toggle-preview', 'toggle-fullscreen'],
     template: `
       <div data-testid="toolbar">
@@ -99,6 +99,11 @@ const childStubs = {
   HorizontalRuleBubbleMenu: {
     name: 'HorizontalRuleBubbleMenu',
     template: '<div data-testid="hr-bubble-menu" />',
+  },
+  CodeBlockBubbleMenu: {
+    name: 'CodeBlockBubbleMenu',
+    props: ['toolbarOptions', 'editorBehaviorOptions', 'dark'],
+    template: '<div data-testid="code-block-bubble-menu" />',
   },
   TableBubbleMenu: { template: '<div data-testid="table-bubble-menu" />' },
   ImageBubbleMenu: {
@@ -180,10 +185,22 @@ describe('ProEditorAntDesignVue', () => {
     expect(wrapper.find('[data-testid="file-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="media-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="hr-bubble-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="code-block-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="image-bubble-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="slash-menu"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="table-grip-handles"]').exists()).toBe(false)
+  })
+
+  it('向工具栏和代码块菜单透传暗色状态', () => {
+    wrapper = mount(ProEditorAntDesignVue, {
+      attachTo: document.body,
+      props: { dark: true },
+      global: { stubs: childStubs },
+    })
+
+    expect(wrapper.findComponent({ name: 'Toolbar' }).props('dark')).toBe(true)
+    expect(wrapper.findComponent({ name: 'CodeBlockBubbleMenu' }).props('dark')).toBe(true)
   })
 
   it('查找面板打开时显示命中计数', () => {
@@ -498,5 +515,13 @@ describe('ProEditorAntDesignVue', () => {
     expect(source).toContain('.tvp-img-bubble')
     expect(source).toContain('.tvp-media-bubble')
     expect(source).toContain('z-index: 2100;')
+  })
+
+  it('暗色工具栏变量保持图标和激活态对比度', () => {
+    const source = readFileSync(`${process.cwd()}/src/ProEditorAntDesignVue.vue`, 'utf8')
+
+    expect(source).toContain('--tvp-ant-text-color-regular: #cfd3dc;')
+    expect(source).toContain('--tvp-ant-text-color-disabled: rgba(255, 255, 255, 0.25);')
+    expect(source).toContain('--tvp-ant-color-primary-light-8: #1d3043;')
   })
 })

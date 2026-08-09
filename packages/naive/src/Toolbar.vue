@@ -42,6 +42,7 @@ import {
 } from 'lucide-vue-next'
 import {
   DEFAULT_TOOLBAR,
+  codeBlockLanguageIcon,
   codeBlockLanguageLabel,
   cropImageFile,
   exportMarkdownFile,
@@ -63,6 +64,7 @@ import {
   TOOLBAR_MARKDOWN_OPTIONS,
 } from 'tiptap-vue-pro-core'
 import type {
+  CodeBlockLanguageIcon,
   CodeBlockLanguage,
   HorizontalRuleVariant,
   ProEditorContext,
@@ -533,14 +535,57 @@ const currentCodeBlockLabel = computed(
     CODE_BLOCK_LANGUAGE_OPTIONS.value.find((language) => language.value === currentCodeBlockLanguage.value)?.label
     ?? codeBlockLanguageLabel(currentCodeBlockLanguage.value),
 )
-const codeBlockOptions = computed<DropdownOption[]>(() => CODE_BLOCK_LANGUAGE_OPTIONS.value.map((language) => ({
+type CodeBlockDropdownOption = DropdownOption & {
+  languageIcon: CodeBlockLanguageIcon | null
+}
+
+const codeBlockOptions = computed<CodeBlockDropdownOption[]>(() => CODE_BLOCK_LANGUAGE_OPTIONS.value.map((language) => ({
   label: language.label,
   key: language.value,
+  languageIcon: codeBlockLanguageIcon(language.value),
 })))
+const CODE_BLOCK_DROPDOWN_THEME_OVERRIDES = {
+  optionHeightMedium: '32px',
+} as const
+const CODE_BLOCK_DROPDOWN_MENU_PROPS = () => ({
+  class: 'tvp-naive-code-language-dropdown',
+  style: 'max-height: 328px; overscroll-behavior: contain;',
+})
 function renderCodeBlockLabel(opt: DropdownOption) {
-  return h('span', { style: 'display:inline-flex;align-items:center;gap:6px;line-height:1;vertical-align:middle;' }, [
-    h(Code, { size: 15, style: 'display:block;flex:0 0 auto;' }),
-    opt.label as string,
+  const languageIcon = (opt as CodeBlockDropdownOption).languageIcon
+  const icon = languageIcon
+    ? h('svg', {
+        viewBox: languageIcon.viewBox,
+        'data-toolbar-language-icon': String(opt.key),
+        style: {
+          display: 'block',
+          width: '15px',
+          height: '15px',
+          flex: '0 0 auto',
+        },
+        'aria-hidden': 'true',
+        focusable: 'false',
+      }, languageIcon.parts.map((part) => h('path', {
+        d: part.d,
+        fill: part.fill,
+        stroke: part.stroke,
+      })))
+    : h(Code, {
+        size: 15,
+        style: { display: 'block', flex: '0 0 auto' },
+        'aria-hidden': 'true',
+      })
+  return h('span', {
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      lineHeight: '1',
+      verticalAlign: 'middle',
+    },
+  }, [
+    icon,
+    h('span', null, opt.label as string),
   ])
 }
 function onCodeBlockSelect(key: string | number) {
@@ -1227,8 +1272,12 @@ function confirmLink() {
             <span class="tvp-tooltip-trigger">
               <NDropdown
                 trigger="click"
+                scrollable
+                :z-index="2200"
                 :options="codeBlockOptions"
                 :render-label="renderCodeBlockLabel"
+                :menu-props="CODE_BLOCK_DROPDOWN_MENU_PROPS"
+                :theme-overrides="CODE_BLOCK_DROPDOWN_THEME_OVERRIDES"
                 @select="onCodeBlockSelect"
               >
                 <NButton
@@ -1558,15 +1607,19 @@ function confirmLink() {
   padding: 0;
 }
 
+.tvp-toolbar .tvp-icon-btn:focus-visible {
+  outline: 2px solid var(--n-primary-color, #18a058);
+  outline-offset: 1px;
+}
+
 .tvp-toolbar .tvp-icon-btn.n-button--primary-type {
-  border-color: var(--n-primary-color, #18a058);
+  border-color: transparent;
   background: color-mix(in srgb, var(--n-primary-color, #18a058) 10%, transparent);
   color: var(--n-primary-color, #18a058);
 }
 
-.tvp-toolbar .tvp-icon-btn.n-button--primary-type:hover,
-.tvp-toolbar .tvp-icon-btn.n-button--primary-type:focus-visible {
-  border-color: var(--n-primary-color-hover, #36ad6a);
+.tvp-toolbar .tvp-icon-btn.n-button--primary-type:hover {
+  border-color: transparent;
   background: color-mix(in srgb, var(--n-primary-color, #18a058) 16%, transparent);
   color: var(--n-primary-color-hover, #36ad6a);
 }
