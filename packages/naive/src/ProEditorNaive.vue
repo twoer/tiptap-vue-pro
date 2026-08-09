@@ -578,6 +578,8 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 /* 编辑器容器 */
 .tvp-editor {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -618,7 +620,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 .tvp-hr-bubble,
 .tvp-table-bubble,
 .tvp-code-block-bubble {
-  position: relative;
+  position: absolute;
   z-index: 2100;
 }
 
@@ -701,11 +703,16 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 
 .tvp-content-shell {
   position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .tvp-content-wrap {
   position: relative;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 200px;
   max-height: 600px;
