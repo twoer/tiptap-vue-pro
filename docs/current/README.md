@@ -16,6 +16,7 @@ directory small, current, and tied to this repository.
 | Pick or resume the next feature slice | [roadmap.md](roadmap.md) |
 | Choose the right checks before handoff | [verification.md](verification.md) |
 | Check stable project decisions | [decisions.md](decisions.md) |
+| Review confirmed architecture follow-ups | [mermaid-architecture-follow-up-audit.md](mermaid-architecture-follow-up-audit.md) |
 | Resume from a clean context | [handoff.md](handoff.md) |
 
 ## Current Docs Rules

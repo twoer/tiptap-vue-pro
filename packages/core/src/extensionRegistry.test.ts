@@ -15,6 +15,7 @@ describe('extension registry', () => {
     expect(names).toContain('characterCount')
     expect(names).toContain('findReplace')
     expect(names).toContain('markdown')
+    expect(names).toContain('mermaidBlock')
   })
 
   it('allows disabling optional groups', () => {
@@ -23,12 +24,14 @@ describe('extension registry', () => {
       markdown: false,
       table: false,
       image: false,
+      mermaid: false,
     })
     const names = extensions.map((extension) => extension.name)
 
     expect(names).not.toContain('markdown')
     expect(names).not.toContain('tableKit')
     expect(names).not.toContain('image')
+    expect(names).not.toContain('mermaidBlock')
   })
 
   it('keeps slashCommand disabled until a bridge is provided through createDefaultExtensions', () => {
@@ -66,6 +69,7 @@ describe('extension registry', () => {
     ['textAlign', ['textAlign']],
     ['blockIndent', ['blockIndent']],
     ['codeBlock', ['codeBlock']],
+    ['mermaid', ['mermaidBlock']],
     ['script', ['superscript', 'subscript']],
     ['taskList', ['taskList', 'taskItem']],
     ['media', ['video', 'audio', 'fileAttachment']],
@@ -102,6 +106,7 @@ describe('extension registry', () => {
       'textAlign',
       'blockIndent',
       'codeBlock',
+      'mermaidBlock',
       'superscript',
       'subscript',
       'taskList',

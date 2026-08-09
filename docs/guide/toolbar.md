@@ -55,10 +55,18 @@ const toolbar: ToolbarConfig = [
 | 行内格式 | 加粗、斜体、下划线、删除线、行内代码、上标、下标 |
 | 颜色与清理 | 文字颜色、背景高亮、清除格式 |
 | 对齐与缩进 | 左 / 中 / 右 / 两端、减少缩进、增加缩进 |
-| 列表与块 | 无序列表、有序列表、任务列表、引用、代码块语言选择 |
+| 列表与块 | 无序列表、有序列表、任务列表、引用、代码块语言选择与语法高亮 |
 | 插入 | 链接、图片(上传 / 网络图片,按配置合并)、附件上传、表格、分割线样式 |
 | 文档工具 | Markdown 导入 / 导出、打印 |
 | 视图 | 预览、全屏 |
+
+## 代码块
+
+工具栏中的代码按钮会打开语言菜单,用于插入代码块或切换当前代码块的语言。光标进入代码块后,代码块上方还会显示上下文工具栏,可以直接切换语言或复制完整代码内容。Element Plus、Naive UI 和 Ant Design Vue 三套 Adapter 的行为一致。
+
+默认提供 17 个选项:Plain Text、JavaScript、TypeScript、HTML / Vue、CSS、JSON、Python、Java、C、C++、C#、Go、Rust、Bash、SQL、YAML 和 Markdown。菜单和当前语言标签会显示对应语言图标;自定义语言没有内置图标时会回退为通用代码图标。
+
+语言菜单可以通过 [`toolbarOptions.codeBlockLanguages`](/api/toolbar-options#代码块语言) 替换。
 
 ## 分割线样式
 

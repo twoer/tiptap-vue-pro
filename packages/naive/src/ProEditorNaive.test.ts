@@ -254,6 +254,10 @@ describe('ProEditorNaive', () => {
     expect(wrapper.text()).toContain('预览模式(只读)')
     expect(wrapper.find('.tvp-preview-bar__edit-btn').exists()).toBe(true)
     expect(wrapper.find('.tvp-preview-bar__edit-btn').text()).toContain('编辑')
+    const editContent = wrapper.find('.tvp-preview-bar__edit-content')
+    expect(editContent.exists()).toBe(true)
+    expect(editContent.find('.tvp-preview-bar__edit-icon').attributes('width')).toBe('16')
+    expect(editContent.find('span').text()).toBe('编辑')
     expect(mockState.ctx!.setEditable).toHaveBeenCalledWith(false)
   })
 
@@ -268,7 +272,9 @@ describe('ProEditorNaive', () => {
     useProEditorOptions.slashCommand.onOpen(createSlashState())
     await nextTick()
 
-    expect(useProEditorOptions.slashCommand.items).toHaveLength(8)
+    expect(useProEditorOptions.slashCommand.items).toHaveLength(9)
+    expect(useProEditorOptions.slashCommand.items[8]?.id).toBe('mermaid')
+    expect(useProEditorOptions.mermaid.nodeViewRenderer).toEqual(expect.any(Function))
     expect(wrapper.find('[data-testid="slash-menu"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="slash-menu"]').text()).toContain('表格')
   })
@@ -311,14 +317,6 @@ describe('ProEditorNaive', () => {
     })
 
     expect((ctx.commands as any).insertTable).toHaveBeenCalledWith(3, 3)
-  })
-
-  it('预览编辑按钮保持图标和文字水平居中且间距一致', () => {
-    const source = readFileSync('src/ProEditorNaive.vue', 'utf8')
-
-    expect(source).toContain('.tvp-preview-bar__edit-btn :deep(.n-button__content)')
-    expect(source).toContain('gap: 6px;')
-    expect(source).toContain('.tvp-preview-bar__edit-btn :deep(svg)')
   })
 
   it('contextual bubble 根节点默认不可见,避免插件接管前裸露在文档流中', () => {

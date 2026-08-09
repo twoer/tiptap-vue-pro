@@ -13,7 +13,14 @@ import {
   getSelectedMediaNode,
   mediaNodeToFileAttachmentAttrs,
 } from './mediaSelection'
-import type { NotifyFn, ProEditorContext, OutputFormat, UploadAsset, UploadImage } from './types'
+import type {
+  NotifyFn,
+  ProEditorContext,
+  ProEditorOptions,
+  OutputFormat,
+  UploadAsset,
+  UploadImage,
+} from './types'
 import type { LocaleProp } from './locale'
 import type { EditorBehaviorOptions } from './editorBehaviorOptions'
 import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
@@ -47,6 +54,7 @@ function mountEditor(opts: {
   debug?: boolean | ProEditorDebugOptions
   debugLogger?: ProEditorDebugLogger
   editorProps?: Record<string, unknown>
+  mermaid?: ProEditorOptions['mermaid']
   onModelValue?: (v: string | object) => void
 }) {
   let ctx: ProEditorContext | undefined
@@ -72,6 +80,7 @@ function mountEditor(opts: {
         debug: opts.debug,
         debugLogger: opts.debugLogger,
         editorProps: opts.editorProps,
+        mermaid: opts.mermaid,
       } as any)
       return () => h(EditorContent, { editor: ctx!.editor.value })
     },
@@ -1467,6 +1476,105 @@ describe('useProEditor — getHTML / getJSON / Markdown', () => {
     ctx.importMarkdown('# Title')
     await nextTick()
     expect(ed.getHTML()).toContain('<h1')
+  })
+
+  it('Mermaid 作为独立块插入并持久化三态视图', async () => {
+    const { ctx } = mountEditor({ content: '<p>before</p>', locale: 'en-US' })
+    const ed = await ready(ctx)
+    ctx.commands.insertMermaidBlock()
+    await nextTick()
+
+    const mermaid = ed.getJSON().content?.find(node => node.type === 'mermaidBlock')
+    expect(mermaid).toMatchObject({
+      type: 'mermaidBlock',
+      attrs: { viewMode: 'split' },
+      content: [{ type: 'text', text: 'flowchart TD\n  A[Start] --> B[End]' }],
+    })
+    expect(ed.getHTML()).toContain('data-type="mermaid-block"')
+    expect(ed.getHTML()).toContain('data-view-mode="split"')
+    expect(ed.getHTML()).toContain('class="language-mermaid"')
+
+    let mermaidPos = 0
+    ed.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'mermaidBlock') mermaidPos = pos
+    })
+    ed.commands.setNodeSelection(mermaidPos)
+    ctx.commands.setMermaidViewMode('diagram')
+    expect(ed.getJSON().content?.find(node => node.type === 'mermaidBlock')?.attrs?.viewMode).toBe('diagram')
+  })
+
+  it('Mermaid 插入命令遵循自定义默认源码和视图', async () => {
+    const { ctx } = mountEditor({
+      content: '<p>before</p>',
+      mermaid: {
+        defaultSource: 'flowchart LR\n  Custom --> Default',
+        defaultViewMode: 'diagram',
+      },
+    })
+    const ed = await ready(ctx)
+    ctx.commands.insertMermaidBlock()
+    await nextTick()
+
+    expect(ed.getJSON().content?.find(node => node.type === 'mermaidBlock')).toMatchObject({
+      type: 'mermaidBlock',
+      attrs: { viewMode: 'diagram' },
+      content: [{ type: 'text', text: 'flowchart LR\n  Custom --> Default' }],
+    })
+  })
+
+  it('Mermaid HTML 可恢复源码和持久化视图', async () => {
+    const { ctx } = mountEditor({
+      content: '<div data-type="mermaid-block" data-view-mode="diagram"><pre><code class="language-mermaid">flowchart LR\n  A --&gt; B</code></pre></div>',
+    })
+    const ed = await ready(ctx)
+
+    expect(ed.getJSON().content?.[0]).toMatchObject({
+      type: 'mermaidBlock',
+      attrs: { viewMode: 'diagram' },
+      content: [{ type: 'text', text: 'flowchart LR\n  A --> B' }],
+    })
+  })
+
+  it('Mermaid JSON 可恢复源码和持久化视图', async () => {
+    const { ctx } = mountEditor({
+      content: {
+        type: 'doc',
+        content: [{
+          type: 'mermaidBlock',
+          attrs: { viewMode: 'code' },
+          content: [{ type: 'text', text: 'sequenceDiagram\n  A->>B: Hello' }],
+        }],
+      },
+      output: 'json',
+    })
+    const ed = await ready(ctx)
+
+    expect(ed.getJSON().content?.[0]).toMatchObject({
+      type: 'mermaidBlock',
+      attrs: { viewMode: 'code' },
+      content: [{ type: 'text', text: 'sequenceDiagram\n  A->>B: Hello' }],
+    })
+  })
+
+  it('Mermaid Markdown fence 优先于普通代码块并可往返', async () => {
+    const { ctx } = mountEditor({ content: '<p></p>' })
+    const ed = await ready(ctx)
+    ctx.importMarkdown('```mermaid\nflowchart TD\n  A --> B\n```\n\n```ts\nconst x = 1\n```')
+    await nextTick()
+
+    expect(ed.getJSON().content?.slice(0, 2).map(node => node.type)).toEqual(['mermaidBlock', 'codeBlock'])
+    expect(ed.getJSON().content?.[0]).toMatchObject({ attrs: { viewMode: 'split' } })
+    expect(ed.getJSON().content?.[1]).toMatchObject({ attrs: { language: 'ts' } })
+    expect(ctx.getMarkdown()).toContain('```mermaid\nflowchart TD\n  A --> B\n```')
+  })
+
+  it('Mermaid Markdown 会选择比源码中反引号更长的 fence', async () => {
+    const { ctx } = mountEditor({ content: '<p></p>' })
+    await ready(ctx)
+    ctx.commands.insertMermaidBlock('flowchart TD\n  A[```] --> B')
+    await nextTick()
+
+    expect(ctx.getMarkdown()).toContain('````mermaid\nflowchart TD\n  A[```] --> B\n````')
   })
 })
 

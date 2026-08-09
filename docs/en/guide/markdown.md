@@ -20,3 +20,5 @@ const toolbarOptions: ToolbarOptions = {
 ```
 
 Markdown is a lossy format. Some HTML styling and layout features, such as font family, font size, line height, indent, table column widths, and custom attachment card metadata, may not round-trip perfectly. Use HTML or JSON output when you need complete fidelity.
+
+Dedicated Mermaid blocks round-trip as standard `mermaid` fenced code blocks. Source is preserved, while the code/diagram/split editor view is not represented by Markdown and defaults to split after import.

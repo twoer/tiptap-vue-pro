@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onBeforeUnmount, h, defineComponent, markRaw } from 'vue'
+import { computed, ref, h, defineComponent, markRaw } from 'vue'
 import { AntButton, AntTooltip, AntDropdown, AntDropdownMenu, AntDropdownItem, AntModal, AntInput, AntCheckbox, AntSlider } from './antDesignPrimitives'
 import {
   Undo2, Redo2, ChevronDown,
@@ -10,7 +10,7 @@ import {
   IndentDecrease, IndentIncrease,
   List, ListOrdered, ListChecks,
   Quote, Code, Minus,
-  Link, ImagePlus, Link2, Table,
+  Link, ImagePlus, Link2, Table, Workflow,
   Video, File,
   FileDown, FileUp,
   Eraser, Search, Printer,
@@ -20,20 +20,19 @@ import {
   DEFAULT_TOOLBAR,
   codeBlockLanguageIcon,
   codeBlockLanguageLabel,
-  cropImageFile,
-  exportMarkdownFile,
   getActiveHeadingLevel,
-  getActiveLinkRange,
   getActiveTextAlign,
   getCommandLabel,
-  importMarkdownFile,
   isToolbarCommandActive,
   normalizeToolbarConfig,
-  printEditorContent,
   resolveLocale,
   resolveEditorBehaviorOptions,
   resolveToolbarOptions,
   runToolbarCommand,
+  useImageCropController,
+  useToolbarDocumentActions,
+  useToolbarLinkController,
+  useToolbarResourceInputs,
   TOOLBAR_ALIGN_OPTIONS,
   TOOLBAR_HEADING_OPTIONS,
   TOOLBAR_MARKDOWN_OPTIONS,
@@ -172,7 +171,7 @@ const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['color', 'highlight', 'clearFormat'],
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
-  ['link', 'image', 'attachment', 'table', 'hr'],
+  ['link', 'image', 'attachment', 'table', 'mermaid', 'hr'],
   ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
@@ -193,249 +192,49 @@ function prepareInsert() {
   ctx.value.prepareInsert?.()
 }
 
-// 隐藏的图片选择 input
-const imageInput = ref<HTMLInputElement | null>(null)
-function triggerImageUpload() {
-  prepareInsert()
-  imageInput.value?.click()
-}
-function onImageSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = selectedFiles(input, IMAGE_MULTIPLE.value)
-  if (IMAGE_CROP.value.enabled && files.length > 0) {
-    openImageCropQueue(files)
-  } else {
-    void uploadFiles(files, ctx.value.commands.uploadAndInsertImage)
-  }
-  // 清空 value,允许重复选同一文件
-  input.value = ''
-}
+const {
+  visible: imageCropVisible,
+  objectUrl: imageCropUrl,
+  preview: imageCropPreview,
+  image: imageCropImg,
+  zoom: imageCropZoom,
+  imageStyle: imageCropImageStyle,
+  openQueue: openImageCropQueue,
+  cancel: cancelImageCrop,
+  clampPan: clampImageCropPan,
+  onPointerDown: onImageCropPointerDown,
+  onPointerMove: onImageCropPointerMove,
+  onPointerUp: onImageCropPointerUp,
+  confirm: confirmImageCrop,
+  skip: skipImageCrop,
+} = useImageCropController({
+  getCropOptions: () => IMAGE_CROP.value,
+  uploadImage: (file) => ctx.value.commands.uploadAndInsertImage(file),
+  notifyCropFailed: () => ctx.value.notify(t('notify.imageCropFailed'), 'warning'),
+  debugLog: (...args) => props.debugLog?.(...args),
+})
 
-const imageCropVisible = ref(false)
-const imageCropQueue = ref<File[]>([])
-const imageCropFile = ref<File | null>(null)
-const imageCropUrl = ref('')
-const imageCropPreview = ref<HTMLDivElement | null>(null)
-const imageCropImg = ref<HTMLImageElement | null>(null)
-const imageCropZoom = ref(1)
-const imageCropPan = ref({ x: 0, y: 0 })
-const imageCropDragging = ref<{
-  pointerId: number
-  startX: number
-  startY: number
-  panX: number
-  panY: number
-} | null>(null)
-const imageCropImageStyle = computed(() => ({
-  transform: `translate(${imageCropPan.value.x}px, ${imageCropPan.value.y}px) scale(${imageCropZoom.value})`,
-  cursor: imageCropZoom.value > 1 ? (imageCropDragging.value ? 'grabbing' : 'grab') : 'default',
-}))
-
-function revokeImageCropUrl() {
-  if (imageCropUrl.value) URL.revokeObjectURL(imageCropUrl.value)
-  imageCropUrl.value = ''
-}
-
-function openImageCropQueue(files: File[]) {
-  imageCropQueue.value = [...files]
-  openNextImageCrop()
-}
-
-function openNextImageCrop() {
-  revokeImageCropUrl()
-  imageCropImg.value = null
-  resetImageCropTransform()
-  const [file] = imageCropQueue.value
-  imageCropFile.value = file ?? null
-  if (!file) {
-    imageCropVisible.value = false
-    return
-  }
-  imageCropUrl.value = URL.createObjectURL(file)
-  imageCropVisible.value = true
-}
-
-function finishCurrentImageCrop() {
-  imageCropQueue.value = imageCropQueue.value.slice(1)
-  openNextImageCrop()
-}
-
-function cancelImageCrop() {
-  stopImageCropDragging()
-  imageCropQueue.value = []
-  imageCropFile.value = null
-  imageCropVisible.value = false
-  revokeImageCropUrl()
-}
-
-function resetImageCropTransform() {
-  stopImageCropDragging()
-  imageCropZoom.value = 1
-  imageCropPan.value = { x: 0, y: 0 }
-}
-
-function getImageCropMaxPan() {
-  const box = imageCropPreview.value?.getBoundingClientRect()
-  const zoomOverflow = Math.max(0, imageCropZoom.value - 1)
-  return {
-    x: box ? (box.width * zoomOverflow) / 2 : 0,
-    y: box ? (box.height * zoomOverflow) / 2 : 0,
-  }
-}
-
-function clampImageCropPan(next = imageCropPan.value) {
-  const maxPan = getImageCropMaxPan()
-  imageCropPan.value = {
-    x: Math.min(maxPan.x, Math.max(-maxPan.x, next.x)),
-    y: Math.min(maxPan.y, Math.max(-maxPan.y, next.y)),
-  }
-}
-
-watch(imageCropZoom, () => clampImageCropPan())
-
-function getImageCropOffsets() {
-  const maxPan = getImageCropMaxPan()
-  return {
-    offsetX: maxPan.x > 0 ? -imageCropPan.value.x / maxPan.x : 0,
-    offsetY: maxPan.y > 0 ? -imageCropPan.value.y / maxPan.y : 0,
-  }
-}
-
-function onImageCropPointerDown(event: PointerEvent) {
-  if (imageCropZoom.value <= 1) return
-  event.preventDefault()
-  stopImageCropDragging()
-  try {
-    imageCropPreview.value?.setPointerCapture(event.pointerId)
-  } catch {
-    // Pointer capture can fail if the pointer is already released.
-  }
-  imageCropDragging.value = {
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    panX: imageCropPan.value.x,
-    panY: imageCropPan.value.y,
-  }
-  window.addEventListener('pointerup', onImageCropPointerUp)
-  window.addEventListener('pointercancel', onImageCropPointerUp)
-  window.addEventListener('blur', onImageCropWindowBlur)
-}
-
-function onImageCropPointerMove(event: PointerEvent) {
-  const dragging = imageCropDragging.value
-  if (!dragging || dragging.pointerId !== event.pointerId) return
-  if (event.pointerType === 'mouse' && event.buttons === 0) {
-    stopImageCropDragging(event.pointerId)
-    return
-  }
-  event.preventDefault()
-  clampImageCropPan({
-    x: dragging.panX + event.clientX - dragging.startX,
-    y: dragging.panY + event.clientY - dragging.startY,
-  })
-}
-
-function onImageCropPointerUp(event: PointerEvent) {
-  stopImageCropDragging(event.pointerId)
-}
-
-function onImageCropWindowBlur() {
-  stopImageCropDragging()
-}
-
-function stopImageCropDragging(pointerId?: number) {
-  const dragging = imageCropDragging.value
-  if (!dragging) return
-  if (typeof pointerId === 'number' && dragging.pointerId !== pointerId) return
-  try {
-    if (imageCropPreview.value?.hasPointerCapture(dragging.pointerId)) {
-      imageCropPreview.value.releasePointerCapture(dragging.pointerId)
-    }
-  } catch {
-    // The browser may already have released capture.
-  }
-  imageCropDragging.value = null
-  window.removeEventListener('pointerup', onImageCropPointerUp)
-  window.removeEventListener('pointercancel', onImageCropPointerUp)
-  window.removeEventListener('blur', onImageCropWindowBlur)
-}
-
-onBeforeUnmount(() => stopImageCropDragging())
-
-async function confirmImageCrop() {
-  const file = imageCropFile.value
-  if (!file) return
-  let uploadFile = file
-  try {
-    if (imageCropImg.value) {
-      const cropOffsets = getImageCropOffsets()
-      uploadFile = await cropImageFile(file, imageCropImg.value, {
-        ...IMAGE_CROP.value,
-        zoom: imageCropZoom.value,
-        ...cropOffsets,
-      })
-    }
-  } catch {
-    ctx.value.notify(t('notify.imageCropFailed'), 'warning')
-  }
-  await ctx.value.commands.uploadAndInsertImage(uploadFile)
-  finishCurrentImageCrop()
-}
-
-async function skipImageCrop() {
-  const file = imageCropFile.value
-  if (!file) return
-  await ctx.value.commands.uploadAndInsertImage(file)
-  finishCurrentImageCrop()
-}
-
-const videoInput = ref<HTMLInputElement | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
-
-function triggerVideoUpload() {
-  prepareInsert()
-  videoInput.value?.click()
-}
-
-function triggerFileUpload() {
-  prepareInsert()
-  fileInput.value?.click()
-}
-
-function onVideoSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  void uploadSelectedFiles(input, VIDEO_MULTIPLE.value, ctx.value.commands.uploadAndInsertVideo)
-  input.value = ''
-}
-
-function onFileSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  void uploadSelectedFiles(input, FILE_MULTIPLE.value, ctx.value.commands.uploadAndInsertFile)
-  input.value = ''
-}
-
-function selectedFiles(input: HTMLInputElement, multiple: boolean) {
-  const files = Array.from(input.files ?? [])
-  return multiple ? files : files.slice(0, 1)
-}
-
-async function uploadSelectedFiles(
-  input: HTMLInputElement,
-  multiple: boolean,
-  upload: (file: File) => Promise<void>,
-) {
-  await uploadFiles(selectedFiles(input, multiple), upload)
-}
-
-async function uploadFiles(
-  files: File[],
-  upload: (file: File) => Promise<void>,
-) {
-  for (const file of files) {
-    await upload(file)
-  }
-}
+const {
+  imageInput,
+  videoInput,
+  fileInput,
+  triggerImageUpload,
+  triggerVideoUpload,
+  triggerFileUpload,
+  onImageSelected,
+  onVideoSelected,
+  onFileSelected,
+} = useToolbarResourceInputs({
+  prepareInsert,
+  getImageMultiple: () => IMAGE_MULTIPLE.value,
+  getVideoMultiple: () => VIDEO_MULTIPLE.value,
+  getFileMultiple: () => FILE_MULTIPLE.value,
+  isImageCropEnabled: () => IMAGE_CROP.value.enabled,
+  openImageCrop: openImageCropQueue,
+  uploadImage: (file) => ctx.value.commands.uploadAndInsertImage(file),
+  uploadVideo: (file) => ctx.value.commands.uploadAndInsertVideo(file),
+  uploadFile: (file) => ctx.value.commands.uploadAndInsertFile(file),
+})
 
 function onAttachmentCommand(command: string | number | object) {
   props.debugLog?.('adapter', 'dropdown-command', { menu: 'attachment', command })
@@ -481,46 +280,15 @@ function confirmUrlImage() {
   urlDialogVisible.value = false
 }
 
-// ---- Markdown 导入 / 导出 ----
-// 导入:选 .md 文件 → 读文本 → ctx.importMarkdown 写入编辑器
-// 导出:ctx.getMarkdown → Blob 下载为 .md 文件
-// 复用「图片上传」的隐藏 input 模式
-const mdInput = ref<HTMLInputElement | null>(null)
-function triggerImportMarkdown() {
-  mdInput.value?.click()
-}
-async function onMdSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = '' // 允许重复选同一文件
-  if (!file) return
-  await importMarkdownFile(ctx.value, file, { t: ctx.value.t })
-}
-
-function exportMarkdown() {
-  exportMarkdownFile(ctx.value, {
-    filename: resolvedToolbarOptions.value.markdown.exportFilename,
-    t: ctx.value.t,
-  })
-}
-
-// dropdown 命令分派
-function onMarkdownCommand(cmd: string) {
-  if (cmd === 'import') triggerImportMarkdown()
-  else if (cmd === 'export') exportMarkdown()
-}
-
-// ---- 打印 ----
-// 隔离打印:把编辑器 HTML 写进一个隐藏 iframe,只打印它,避免污染宿主页面。
-// iframe 卸载时机:load 后调 print();print() 返回后(用户已确认/取消)再移除。
-// 兼容 Safari:用 onload 触发 print,而非 setTimeout;部分引擎要 setTimeout 才稳定,二者并用。
-function printContent() {
-  printEditorContent(ctx.value.getHTML(), {
-    ...resolvedToolbarOptions.value.print,
-    t: ctx.value.t,
-    title: resolvedToolbarOptions.value.print.title ?? t('print.defaultTitle'),
-  })
-}
+const {
+  markdownInput: mdInput,
+  onMarkdownSelected: onMdSelected,
+  runMarkdownAction: onMarkdownCommand,
+  printContent,
+} = useToolbarDocumentActions({
+  getContext: () => ctx.value,
+  getToolbarOptions: () => resolvedToolbarOptions.value,
+})
 
 // ---- 表格网格选择器 ----
 const tableHover = ref({ rows: 1, cols: 1 })
@@ -697,95 +465,20 @@ const currentFontLabel = computed(
 const currentFontSizeLabel = computed(() => currentTextStyle.value.fontSize || commandLabel('fontSize'))
 const currentLineHeightLabel = computed(() => currentTextStyle.value.lineHeight || commandLabel('lineHeight'))
 
-// 链接弹窗
-// 根因:弹窗打开/确认时编辑器已失焦,ProseMirror 的 selection 在 v3 失焦后
-// 不可靠,chain 内部 .focus() 也不保证恢复到正确位置 → 空选区下 setLink
-// 只写 stored mark、不产生可见文本 →「点了确定没反应」。
-// 修复:打开时保存绝对位置 from/to,确认时用 insertContentAt({from,to}, ...)
-// 直接按位置写入,完全绕开 focus/selection 恢复。
-const linkDialogVisible = ref(false)
-const linkUrl = ref('')
-const linkText = ref('')
-const linkNewTab = ref(true)
-// 打开弹窗瞬间的选区绝对位置快照(不受后续失焦影响)
-let savedFrom = 0
-let savedTo = 0
-let savedEmpty = true
-let savedInLink = false
-
-function openLinkDialog() {
-  const ed = ctx.value.editor.value
-  if (!ed) return
-  props.debugLog?.('adapter', 'dialog-open', { dialog: 'link' })
-  // 用户从未点进编辑器时,先把光标移到文档末尾,否则会插到开头
-  prepareInsert()
-  // 快照当前 selection 的绝对位置
-  const { from, to, empty } = ed.state.selection
-  savedFrom = from
-  savedTo = to
-  savedEmpty = empty
-  savedInLink = ed.isActive('link')
-  const activeLink = getActiveLinkRange(ed)
-  if (activeLink) {
-    savedFrom = activeLink.from
-    savedTo = activeLink.to
-    savedEmpty = false
-    linkUrl.value = activeLink.href
-    linkText.value = activeLink.text
-    linkNewTab.value = activeLink.target
-      ? activeLink.target === '_blank'
-      : LINK_DEFAULT_TARGET.value === '_blank'
-  } else {
-    const attrs = ed.getAttributes('link') as { href?: string } | undefined
-    linkUrl.value = attrs?.href ?? ''
-    // 选区有文字时,预填进「文字」框;光标状态留空
-    linkText.value = !empty
-      ? ed.state.doc.textBetween(from, to, ' ')
-      : ''
-    linkNewTab.value = LINK_DEFAULT_TARGET.value === '_blank'
-  }
-  linkDialogVisible.value = true
-}
-
-function confirmLink() {
-  const ed = ctx.value.editor.value
-  if (!ed) return
-  props.debugLog?.('adapter', 'dialog-confirm', { dialog: 'link' })
-  const href = linkUrl.value.trim()
-  const text = linkText.value.trim()
-  const target = linkNewTab.value ? '_blank' : '_self'
-  const range = { from: savedFrom, to: savedTo }
-
-  // 没填链接
-  if (!href) {
-    if (savedInLink) {
-      // 当前在链接上 → 移除
-      ctx.value.commands.setLink('', { target, range })
-      ctx.value.notify(t('notify.linkRemoved'), 'success')
-    } else {
-      // 既没填链接、也没选中已有链接 → 提示用户
-      ctx.value.notify(t('notify.linkEmpty'), 'warning')
-      return
-    }
-    linkDialogVisible.value = false
-    return
-  }
-
-  // 简单校验:带协议(http/https/mailto/tel)或明显的域名
-  if (!/^(https?:|mailto:|tel:)/i.test(href) && !/\.[a-z]{2,}/i.test(href)) {
-    ctx.value.notify(t('notify.linkInvalid'), 'warning')
-    return
-  }
-
-  if (savedEmpty || text) {
-    // 光标(无选区)或填了文字 → 用 insertLinkText 按位置插入/替换
-    ctx.value.commands.insertLinkText(href, text, { target, range })
-  } else {
-    // 有选区但没填文字 → 仅给原文套链接(保留原文)
-    ctx.value.commands.setLink(href, { target, range })
-  }
-  linkDialogVisible.value = false
-}
+const {
+  visible: linkDialogVisible,
+  url: linkUrl,
+  text: linkText,
+  newTab: linkNewTab,
+  open: openLinkDialog,
+  confirm: confirmLink,
+  cancel: cancelLink,
+} = useToolbarLinkController({
+  getContext: () => ctx.value,
+  prepareInsert,
+  getDefaultTarget: () => LINK_DEFAULT_TARGET.value,
+  debugLog: (...args) => props.debugLog?.(...args),
+})
 </script>
 
 <template>
@@ -1233,6 +926,10 @@ function confirmLink() {
           </AntDropdown>
         </AntTooltip>
 
+        <AntTooltip v-else-if="item === 'mermaid'" :content="commandLabel('mermaid')" placement="top" :show-after="300">
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="18" /></AntButton>
+        </AntTooltip>
+
         <AntTooltip v-else-if="item === 'clearFormat'" :content="commandLabel('clearFormat')" placement="top" :show-after="300">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="18" /></AntButton>
         </AntTooltip>
@@ -1407,7 +1104,7 @@ function confirmLink() {
         </div>
       </div>
       <template #footer>
-        <AntButton @click="linkDialogVisible = false">{{ t('toolbar.action.cancel') }}</AntButton>
+        <AntButton @click="cancelLink">{{ t('toolbar.action.cancel') }}</AntButton>
         <AntButton type="primary" @click="confirmLink">{{ t('toolbar.action.confirm') }}</AntButton>
       </template>
     </AntModal>

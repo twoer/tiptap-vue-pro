@@ -46,7 +46,7 @@ Naive UI and Ant Design Vue use the same props. Replace the component name, styl
 
 Ready-made adapter components enable Slash Command by default. Put the cursor in an editable paragraph and type `/` to open the quick insert menu. You can keep typing Chinese, English, or pinyin aliases such as `/表`, `/table`, `/todo`, `/img`, and `/code`.
 
-The default menu stays compact: heading, task, bullet list, ordered list, table, image, divider, and code block. `Enter` runs the active item, and `Escape` closes the menu while keeping the typed `/query` text. Slash Command is an editor interaction feature and does not change Markdown import/export semantics.
+The default menu includes heading, task, bullet list, ordered list, table, image, divider, code block, and Mermaid diagram. `Enter` runs the active item, and `Escape` closes the menu while keeping the typed `/query` text. Slash Command is an editor interaction feature and does not change Markdown import/export semantics.
 
 ## Find And Replace
 

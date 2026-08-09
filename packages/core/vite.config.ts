@@ -27,6 +27,8 @@ export default defineConfig({
         '@tiptap/vue-3',
         /^@tiptap\//,
         'lowlight',
+        'mermaid',
+        /^@codemirror\//,
       ],
       output: {
         globals: (id) => {

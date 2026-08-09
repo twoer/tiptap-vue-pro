@@ -2,6 +2,18 @@
 
 中文: [README.md](./README.md)
 
+[![npm version](https://img.shields.io/npm/v/tiptap-vue-pro-core?label=npm)](https://www.npmjs.com/package/tiptap-vue-pro-core)
+[![License](https://img.shields.io/github/license/twoer/tiptap-vue-pro)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178c6)](https://www.typescriptlang.org/)
+[![Vue 3](https://img.shields.io/badge/Vue-3-42b883)](https://vuejs.org/)
+[![Tiptap v3](https://img.shields.io/badge/Tiptap-v3-111111)](https://tiptap.dev/)
+[![Docs](https://img.shields.io/badge/docs-online-2ea44f)](https://twoer.github.io/tiptap-vue-pro/en/)
+
+[![core monthly downloads](https://img.shields.io/npm/dm/tiptap-vue-pro-core?label=core%20monthly%20downloads)](https://www.npmjs.com/package/tiptap-vue-pro-core)
+[![Element Plus monthly downloads](https://img.shields.io/npm/dm/tiptap-vue-pro-element-plus?label=Element%20Plus%20monthly%20downloads)](https://www.npmjs.com/package/tiptap-vue-pro-element-plus)
+[![Naive UI monthly downloads](https://img.shields.io/npm/dm/tiptap-vue-pro-naive?label=Naive%20UI%20monthly%20downloads)](https://www.npmjs.com/package/tiptap-vue-pro-naive)
+[![Ant Design Vue monthly downloads](https://img.shields.io/npm/dm/tiptap-vue-pro-ant-design-vue?label=Ant%20Design%20Vue%20monthly%20downloads)](https://www.npmjs.com/package/tiptap-vue-pro-ant-design-vue)
+
 > A modern Vue 3 rich text editor component package built on Tiptap v3.
 
 This project is not affiliated with [Tiptap](https://tiptap.dev). The editor engine is powered by Tiptap v3 and ProseMirror.
@@ -12,6 +24,7 @@ This project is not affiliated with [Tiptap](https://tiptap.dev). The editor eng
 - Online demo: <https://twoer.github.io/tiptap-vue-pro/playground/>
 - Quick start: <https://twoer.github.io/tiptap-vue-pro/en/guide/quick-start>
 - API docs: <https://twoer.github.io/tiptap-vue-pro/en/api/props>
+- Changelog: [CHANGELOG.md](./CHANGELOG.md)
 
 ## Why This Exists
 
@@ -30,13 +43,15 @@ Tiptap Vue Pro packages those pieces as a UI-independent core plus three equival
 
 - Tiptap v3 + Vue 3 + TypeScript
 - HTML / JSON output with `v-model`
-- Full toolbar: headings, formatting, font family, font size, line height, colors, highlights, alignment, lists, links, images, tables, divider styles, Markdown, print, preview, and fullscreen
-- Slash Command quick insert: type `/` to insert headings, tasks, lists, tables, images, dividers, and code blocks
+- Full toolbar: headings, formatting, font family, font size, line height, colors, highlights, alignment, lists, links, images, tables, Mermaid, divider styles, Markdown, print, preview, and fullscreen
+- Code block workflow with syntax highlighting for 17 default languages, language icons, contextual language switching, and one-click copy
+- Slash Command quick insert: type `/` to insert headings, tasks, lists, tables, images, dividers, code blocks, and Mermaid diagrams
 - Editor-native find and replace: Ctrl/⌘ + F opens a panel with highlights, previous/next navigation, case-sensitive search, replace current, and replace all
 - Image upload, crop before upload, paste, drag/drop, replacement, alignment, sizing, and captions
 - Video, audio, and file upload with player/file-card display modes, multiple selection, type limits, size limits, and contextual editing after insertion
 - Table insertion, column width dragging, row/column grips, Shift range selection, Ctrl/⌘ + A table selection, cell merge/split, and header toggles
 - Markdown import/export
+- Dedicated Mermaid blocks with persisted code, diagram, and split views, CodeMirror editing, and live preview
 - Developer diagnostics logs with lifecycle, command, upload, table, and other channels
 - Component-level dark mode, readonly mode, and word count
 - Nuxt / SSR friendly
@@ -100,6 +115,7 @@ Naive UI and Ant Design Vue use the same props. Replace the component name and s
 | Configure link target, table headers, images, and media attachments | [EditorBehaviorOptions](https://twoer.github.io/tiptap-vue-pro/en/api/editor-behavior-options) |
 | Integrate image upload | [Image Upload](https://twoer.github.io/tiptap-vue-pro/en/guide/image-upload) |
 | Integrate video, audio, and file upload | [Video, Audio, and File Upload](https://twoer.github.io/tiptap-vue-pro/en/guide/media-upload) |
+| Edit Mermaid diagrams | [Mermaid Blocks](https://twoer.github.io/tiptap-vue-pro/en/guide/mermaid) |
 | Use Nuxt / SSR | [Nuxt / SSR](https://twoer.github.io/tiptap-vue-pro/en/guide/ssr) |
 | Debug integration and editor behavior issues | [Developer Diagnostics](https://twoer.github.io/tiptap-vue-pro/en/advanced/developer-diagnostics) |
 | Understand the architecture | [Architecture](https://twoer.github.io/tiptap-vue-pro/en/advanced/architecture) |

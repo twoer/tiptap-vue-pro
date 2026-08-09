@@ -9,6 +9,7 @@ import {
   ListOrdered,
   Minus,
   Table,
+  Workflow,
 } from 'lucide-vue-next'
 import {
   isSlashCommandItemExecutable,
@@ -30,6 +31,7 @@ const iconMap = {
   ImagePlus,
   Minus,
   Code,
+  Workflow,
 } as const
 
 const menuStyle = computed(() => {

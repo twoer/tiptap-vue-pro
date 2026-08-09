@@ -98,6 +98,7 @@ export const COMMAND_REGISTRY: Record<ToolbarBuiltinKey, CommandMeta> = {
     execute: (ctx, payload) => ctx.commands.codeBlock(payload == null ? undefined : payloadString(payload) as CodeBlockLanguage),
     isActive: (ctx) => ctx.isActive('codeBlock'),
   },
+  mermaid: { id: 'mermaid', label: 'Mermaid 图表', icon: 'Workflow', group: 'insert', execute: (ctx) => ctx.commands.insertMermaidBlock() },
   hr: { id: 'hr', label: '分割线', icon: 'Minus', group: 'insert', execute: (ctx, payload) => ctx.commands.hr(payloadHorizontalRuleVariant(payload)) },
   link: { id: 'link', label: '链接', icon: 'Link', group: 'insert' },
   image: { id: 'image', label: '图片', icon: 'ImagePlus', group: 'insert' },

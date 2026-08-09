@@ -81,9 +81,10 @@ describe('useImageDropPaste', () => {
     const upload = vi.fn(async () => 'https://example.com/x.png')
     const editor = createEditor()
     const ctx = createCtx(editor)
+    const debugLog = vi.fn()
     const { onDrop } = useImageDropPaste(ctx, () => upload, () => ({
       image: { maxSize: 1024 },
-    }))
+    }), debugLog)
     const preventDefault = vi.fn()
 
     onDrop({
@@ -96,5 +97,37 @@ describe('useImageDropPaste', () => {
     expect(upload).not.toHaveBeenCalled()
     expect(editor.chainApi.setImage).not.toHaveBeenCalled()
     expect(ctx.notify).toHaveBeenCalledWith('图片过大(2.0 KB),上限 1.0 KB', 'warning')
+    expect(debugLog).toHaveBeenCalledWith(
+      'upload',
+      'image-drop:validation-error',
+      { fileName: 'x.png', reason: 'too-large' },
+      'warn',
+    )
+  })
+
+  it('reports paste upload failures through the debug channel', async () => {
+    const uploadError = new Error('network unavailable')
+    const upload = vi.fn(async () => {
+      throw uploadError
+    })
+    const editor = createEditor()
+    const ctx = createCtx(editor)
+    const debugLog = vi.fn()
+    const { onPaste } = useImageDropPaste(ctx, () => upload, undefined, debugLog)
+
+    onPaste({
+      clipboardData: { files: [imageFile()] },
+      preventDefault: vi.fn(),
+    } as unknown as ClipboardEvent)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(debugLog).toHaveBeenCalledWith(
+      'upload',
+      'image-paste:error',
+      { fileName: 'x.png' },
+      'error',
+      uploadError,
+    )
+    expect(ctx.notify).toHaveBeenCalledWith('部分图片上传失败', 'error')
   })
 })

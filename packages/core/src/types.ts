@@ -8,6 +8,8 @@ import type { FindReplaceState } from './findReplace'
 import type { EditorBehaviorOptions } from './editorBehaviorOptions'
 import type { LocaleProp, LocaleTranslate } from './locale'
 import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
+import type { MermaidBlockOptions } from './extensions/mermaidBlock'
+import type { MermaidViewMode } from './mermaid'
 
 /**
  * 扩展数组类型,v3 用 Extensions(同时接受 Extension 和 Node)。
@@ -107,6 +109,8 @@ export interface ProEditorOptions {
   editorBehaviorOptions?: EditorBehaviorOptions
   /** Slash Command 配置。false 表示关闭;传 bridge callbacks 时启用 core suggestion extension */
   slashCommand?: false | Partial<SlashCommandExtensionOptions>
+  /** Mermaid 块配置。adapter 用它注入各自的 Vue NodeView。 */
+  mermaid?: Partial<MermaidBlockOptions>
   /** 是否只读 */
   editable?: boolean
   /**
@@ -227,6 +231,10 @@ export interface ProEditorCommands {
   blockquote: () => void
   /** 切换代码块;传入语言时会创建/更新为指定语言 */
   codeBlock: (language?: CodeBlockLanguage) => void
+  /** 插入独立 Mermaid 块。默认使用当前语言的有效模板并进入分屏视图。 */
+  insertMermaidBlock: (source?: string, viewMode?: MermaidViewMode) => void
+  /** 更新当前 Mermaid 块的持久化视图。 */
+  setMermaidViewMode: (viewMode: MermaidViewMode) => void
   /** 设置/更新链接;href 为空则移除链接 */
   setLink: (href: string, opts?: { target?: string; range?: { from: number; to: number } }) => void
   /**

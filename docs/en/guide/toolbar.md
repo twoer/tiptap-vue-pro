@@ -55,10 +55,18 @@ Pass `:toolbar="false"` to hide all built-in buttons. Use the `toolbar` slot whe
 | Inline formatting | Bold, italic, underline, strikethrough, inline code, superscript, subscript |
 | Color and cleanup | Text color, background highlight, clear format |
 | Alignment and indent | Left / center / right / justify, decrease indent, increase indent |
-| Lists and blocks | Bullet list, ordered list, task list, blockquote, code block language |
+| Lists and blocks | Bullet list, ordered list, task list, blockquote, code block language and syntax highlighting |
 | Insert | Link, image (upload / URL, merged by configuration), attachment upload, table, divider styles |
 | Document tools | Markdown import/export, print |
 | View | Preview, fullscreen |
+
+## Code Blocks
+
+The Code button opens a language menu for inserting a code block or changing the active block's language. When the cursor enters a code block, a contextual toolbar appears above it with language switching and one-click copying. The behavior is consistent across the Element Plus, Naive UI, and Ant Design Vue adapters.
+
+The 17 default options are Plain Text, JavaScript, TypeScript, HTML / Vue, CSS, JSON, Python, Java, C, C++, C#, Go, Rust, Bash, SQL, YAML, and Markdown. The menu and current-language label use language icons; custom entries without a built-in icon fall back to the generic code icon.
+
+Replace the language menu with [`toolbarOptions.codeBlockLanguages`](/en/api/toolbar-options#code-block-languages).
 
 ## Divider Styles
 

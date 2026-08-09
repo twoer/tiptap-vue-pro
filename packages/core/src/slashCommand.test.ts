@@ -27,9 +27,10 @@ describe('slash command protocol', () => {
       'image',
       'divider',
       'codeBlock',
+      'mermaid',
     ])
     expect(ids(getDefaultSlashCommandItems())).toEqual(SLASH_COMMAND_DEFAULT_ITEM_IDS)
-    expect(getDefaultSlashCommandItems()).toHaveLength(8)
+    expect(getDefaultSlashCommandItems()).toHaveLength(9)
   })
 
   it('normalizes typed slash queries', () => {
@@ -50,6 +51,8 @@ describe('slash command protocol', () => {
     ['/tu', 'image'],
     ['/line', 'divider'],
     ['/code', 'codeBlock'],
+    ['/mermaid', 'mermaid'],
+    ['/流程图', 'mermaid'],
   ] as const)('ranks %s as %s', (query, expectedId) => {
     expect(filterSlashCommandItems(SLASH_COMMAND_ITEMS, query)[0]?.id).toBe(expectedId)
   })
@@ -96,6 +99,7 @@ describe('slash command protocol', () => {
       insertTable: vi.fn(),
       hr: vi.fn(),
       codeBlock: vi.fn(),
+      insertMermaidBlock: vi.fn(),
     }
     const ctx = { commands }
 
@@ -107,6 +111,9 @@ describe('slash command protocol', () => {
 
     expect(runSlashCommandItem(ctx, getSlashCommandItem('divider')!)).toBe(true)
     expect(commands.hr).toHaveBeenCalledTimes(1)
+
+    expect(runSlashCommandItem(ctx, getSlashCommandItem('mermaid')!)).toBe(true)
+    expect(commands.insertMermaidBlock).toHaveBeenCalledTimes(1)
   })
 
   it('delegates image slash commands to the adapter flow', () => {
@@ -119,6 +126,7 @@ describe('slash command protocol', () => {
         insertTable: vi.fn(),
         hr: vi.fn(),
         codeBlock: vi.fn(),
+        insertMermaidBlock: vi.fn(),
       },
     }
     const onImage = vi.fn()

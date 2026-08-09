@@ -40,6 +40,7 @@ import type {
   UploadedAsset,
 } from './types'
 import type { ProEditorDebugLogFn } from './debug'
+import { getDefaultMermaidSource } from './mermaid'
 
 function contentLength(value: unknown) {
   if (typeof value === 'string') return value.length
@@ -130,6 +131,11 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
         onUpdate: (state) => {
           findReplaceState.value = state
         },
+      },
+      mermaid: {
+        ...options.mermaid,
+        defaultSource: options.mermaid?.defaultSource
+          ?? getDefaultMermaidSource(resolvedLocale.value.locale),
       },
     },
   )
@@ -1022,6 +1028,15 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       } else {
         chain.toggleCodeBlock().run()
       }
+    },
+    insertMermaidBlock: (source, viewMode) => {
+      cmd()?.chain().focus().insertMermaidBlock({
+        source,
+        viewMode,
+      }).run()
+    },
+    setMermaidViewMode: (viewMode) => {
+      cmd()?.chain().focus().setMermaidViewMode(viewMode).run()
     },
     setLink: (href, o) => {
       const ed = cmd()

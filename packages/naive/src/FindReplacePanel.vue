@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { NButton, NInput, NTooltip } from 'naive-ui'
 import {
   CaseSensitive,
@@ -9,7 +9,7 @@ import {
   Search,
   X,
 } from 'lucide-vue-next'
-import type { ProEditorContext } from 'tiptap-vue-pro-core'
+import { useFindReplacePanelState, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 const props = defineProps<{
   ctx: ProEditorContext
@@ -17,21 +17,15 @@ const props = defineProps<{
 }>()
 
 const searchInput = ref<InstanceType<typeof NInput> | null>(null)
-const state = computed(() => props.ctx.findReplaceState.value)
-const total = computed(() => state.value.matches.length)
-const current = computed(() => total.value > 0 ? state.value.activeIndex + 1 : 0)
-const query = computed({
-  get: () => state.value.query,
-  set: (value: string) => props.ctx.commands.setFindReplaceQuery(value),
-})
-const replacement = computed({
-  get: () => state.value.replacement,
-  set: (value: string) => props.ctx.commands.setFindReplaceReplacement(value),
-})
-const caseSensitive = computed({
-  get: () => state.value.caseSensitive,
-  set: (value: boolean) => props.ctx.commands.setFindReplaceCaseSensitive(value),
-})
+const {
+  state,
+  total,
+  current,
+  query,
+  replacement,
+  caseSensitive,
+  toggleCaseSensitive,
+} = useFindReplacePanelState(() => props.ctx)
 
 watch(
   () => state.value.open,
@@ -49,9 +43,6 @@ function onPanelKeydown(event: KeyboardEvent) {
   props.ctx.commands.closeFindReplace()
 }
 
-function toggleCaseSensitive() {
-  caseSensitive.value = !caseSensitive.value
-}
 </script>
 
 <template>

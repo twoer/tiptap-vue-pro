@@ -22,6 +22,7 @@ export type ToolbarBuiltinKey =
   | 'taskList'
   | 'blockquote'
   | 'codeBlock'
+  | 'mermaid'
   | 'hr'
   | 'link'
   | 'image'
@@ -45,7 +46,7 @@ export const DEFAULT_TOOLBAR: ToolbarConfig = [
   ['color', 'highlight', 'clearFormat'],
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
-  ['link', 'image', 'attachment', 'table', 'hr'],
+  ['link', 'image', 'attachment', 'table', 'mermaid', 'hr'],
   ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]

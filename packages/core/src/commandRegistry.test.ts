@@ -36,6 +36,7 @@ function createCtx(active: Array<string | Record<string, unknown>> = []) {
     taskList: vi.fn(),
     blockquote: vi.fn(),
     codeBlock: vi.fn(),
+    insertMermaidBlock: vi.fn(),
     hr: vi.fn(),
     clearFormat: vi.fn(),
     openFindReplace: vi.fn(),

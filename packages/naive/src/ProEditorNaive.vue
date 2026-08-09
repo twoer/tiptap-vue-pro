@@ -18,8 +18,8 @@
  * active 态响应性:用 selectionTick 在 selection/transaction
  * 变化时 ++ 触发工具栏重渲染(Tiptap 的 isActive 不会自动触发 Vue 重渲染)。
  */
-import { ref, watch, computed, onMounted, onBeforeUnmount, shallowRef } from 'vue'
-import { EditorContent } from '@tiptap/vue-3'
+import { ref, watch, computed, onMounted, onBeforeUnmount, shallowRef, provide } from 'vue'
+import { EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3'
 import {
   NConfigProvider,
   NMessageProvider,
@@ -32,6 +32,7 @@ import {
 } from 'naive-ui'
 import { Pencil } from 'lucide-vue-next'
 import {
+  MERMAID_NODE_VIEW_CONTEXT,
   SLASH_COMMAND_ITEMS,
   createDebugLogger,
   resolveEditorBehaviorOptions,
@@ -69,6 +70,7 @@ import FileBubbleMenu from './FileBubbleMenu.vue'
 import MediaBubbleMenu from './MediaBubbleMenu.vue'
 import HorizontalRuleBubbleMenu from './HorizontalRuleBubbleMenu.vue'
 import CodeBlockBubbleMenu from './CodeBlockBubbleMenu.vue'
+import MermaidBlockView from './MermaidBlockView.vue'
 import MessageBridge from './MessageBridge.vue'
 
 const props = withDefaults(
@@ -205,6 +207,9 @@ const ctx = useProEditor({
       executeSlashCommand(item)
     },
   },
+  mermaid: {
+    nodeViewRenderer: VueNodeViewRenderer(MermaidBlockView),
+  },
   get debug() {
     return props.debug
   },
@@ -256,6 +261,11 @@ watch(
 // 纯 UI 行为,状态留在 adapter 层(Core 无需感知)。
 const isFullscreen = ref(false)
 const isPreview = ref(false)
+provide(MERMAID_NODE_VIEW_CONTEXT, {
+  dark: computed(() => props.dark),
+  editable: computed(() => !props.readonly && !isPreview.value),
+  t: ctx.t,
+})
 const tableGripMenuOpen = ref(false)
 // 内容滚动容器(表格抓手覆盖层相对它定位)
 const contentWrap = ref<HTMLElement | null>(null)
@@ -304,7 +314,12 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
 })
 
 // 图片粘贴/拖拽:挂到内容容器上。
-const { onPaste, onDrop } = useImageDropPaste(ctx, () => props.uploadImage, () => props.editorBehaviorOptions)
+const { onPaste, onDrop } = useImageDropPaste(
+  ctx,
+  () => props.uploadImage,
+  () => props.editorBehaviorOptions,
+  debugLog,
+)
 
 function isSupportedSlashImageUrl(url: string) {
   try {
@@ -441,8 +456,10 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           <NTooltip placement="top" :show-arrow="false">
             <template #trigger>
               <NButton text class="tvp-preview-bar__edit-btn" @click="togglePreview">
-                <Pencil :size="16" />
-                <span class="tvp-preview-bar__edit-text">{{ t('toolbar.preview.edit') }}</span>
+                <span class="tvp-preview-bar__edit-content">
+                  <Pencil :size="16" class="tvp-preview-bar__edit-icon" aria-hidden="true" />
+                  <span>{{ t('toolbar.preview.edit') }}</span>
+                </span>
               </NButton>
             </template>
             {{ t('toolbar.preview.edit') }}
@@ -674,7 +691,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   white-space: nowrap;
 }
 
-.tvp-preview-bar .tvp-preview-bar__edit-btn :deep(.n-button__content) {
+.tvp-preview-bar .tvp-preview-bar__edit-btn .tvp-preview-bar__edit-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -682,16 +699,11 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   line-height: 1;
 }
 
-.tvp-preview-bar .tvp-preview-bar__edit-btn :deep(svg) {
+.tvp-preview-bar__edit-icon {
   display: block;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
-}
-
-.tvp-preview-bar__edit-text {
-  margin-left: 0;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
 }
 
 /* 纯图标按钮正方形击中区,复用工具栏的约束 */

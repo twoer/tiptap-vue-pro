@@ -33,7 +33,7 @@ describe('toolbar config', () => {
       ['color', 'highlight', 'clearFormat'],
       ['align', 'decreaseIndent', 'increaseIndent'],
       ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
-      ['link', 'image', 'attachment', 'table', 'hr'],
+      ['link', 'image', 'attachment', 'table', 'mermaid', 'hr'],
       ['findReplace', 'markdown', 'print'],
       ['preview', 'fullscreen'],
     ])

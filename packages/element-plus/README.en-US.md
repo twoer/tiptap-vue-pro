@@ -7,8 +7,9 @@ Ready-to-use rich text editor component built with Tiptap v3, Vue 3, and Element
 ## Features
 
 - Ready-made toolbar: headings, formatting, font family, font size, line height, indent, colors, highlights, and alignment
-- Links, image upload/image URL, video/audio/file upload, table grid, column width dragging, row/column grips, range selection, and Markdown import/export
-- Slash Command quick insert: type `/` to search and insert headings, tasks, lists, tables, images, dividers, and code blocks
+- Links, image upload/image URL, video/audio/file upload, table grid, column width dragging, row/column grips, range selection, Mermaid blocks, and Markdown import/export
+- Code blocks with syntax highlighting for 17 default languages, language icons, contextual language switching, and one-click copy
+- Slash Command quick insert: type `/` to search and insert headings, tasks, lists, tables, images, dividers, code blocks, and Mermaid diagrams
 - Ctrl/⌘ + F find/replace with match highlights, previous/next navigation, case-sensitive search, replace current, and replace all
 - Fullscreen, preview, dark mode, and word count
 

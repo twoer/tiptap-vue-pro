@@ -42,6 +42,10 @@ const toolbarOptions: ToolbarOptions = {
 
 ## Code Block Languages
 
+The default menu includes 17 languages: Plain Text, JavaScript, TypeScript, HTML / Vue, CSS, JSON, Python, Java, C, C++, C#, Go, Rust, Bash, SQL, YAML, and Markdown. The toolbar menu and contextual code block menu share this configuration.
+
+Providing `codeBlockLanguages` replaces the default list. Each `value` must name a language registered in the active lowlight instance. Known languages display their matching icon; entries without a built-in icon use the generic code icon.
+
 ```ts
 const toolbarOptions: ToolbarOptions = {
   codeBlockLanguages: [

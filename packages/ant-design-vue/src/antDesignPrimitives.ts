@@ -58,6 +58,13 @@ export const AntButton = defineComponent({
   },
 })
 
+export const AntButtonGroup = defineComponent({
+  name: 'AntButtonGroup',
+  setup(_, { slots }) {
+    return () => h(Button.Group, { class: 'tvp-ant-button-group' }, slots)
+  },
+})
+
 export const AntTooltip = defineComponent({
   name: 'AntTooltip',
   inheritAttrs: false,

@@ -25,6 +25,7 @@ import { HorizontalRuleExtended } from './extensions/horizontalRule'
 import { RangeSelectionDecorations } from './extensions/rangeSelection'
 import { SlashCommandExtension, type SlashCommandExtensionOptions } from './extensions/slashCommand'
 import { FindReplaceExtension, type FindReplaceExtensionOptions } from './extensions/findReplace'
+import { MermaidBlock, type MermaidBlockOptions } from './extensions/mermaidBlock'
 import type { EditorExtensionConfig } from './extensionRegistry'
 
 export type { Extensions } from '@tiptap/core'
@@ -66,6 +67,7 @@ export function createDefaultExtensions(
     fileAttachment?: FileAttachmentOptions
     slashCommand?: Partial<SlashCommandExtensionOptions>
     findReplace?: Partial<FindReplaceExtensionOptions>
+    mermaid?: Partial<MermaidBlockOptions>
   } = {},
 ): Extensions {
   const enabled = {
@@ -79,6 +81,7 @@ export function createDefaultExtensions(
     textAlign: true,
     blockIndent: true,
     codeBlock: true,
+    mermaid: true,
     script: true,
     taskList: true,
     media: true,
@@ -169,6 +172,10 @@ export function createDefaultExtensions(
         languageClassPrefix: 'language-',
       }),
     )
+  }
+
+  if (enabled.mermaid) {
+    extensions.push(options.mermaid ? MermaidBlock.configure(options.mermaid) : MermaidBlock)
   }
 
   if (enabled.script) {

@@ -32,6 +32,8 @@ function createDemoContent(uiName: string) {
     '<li data-checked="true"><label><input type="checkbox" checked=""><span></span></label><div><p>已完成项会有删除线</p></div></li></ul>' +
     '<blockquote>选中文字会浮现气泡菜单(加粗/斜体/链接...)。</blockquote>' +
     '<pre><code>const editor = useProEditor({ content })\n// 开箱即用的 Tiptap v3 封装</code></pre>' +
+    '<h3>Mermaid 编辑与预览</h3>' +
+    '<div data-type="mermaid-block" data-view-mode="split"><pre><code class="language-mermaid">flowchart LR\n  A[编辑代码] --&gt; B[实时预览]\n  B --&gt; C[保存视图]</code></pre></div>' +
     '<table><tbody>' +
     '<tr><th>模块</th><th>能力</th><th>状态</th><th>备注</th></tr>' +
     '<tr><td>表格</td><td>行列操作</td><td>OK</td><td>结构调整</td></tr>' +

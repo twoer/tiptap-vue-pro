@@ -27,4 +27,6 @@ const toolbarOptions: ToolbarOptions = {
 
 ::: warning
 Markdown 导出基于 Markdown 语义,字体、字号、行高、缩进、表格列宽等 HTML 布局能力可能无法完整保留。需要保真时建议使用 HTML 或 JSON 输出。
+
+独立 Mermaid 块会往返为标准的 `mermaid` fenced code block。源码会保留,但代码 / 图表 / 分屏视图属于编辑器展示状态,Markdown 重新导入时统一恢复为分屏。
 :::

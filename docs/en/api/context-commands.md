@@ -25,6 +25,7 @@ interface ProEditorContext {
 | History | `undo()`, `redo()` |
 | Inline formatting | `bold()`, `italic()`, `strike()`, `underline()`, `code()`, `superscript()`, `subscript()` |
 | Block structure | `toggleHeading(level)`, `blockquote()`, `codeBlock(language)`, `hr(variant?)` |
+| Mermaid | `insertMermaidBlock(source?, viewMode?)`, `setMermaidViewMode('code' \| 'diagram' \| 'split')` |
 | Lists | `bulletList()`, `orderedList()`, `taskList()` |
 | Typography | `setFontFamily(value)`, `setFontSize(value)`, `setLineHeight(value)`, `increaseIndent()`, `decreaseIndent()` |
 | Color | `setColor(color)`, `toggleHighlight(color)` |

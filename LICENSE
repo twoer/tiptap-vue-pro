@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-本项目基于以下开源项目构建,它们各自遵循其原始许可协议:
-- Tiptap (https://tiptap.dev) — MIT License
-- ProseMirror (https://prosemirror.net) — MIT License
-- Element Plus (https://element-plus.org) — MIT License

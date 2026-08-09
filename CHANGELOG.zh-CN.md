@@ -1,0 +1,36 @@
+# 更新日志
+
+English: [CHANGELOG.md](./CHANGELOG.md)
+
+## 0.1.9 - 2026-08-09
+
+### 新增
+
+- Element Plus、Naive UI 和 Ant Design Vue 三套 Adapter 新增独立 Mermaid 块,支持代码、图表和分屏三种视图。
+- Mermaid 渲染支持语法校验、过期结果保护、严格安全模式、按需加载和移动端响应式布局。
+- core 新增图片裁剪、资源输入、链接编辑、Markdown/打印动作及 Find/Replace 状态等 headless controller。
+
+### 调整
+
+- 统一三套 Adapter 的 Mermaid 视图按钮和预览编辑操作,包括按钮尺寸、图标居中、间距、暗色模式和响应式布局。
+- 在保持三套 UI 原生组件与样式边界的前提下,减少 895 行重复 Toolbar 脚本逻辑。
+- CI 新增包构建、类型检查、单元测试和文档部署质量门禁。
+- 补充粘贴、拖拽和图片裁剪流程的上传诊断。
+
+### 修复
+
+- 修复编辑器内容区高度表现。
+- 修复滚动时媒体气泡菜单未跟随选中节点的问题。
+
+## 0.1.8 - 2026-08-08
+
+### 新增
+
+- Element Plus、Naive UI 和 Ant Design Vue 三套 Adapter 新增代码块上下文工具栏,支持切换语言和一键复制代码。
+- 默认语法高亮菜单扩展为 17 种语言:Plain Text、JavaScript、TypeScript、HTML / Vue、CSS、JSON、Python、Java、C、C++、C#、Go、Rust、Bash、SQL、YAML 和 Markdown。
+- 工具栏与上下文语言菜单新增易识别的语言图标,自定义语言没有内置图标时使用通用代码图标。
+
+### 调整
+
+- 统一三套 Adapter 的代码菜单间距、行高、图标尺寸和暗色模式状态。
+- 补充 core 包分发语言图标所需的第三方授权说明。

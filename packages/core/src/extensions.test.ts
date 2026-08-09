@@ -63,6 +63,11 @@ describe('createDefaultExtensions', () => {
     expect(names).toContain('codeBlock')
   })
 
+  it('包含独立 Mermaid 块扩展(mermaidBlock)', () => {
+    const names = createDefaultExtensions().map((e: any) => e.name)
+    expect(names).toContain('mermaidBlock')
+  })
+
   it('包含图片与表格(image / tableKit)', () => {
     const names = createDefaultExtensions().map((e: any) => e.name)
     expect(names).toContain('image')

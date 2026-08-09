@@ -2,6 +2,18 @@
 
 English: [README.en-US.md](./README.en-US.md)
 
+[![npm version](https://img.shields.io/npm/v/tiptap-vue-pro-core?label=npm)](https://www.npmjs.com/package/tiptap-vue-pro-core)
+[![License](https://img.shields.io/github/license/twoer/tiptap-vue-pro)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178c6)](https://www.typescriptlang.org/)
+[![Vue 3](https://img.shields.io/badge/Vue-3-42b883)](https://vuejs.org/)
+[![Tiptap v3](https://img.shields.io/badge/Tiptap-v3-111111)](https://tiptap.dev/)
+[![文档](https://img.shields.io/badge/docs-online-2ea44f)](https://twoer.github.io/tiptap-vue-pro/)
+
+[![core 月下载量](https://img.shields.io/npm/dm/tiptap-vue-pro-core?label=core%20%E6%9C%88%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/tiptap-vue-pro-core)
+[![Element Plus 月下载量](https://img.shields.io/npm/dm/tiptap-vue-pro-element-plus?label=Element%20Plus%20%E6%9C%88%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/tiptap-vue-pro-element-plus)
+[![Naive UI 月下载量](https://img.shields.io/npm/dm/tiptap-vue-pro-naive?label=Naive%20UI%20%E6%9C%88%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/tiptap-vue-pro-naive)
+[![Ant Design Vue 月下载量](https://img.shields.io/npm/dm/tiptap-vue-pro-ant-design-vue?label=Ant%20Design%20Vue%20%E6%9C%88%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/tiptap-vue-pro-ant-design-vue)
+
 > 现代化 Vue 3 富文本编辑器组件,基于 Tiptap v3 的社区封装。
 
 ⚠️ 本项目与 [Tiptap](https://tiptap.dev) 官方无关。底层编辑器能力来自 Tiptap v3 和 ProseMirror。
@@ -12,6 +24,7 @@ English: [README.en-US.md](./README.en-US.md)
 - 在线 Demo: <https://twoer.github.io/tiptap-vue-pro/playground/>
 - 快速开始: <https://twoer.github.io/tiptap-vue-pro/guide/quick-start>
 - API 文档: <https://twoer.github.io/tiptap-vue-pro/api/props>
+- 更新日志: [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)
 
 ## 为什么做这个
 
@@ -30,13 +43,15 @@ Tiptap Vue Pro 把这些能力封装成一套 UI 无关 core,再提供三套对�
 
 - Tiptap v3 + Vue 3 + TypeScript
 - HTML / JSON 输出,支持 `v-model`
-- 完整工具栏:标题、格式化、字体、字号、行高、颜色、高亮、对齐、列表、链接、图片、表格、分割线样式、Markdown、打印、预览、全屏
-- Slash Command 快捷插入:输入 `/` 可快速插入标题、待办、列表、表格、图片、分割线和代码块
+- 完整工具栏:标题、格式化、字体、字号、行高、颜色、高亮、对齐、列表、链接、图片、表格、Mermaid、分割线样式、Markdown、打印、预览、全屏
+- 代码块体验:17 种默认语言语法高亮、语言图标、上下文切换语言和一键复制代码
+- Slash Command 快捷插入:输入 `/` 可快速插入标题、待办、列表、表格、图片、分割线、代码块和 Mermaid 图表
 - 编辑器内查找替换:Ctrl/⌘ + F 打开面板,支持高亮、上/下一个、大小写敏感、替换当前和替换全部
 - 图片上传、上传前裁剪、粘贴、拖拽、替换、对齐、尺寸、题注
 - 视频、音频和文件上传,支持播放器/文件卡片展示、多选、类型和大小限制,以及选中后的上下文编辑
 - 表格插入、列宽拖动、行列抓手、Shift 区域选择、Ctrl/⌘ + A 选中整表、合并拆分、表头切换
 - Markdown 导入 / 导出
+- 独立 Mermaid 块:代码、图表、分屏三种持久化视图,CodeMirror 编辑与实时预览
 - 开发者诊断日志,支持按 lifecycle、command、upload、table 等通道排查接入问题
 - 组件级暗色模式、只读模式、字数统计
 - Nuxt / SSR 友好
@@ -100,6 +115,7 @@ Naive UI 和 Ant Design Vue 用法保持对等,替换组件名和样式入口即
 | 配置链接 target、表格表头、图片和媒体附件行为 | [EditorBehaviorOptions](https://twoer.github.io/tiptap-vue-pro/api/editor-behavior-options) |
 | 接入图片上传 | [图片上传](https://twoer.github.io/tiptap-vue-pro/guide/image-upload) |
 | 接入视频、音频和文件上传 | [视频、音频和文件上传](https://twoer.github.io/tiptap-vue-pro/guide/media-upload) |
+| 编辑 Mermaid 图表 | [Mermaid 块](https://twoer.github.io/tiptap-vue-pro/guide/mermaid) |
 | 使用 Nuxt / SSR | [Nuxt / SSR](https://twoer.github.io/tiptap-vue-pro/guide/ssr) |
 | 排查接入和编辑器行为问题 | [开发者诊断](https://twoer.github.io/tiptap-vue-pro/advanced/developer-diagnostics) |
 | 理解整体设计 | [整体架构](https://twoer.github.io/tiptap-vue-pro/advanced/architecture) |

@@ -25,6 +25,7 @@ interface ProEditorContext {
 | 历史 | `undo()`、`redo()` |
 | 行内格式 | `bold()`、`italic()`、`strike()`、`underline()`、`code()`、`superscript()`、`subscript()` |
 | 块级结构 | `toggleHeading(level)`、`blockquote()`、`codeBlock(language)`、`hr(variant?)` |
+| Mermaid | `insertMermaidBlock(source?, viewMode?)`、`setMermaidViewMode('code' \| 'diagram' \| 'split')` |
 | 列表 | `bulletList()`、`orderedList()`、`taskList()` |
 | 排版 | `setFontFamily(value)`、`setFontSize(value)`、`setLineHeight(value)`、`increaseIndent()`、`decreaseIndent()` |
 | 颜色 | `setColor(color)`、`toggleHighlight(color)` |

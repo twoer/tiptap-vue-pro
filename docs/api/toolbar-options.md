@@ -42,6 +42,10 @@ const toolbarOptions: ToolbarOptions = {
 
 ## 代码块语言
 
+默认菜单包含 17 种语言:Plain Text、JavaScript、TypeScript、HTML / Vue、CSS、JSON、Python、Java、C、C++、C#、Go、Rust、Bash、SQL、YAML 和 Markdown。工具栏菜单与代码块上下文菜单共用这份配置。
+
+传入 `codeBlockLanguages` 会替换默认列表。`value` 必须是当前 lowlight 实例已经注册的语言名;已知语言会显示对应图标,没有内置图标时使用通用代码图标。
+
 ```ts
 const toolbarOptions: ToolbarOptions = {
   codeBlockLanguages: [

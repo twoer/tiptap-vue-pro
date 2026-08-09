@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { h, nextTick, shallowRef } from 'vue'
 import Toolbar from './Toolbar.vue'
-import { getCommandLabel, TOOLBAR_MARKDOWN_OPTIONS } from 'tiptap-vue-pro-core'
+import { getCommandLabel, resolveLocale, TOOLBAR_MARKDOWN_OPTIONS } from 'tiptap-vue-pro-core'
 import type { ProEditorContext, ToolbarOptions } from 'tiptap-vue-pro-core'
 
 function createEditor(options: { empty?: boolean; inLink?: boolean; codeBlockLanguage?: string } = {}) {
@@ -71,6 +71,7 @@ function createCtx(editor?: ReturnType<typeof createEditor>) {
       superscript: vi.fn(),
       subscript: vi.fn(),
       codeBlock: vi.fn(),
+      insertMermaidBlock: vi.fn(),
       insertTable: vi.fn(),
       setFontFamily: vi.fn(),
       setFontSize: vi.fn(),
@@ -83,6 +84,7 @@ function createCtx(editor?: ReturnType<typeof createEditor>) {
     getMarkdown: vi.fn(() => '# hello'),
     importMarkdown: vi.fn(),
     notify: vi.fn(),
+    t: resolveLocale().t,
     prepareInsert: vi.fn(),
   } as unknown as ProEditorContext & { prepareInsert: ReturnType<typeof vi.fn> }
 }
@@ -141,6 +143,16 @@ describe('Ant Design Vue Toolbar', () => {
     wrapper = undefined
     document.body.innerHTML = ''
     vi.restoreAllMocks()
+  })
+
+  it('Mermaid 工具栏入口先准备插入点再创建独立块', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, { attachTo: document.body, props: { ctx } })
+
+    await wrapper.find('button[aria-label="Mermaid 图表"]').trigger('click')
+
+    expect(ctx.prepareInsert).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.insertMermaidBlock).toHaveBeenCalledTimes(1)
   })
 
   it('网络图片:输入合法地址后插入图片并调用 prepareInsert', async () => {
@@ -361,6 +373,24 @@ describe('Ant Design Vue Toolbar', () => {
     expect(wrapper.find('input[accept=".mdx,text/markdown"]').exists()).toBe(true)
   })
 
+  it('Markdown 导入:选择文件后写入编辑器并清空 input', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+    const input = wrapper.find('input[accept=".md,.markdown,text/markdown,text/plain"]').element as HTMLInputElement
+    const file = new File(['# title'], 'title.md', { type: 'text/markdown' })
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] })
+    Object.defineProperty(input, 'value', { configurable: true, writable: true, value: 'selected' })
+
+    await wrapper.find('input[accept=".md,.markdown,text/markdown,text/plain"]').trigger('change')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(ctx.importMarkdown).toHaveBeenCalledWith('# title')
+    expect(input.value).toBe('')
+  })
+
   it('缩进按钮会调用 increaseIndent / decreaseIndent', async () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
@@ -410,6 +440,22 @@ describe('Ant Design Vue Toolbar', () => {
       'Example',
       { target: '_blank', range: { from: 3, to: 3 } },
     )
+  })
+
+  it('链接弹窗:取消关闭弹窗且不写入', async () => {
+    const ctx = createCtx(createEditor())
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx },
+    })
+
+    await wrapper.find('button[aria-label="链接"]').trigger('click')
+    await setNativeInput(inputByPlaceholder('https://example.com'), 'https://example.com')
+    await clickBodyButton('取消')
+
+    expect(ctx.commands.insertLinkText).not.toHaveBeenCalled()
+    expect(ctx.commands.setLink).not.toHaveBeenCalled()
+    expect((wrapper.vm as unknown as { linkDialogVisible: boolean }).linkDialogVisible).toBe(false)
   })
 
   it('editorBehaviorOptions 可配置链接默认 target 为当前窗口', async () => {

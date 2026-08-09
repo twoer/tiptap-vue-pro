@@ -7,6 +7,7 @@ export type SlashCommandId =
   | 'image'
   | 'divider'
   | 'codeBlock'
+  | 'mermaid'
 
 export interface SlashCommandItem {
   id: SlashCommandId
@@ -28,6 +29,7 @@ export interface SlashCommandRunnerContext {
     insertTable: (rows?: number, cols?: number) => void
     hr: () => void
     codeBlock: () => void
+    insertMermaidBlock: () => void
   }
 }
 
@@ -50,6 +52,7 @@ export const SLASH_COMMAND_DEFAULT_ITEM_IDS: SlashCommandId[] = [
   'image',
   'divider',
   'codeBlock',
+  'mermaid',
 ]
 
 export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
@@ -116,6 +119,14 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     icon: 'Code',
     aliases: ['code', 'pre', 'codeblock', 'daima', 'daimakuai'],
     keywords: ['代码', '代码块', '多行代码', 'code block'],
+  },
+  {
+    id: 'mermaid',
+    label: 'Mermaid 图表',
+    hint: '插入可编辑流程图',
+    icon: 'Workflow',
+    aliases: ['mermaid', 'diagram', 'flowchart', 'liuchengtu'],
+    keywords: ['流程图', '图表', '架构图', '时序图', 'diagram'],
   },
 ]
 
@@ -226,6 +237,9 @@ export function runSlashCommandItem(
       return true
     case 'codeBlock':
       ctx.commands.codeBlock()
+      return true
+    case 'mermaid':
+      ctx.commands.insertMermaidBlock()
       return true
     default:
       return false

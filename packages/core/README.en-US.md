@@ -15,7 +15,9 @@ This package provides `useProEditor()`, default extensions, command aggregation,
 - Headings, bold/italic/strikethrough/underline, inline code, superscript, and subscript
 - Font family, font size, line height, text color, background highlight, and text alignment
 - Paragraph/heading indent and list-level indent
-- Links, images, video, audio, file attachments, table column width dragging, table selection and row/column operations, task lists, code blocks, and Markdown import/export
+- Links, images, video, audio, file attachments, table column width dragging, table selection and row/column operations, task lists, code blocks, dedicated Mermaid blocks, and Markdown import/export
+- Syntax highlighting for 17 default code languages, plus exported language labels, icons, and active-code-block helpers for adapters
+- Mermaid code/diagram/split views with lazy-loaded CodeMirror editing and Mermaid rendering
 - Slash Command protocol, intent search, Suggestion lifecycle, and command runner helpers. Adapters own the menu UI.
 - Find/replace state, match decorations, previous/next navigation, case-sensitive search, and replace commands. Adapters own the panel UI.
 

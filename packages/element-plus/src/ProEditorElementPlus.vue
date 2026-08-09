@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, shallowRef, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { EditorContent } from '@tiptap/vue-3'
+import { ref, shallowRef, watch, computed, onMounted, onBeforeUnmount, provide } from 'vue'
+import { EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3'
 import { ElButton, ElDialog, ElInput, ElTooltip, ElMessage } from 'element-plus'
 import { Pencil } from 'lucide-vue-next'
-import { SLASH_COMMAND_ITEMS, createDebugLogger, resolveEditorBehaviorOptions, resolveLocale, runSlashCommandItem, useEditorEventBridge, useImageDropPaste, useProEditor, type SlashCommandItem, type SlashCommandRenderState, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
+import { MERMAID_NODE_VIEW_CONTEXT, SLASH_COMMAND_ITEMS, createDebugLogger, resolveEditorBehaviorOptions, resolveLocale, runSlashCommandItem, useEditorEventBridge, useImageDropPaste, useProEditor, type SlashCommandItem, type SlashCommandRenderState, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
@@ -16,6 +16,7 @@ import FileBubbleMenu from './FileBubbleMenu.vue'
 import MediaBubbleMenu from './MediaBubbleMenu.vue'
 import HorizontalRuleBubbleMenu from './HorizontalRuleBubbleMenu.vue'
 import CodeBlockBubbleMenu from './CodeBlockBubbleMenu.vue'
+import MermaidBlockView from './MermaidBlockView.vue'
 
 /**
  * Tiptap Vue Pro 的 Element Plus 适配主组件。
@@ -156,6 +157,9 @@ const ctx = useProEditor({
       executeSlashCommand(item)
     },
   },
+  mermaid: {
+    nodeViewRenderer: VueNodeViewRenderer(MermaidBlockView),
+  },
   get debug() {
     return props.debug
   },
@@ -208,6 +212,11 @@ watch(
 // 二者独立,可叠加(全屏下也能预览)。
 const isFullscreen = ref(false)
 const isPreview = ref(false)
+provide(MERMAID_NODE_VIEW_CONTEXT, {
+  dark: computed(() => props.dark),
+  editable: computed(() => !props.readonly && !isPreview.value),
+  t: ctx.t,
+})
 const tableGripMenuOpen = ref(false)
 // 内容滚动容器(表格抓手覆盖层相对它定位)
 const contentWrap = ref<HTMLElement | null>(null)
@@ -257,7 +266,12 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
 })
 
 // 图片粘贴/拖拽:挂到 EditorContent 的容器上。
-const { onPaste, onDrop } = useImageDropPaste(ctx, () => props.uploadImage, () => props.editorBehaviorOptions)
+const { onPaste, onDrop } = useImageDropPaste(
+  ctx,
+  () => props.uploadImage,
+  () => props.editorBehaviorOptions,
+  debugLog,
+)
 
 function isSupportedSlashImageUrl(url: string) {
   try {
@@ -379,8 +393,10 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       <span class="tvp-preview-bar__hint">{{ t('preview.readonly') }}</span>
       <ElTooltip :content="t('toolbar.preview.edit')" placement="top" :show-after="300">
         <ElButton text class="tvp-preview-bar__edit-btn" @click="togglePreview">
-          <Pencil :size="16" />
-          <span class="tvp-preview-bar__edit-text">{{ t('toolbar.preview.edit') }}</span>
+          <span class="tvp-preview-bar__edit-content">
+            <Pencil :size="16" class="tvp-preview-bar__edit-icon" aria-hidden="true" />
+            <span>{{ t('toolbar.preview.edit') }}</span>
+          </span>
         </ElButton>
       </ElTooltip>
     </div>
@@ -594,7 +610,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   white-space: nowrap;
 }
 
-.tvp-preview-bar :deep(.el-button.tvp-preview-bar__edit-btn > span) {
+.tvp-preview-bar .tvp-preview-bar__edit-btn .tvp-preview-bar__edit-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -602,16 +618,11 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   line-height: 1;
 }
 
-.tvp-preview-bar :deep(.el-button.tvp-preview-bar__edit-btn svg) {
+.tvp-preview-bar__edit-icon {
   display: block;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
-}
-
-.tvp-preview-bar__edit-text {
-  margin-left: 0;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
 }
 
 /* 纯图标按钮正方形击中区,复用工具栏的约束 */

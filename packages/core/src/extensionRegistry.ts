@@ -13,6 +13,7 @@ export interface EditorExtensionConfig {
   textAlign?: boolean
   blockIndent?: boolean
   codeBlock?: boolean
+  mermaid?: boolean
   script?: boolean
   taskList?: boolean
   media?: boolean
@@ -35,6 +36,7 @@ export const DEFAULT_EXTENSION_CONFIG: Required<
   textAlign: true,
   blockIndent: true,
   codeBlock: true,
+  mermaid: true,
   script: true,
   taskList: true,
   media: true,

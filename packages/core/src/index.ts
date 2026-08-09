@@ -32,6 +32,32 @@ export type {
 } from './locale'
 export { createDefaultExtensions } from './extensions'
 export {
+  MERMAID_VIEW_MODES,
+  getDefaultMermaidSource,
+  mermaidMarkdownFence,
+  normalizeMermaidViewMode,
+} from './mermaid'
+export type { MermaidBlockAttributes, MermaidTheme, MermaidViewMode } from './mermaid'
+export {
+  createMermaidRenderController,
+  extractMermaidErrorLine,
+  renderMermaidSvg,
+} from './mermaidRenderer'
+export type {
+  MermaidRenderController,
+  MermaidRenderControllerOptions,
+  MermaidRenderState,
+} from './mermaidRenderer'
+export { MermaidBlock, replaceMermaidBlockSource } from './extensions/mermaidBlock'
+export type { MermaidBlockOptions } from './extensions/mermaidBlock'
+export { createMermaidCodeEditorController } from './mermaidCodeEditor'
+export type {
+  MermaidCodeEditorController,
+  MermaidCodeEditorControllerOptions,
+} from './mermaidCodeEditor'
+export { MERMAID_NODE_VIEW_CONTEXT, useMermaidNodeView } from './mermaidNodeView'
+export type { MermaidNodeViewContext, MermaidNodeViewProps } from './mermaidNodeView'
+export {
   createEditorExtensions,
   DEFAULT_EXTENSION_CONFIG,
 } from './extensionRegistry'
@@ -104,6 +130,8 @@ export {
   getCenteredImageCropSourceRect,
 } from './imageCrop'
 export type { CropImageFileOptions, ImageCropSourceRect } from './imageCrop'
+export { useImageCropController } from './imageCropController'
+export type { ImageCropControllerOptions } from './imageCropController'
 export { getActiveLinkRange } from './linkRange'
 export type { ActiveLinkRange } from './linkRange'
 export { getSelectedFileAttachment } from './fileAttachmentSelection'
@@ -119,7 +147,14 @@ export type { ActiveHorizontalRule } from './horizontalRuleSelection'
 export { useEditorEventBridge } from './editorEventBridge'
 export { useEditorPluginRegistration } from './editorPluginRegistration'
 export type { EditorPluginRegistrationOptions } from './editorPluginRegistration'
+export { useFindReplacePanelState } from './findReplacePanel'
 export { useImageDropPaste } from './imageDropPaste'
+export { useToolbarDocumentActions } from './toolbarDocumentActions'
+export type { ToolbarDocumentActionsOptions } from './toolbarDocumentActions'
+export { useToolbarLinkController } from './toolbarLinkController'
+export type { ToolbarLinkControllerOptions } from './toolbarLinkController'
+export { useToolbarResourceInputs } from './toolbarResourceInputs'
+export type { ToolbarResourceInputsOptions } from './toolbarResourceInputs'
 export {
   MarkdownExtension,
   createMarkdownManager,

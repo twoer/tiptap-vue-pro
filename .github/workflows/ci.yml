@@ -1,28 +1,60 @@
-name: Deploy Docs to GitHub Pages
+name: CI and Docs
 
 on:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 
-# 允许 GitHub Pages 部署
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# 同一时间只跑一个部署,避免互相覆盖
 concurrency:
-  group: pages
+  group: ci-docs-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  quality:
+    name: Typecheck, test, and build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      # 版本由 package.json 的 packageManager 字段(pnpm@10.32.1)统一管理,这里不再重复指定
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+  docs:
+    name: Build docs and playground
+    if: github.event_name != 'pull_request'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
@@ -38,7 +70,6 @@ jobs:
       - name: Build docs and playground
         run: pnpm docs:build
 
-      # upload-pages-artifact 要求产物在名为 artifact 的目录
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -48,8 +79,13 @@ jobs:
           path: docs/.vitepress/dist
 
   deploy:
-    needs: build
+    name: Deploy docs
+    if: github.event_name != 'pull_request'
+    needs: docs
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
