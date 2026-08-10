@@ -13,6 +13,8 @@ The three adapters expose the same props.
 | `readonly` | `boolean` | `false` | Readonly mode |
 | `dark` | `boolean` | `false` | Component-level dark mode |
 | `showWordCount` | `boolean` | `true` | Whether to show the footer word count |
+| `autosave` | `false \| AutosaveOptions<string \| object>` | `false` | Autosave config; shows save status in the footer when enabled |
+| `draft` | `false \| LocalDraftOptions<string \| object>` | `false` | Local draft recovery config; requires a stable document key |
 | `toolbar` | `ToolbarConfig \| false` | Full default toolbar | Controls toolbar button groups and order |
 | `toolbarOptions` | `ToolbarOptions` | Default menu config | Controls toolbar menu data and action parameters |
 | `editorBehaviorOptions` | `EditorBehaviorOptions` | Default behavior config | Controls default behavior for links, tables, images, and media |
@@ -25,6 +27,12 @@ The three adapters expose the same props.
 | Event | Description |
 | --- | --- |
 | `update:modelValue` | Emitted when editor content changes; used by `v-model` |
+| `autosave-status-change` | Emitted with a new `AutosaveState` snapshot for every state transition |
+| `autosave-error` | Emitted when saving enters the error state, with the error thrown by `onSave` |
+| `draft-found` | Emitted when a valid local draft differs from current content |
+| `draft-restored` | Emitted after an explicit draft restore |
+| `draft-cleared` | Emitted after deleting a local draft, with its document key |
+| `draft-error` | Emitted for storage, serialization, or configuration errors |
 
 ## Slots
 
@@ -57,7 +65,10 @@ You can also override only a few messages:
 />
 ```
 
-`locale` affects the built-in toolbar, dialogs, message text, preview bar, word count, and the default placeholder when `placeholder` is not explicitly provided. Labels passed through custom `toolbarOptions` are displayed as-is and are not overwritten by the built-in dictionary.
+`locale` affects the built-in toolbar, dialogs, message text, preview bar, word count, autosave status, and the default placeholder when `placeholder` is not explicitly provided. Labels passed through custom `toolbarOptions` are displayed as-is and are not overwritten by the built-in dictionary.
+
+See [Autosave](/en/guide/autosave) for behavior, concurrency guarantees, and examples.
+See [Local Draft Recovery](/en/guide/local-drafts) for storage and privacy details.
 
 ## UploadAsset
 

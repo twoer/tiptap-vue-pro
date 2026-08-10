@@ -52,6 +52,8 @@ Tiptap Vue Pro 把这些能力封装成一套 UI 无关 core,再提供三套对�
 - 表格插入、列宽拖动、行列抓手、Shift 区域选择、Ctrl/⌘ + A 选中整表、合并拆分、表头切换
 - Markdown 导入 / 导出
 - 独立 Mermaid 块:代码、图表、分屏三种持久化视图,CodeMirror 编辑与实时预览
+- 可选自动保存:防抖、串行请求、latest-content-wins、手动 flush/retry 和状态事件
+- 可选本地草稿恢复:版本化存储、过期校验、显式恢复/删除,不静默覆盖服务端内容
 - 开发者诊断日志,支持按 lifecycle、command、upload、table 等通道排查接入问题
 - 组件级暗色模式、只读模式、字数统计
 - Nuxt / SSR 友好
@@ -116,6 +118,8 @@ Naive UI 和 Ant Design Vue 用法保持对等,替换组件名和样式入口即
 | 接入图片上传 | [图片上传](https://twoer.github.io/tiptap-vue-pro/guide/image-upload) |
 | 接入视频、音频和文件上传 | [视频、音频和文件上传](https://twoer.github.io/tiptap-vue-pro/guide/media-upload) |
 | 编辑 Mermaid 图表 | [Mermaid 块](https://twoer.github.io/tiptap-vue-pro/guide/mermaid) |
+| 接入自动保存 | [自动保存](https://twoer.github.io/tiptap-vue-pro/guide/autosave) |
+| 防止刷新或崩溃丢稿 | [本地草稿恢复](https://twoer.github.io/tiptap-vue-pro/guide/local-drafts) |
 | 使用 Nuxt / SSR | [Nuxt / SSR](https://twoer.github.io/tiptap-vue-pro/guide/ssr) |
 | 排查接入和编辑器行为问题 | [开发者诊断](https://twoer.github.io/tiptap-vue-pro/advanced/developer-diagnostics) |
 | 理解整体设计 | [整体架构](https://twoer.github.io/tiptap-vue-pro/advanced/architecture) |

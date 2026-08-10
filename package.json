@@ -20,6 +20,8 @@
     "test:image-crop:e2e": "node scripts/image-crop-playwright-smoke.mjs",
     "test:mermaid:e2e": "node scripts/mermaid-playwright-smoke.mjs",
     "test:preview:e2e": "node scripts/preview-playwright-smoke.mjs",
+    "test:autosave:e2e": "node scripts/autosave-playwright-smoke.mjs",
+    "test:drafts:e2e": "node scripts/local-draft-playwright-smoke.mjs",
     "postinstall": "node node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild/install.js || true"
   },
   "devDependencies": {

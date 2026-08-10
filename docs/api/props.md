@@ -13,6 +13,8 @@
 | `readonly` | `boolean` | `false` | 只读模式 |
 | `dark` | `boolean` | `false` | 暗色模式,组件级独立切换 |
 | `showWordCount` | `boolean` | `true` | 是否显示底部字数统计 |
+| `autosave` | `false \| AutosaveOptions<string \| object>` | `false` | 自动保存配置,启用后在 footer 显示保存状态 |
+| `draft` | `false \| LocalDraftOptions<string \| object>` | `false` | 本地草稿恢复配置,启用时必须提供稳定文档 key |
 | `toolbar` | `ToolbarConfig \| false` | 默认完整工具栏 | 控制工具栏按钮分组和顺序 |
 | `toolbarOptions` | `ToolbarOptions` | 默认菜单配置 | 控制工具栏菜单数据和动作参数 |
 | `editorBehaviorOptions` | `EditorBehaviorOptions` | 默认行为配置 | 控制链接、表格、图片等默认行为 |
@@ -25,6 +27,12 @@
 | 事件 | 说明 |
 | --- | --- |
 | `update:modelValue` | 编辑器内容变化时触发,配合 `v-model` 使用 |
+| `autosave-status-change` | 自动保存状态变化时触发,参数为新的 `AutosaveState` 快照 |
+| `autosave-error` | 保存进入 error 状态时触发,参数为 `onSave` 抛出的错误 |
+| `draft-found` | 发现与当前内容不同的有效本地草稿时触发 |
+| `draft-restored` | 用户或组件实例显式恢复草稿后触发 |
+| `draft-cleared` | 删除本地草稿后触发,参数为文档 key |
+| `draft-error` | 本地存储、序列化或配置错误时触发 |
 
 ## Slots
 
@@ -57,7 +65,10 @@
 />
 ```
 
-`locale` 会影响内置工具栏、弹窗、消息提示、预览条、字数统计和未显式传入 `placeholder` 时的默认占位文案。自定义 `toolbarOptions` 中传入的菜单 label 会按原样显示,不会被内置字典覆盖。
+`locale` 会影响内置工具栏、弹窗、消息提示、预览条、字数统计、自动保存状态和未显式传入 `placeholder` 时的默认占位文案。自定义 `toolbarOptions` 中传入的菜单 label 会按原样显示,不会被内置字典覆盖。
+
+完整行为、并发保证和示例见[自动保存](/guide/autosave)。
+本地恢复协议和隐私边界见[本地草稿恢复](/guide/local-drafts)。
 
 ## UploadAsset
 

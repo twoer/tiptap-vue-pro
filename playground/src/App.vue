@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import { ProEditorNaive } from 'tiptap-vue-pro-naive'
 import { ProEditorAntDesignVue } from 'tiptap-vue-pro-ant-design-vue'
-import type { EditorBehaviorOptions, LocaleCode, ToolbarConfig } from 'tiptap-vue-pro-core'
+import type { AutosaveOptions, EditorBehaviorOptions, LocalDraftOptions, LocaleCode, ToolbarConfig } from 'tiptap-vue-pro-core'
 // 生产级图片上传示例:XHR 真实上传 + 进度条 + 三态提示,详见文件内注释
 import { IMAGE_UPLOAD_MAX_SIZE, uploadImage } from './uploadImage'
 import { MEDIA_UPLOAD_MAX_SIZE, uploadAsset } from './uploadAsset'
@@ -53,14 +53,69 @@ const content = ref(createDemoContent(
       ? 'Ant Design Vue'
       : 'Element Plus',
 ))
+
+const autosaveEnabled = ref(true)
+const draftEnabled = ref(true)
+const simulateAutosaveFailure = ref(false)
+let autosaveAttemptCount = 0
+let autosaveSuccessCount = 0
+let lastSavedContent: string | object | null = null
+
+async function simulateAutosave(value: string | object) {
+  autosaveAttemptCount += 1
+  await new Promise(resolve => setTimeout(resolve, 300))
+  if (simulateAutosaveFailure.value) throw new Error('Simulated autosave failure')
+  autosaveSuccessCount += 1
+  lastSavedContent = value
+}
+
+const autosaveOptions = computed<false | AutosaveOptions<string | object>>(() => (
+  autosaveEnabled.value
+    ? {
+        key: route.value,
+        delay: 400,
+        onSave: simulateAutosave,
+      }
+    : false
+))
+const draftOptions = computed<false | LocalDraftOptions<string | object>>(() => (
+  draftEnabled.value
+    ? { key: `playground-${route.value}`, delay: 200 }
+    : false
+))
+
+interface AutosavePlaygroundDebug {
+  getAttemptCount: () => number
+  getSuccessCount: () => number
+  getLastSavedContent: () => string | object | null
+  reset: () => void
+}
+
+const debugWindow = window as Window & {
+  __TVP_AUTOSAVE__?: AutosavePlaygroundDebug
+}
+
 function syncRoute() {
   route.value = readHashRoute()
 }
 onMounted(() => {
   syncRoute()
   window.addEventListener('hashchange', syncRoute)
+  debugWindow.__TVP_AUTOSAVE__ = {
+    getAttemptCount: () => autosaveAttemptCount,
+    getSuccessCount: () => autosaveSuccessCount,
+    getLastSavedContent: () => lastSavedContent,
+    reset: () => {
+      autosaveAttemptCount = 0
+      autosaveSuccessCount = 0
+      lastSavedContent = null
+    },
+  }
 })
-onBeforeUnmount(() => window.removeEventListener('hashchange', syncRoute))
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', syncRoute)
+  delete debugWindow.__TVP_AUTOSAVE__
+})
 
 // 演示开关
 const dark = ref(false)
@@ -76,6 +131,9 @@ const playgroundText = computed(() => {
       readonly: 'Read only',
       wordCount: 'Word count',
       compactToolbar: 'Compact toolbar',
+      autosave: 'Autosave',
+      autosaveFailure: 'Fail saves',
+      drafts: 'Local drafts',
       language: 'Language',
       output: 'Output',
       reset: 'Reset demo',
@@ -92,6 +150,9 @@ const playgroundText = computed(() => {
     readonly: '只读',
     wordCount: '字数',
     compactToolbar: '精简工具栏',
+    autosave: '自动保存',
+    autosaveFailure: '模拟失败',
+    drafts: '本地草稿',
     language: '语言',
     output: '输出',
     reset: '重置示例',
@@ -248,7 +309,7 @@ async function copyOutput() {
     <section class="demo-toolbar" aria-label="Playground controls">
       <div class="demo-toolbar__group">
         <label class="control control--switch">
-          <input v-model="dark" type="checkbox" class="toggle" />
+          <input v-model="dark" type="checkbox" class="toggle" data-testid="dark-toggle" />
           <span>{{ playgroundText.dark }}</span>
         </label>
         <label class="control control--switch">
@@ -256,12 +317,39 @@ async function copyOutput() {
           <span>{{ playgroundText.readonly }}</span>
         </label>
         <label class="control control--switch">
-          <input v-model="showWordCount" type="checkbox" class="toggle" />
+          <input
+            v-model="showWordCount"
+            type="checkbox"
+            class="toggle"
+            data-testid="word-count-toggle"
+          />
           <span>{{ playgroundText.wordCount }}</span>
         </label>
         <label class="control control--switch">
           <input v-model="compactToolbar" type="checkbox" class="toggle" />
           <span>{{ playgroundText.compactToolbar }}</span>
+        </label>
+        <label class="control control--switch">
+          <input
+            v-model="autosaveEnabled"
+            type="checkbox"
+            class="toggle"
+            data-testid="autosave-toggle"
+          />
+          <span>{{ playgroundText.autosave }}</span>
+        </label>
+        <label class="control control--switch">
+          <input
+            v-model="simulateAutosaveFailure"
+            type="checkbox"
+            class="toggle"
+            data-testid="autosave-failure-toggle"
+          />
+          <span>{{ playgroundText.autosaveFailure }}</span>
+        </label>
+        <label class="control control--switch">
+          <input v-model="draftEnabled" type="checkbox" class="toggle" data-testid="draft-toggle" />
+          <span>{{ playgroundText.drafts }}</span>
         </label>
       </div>
       <div class="demo-toolbar__group demo-toolbar__group--right">
@@ -304,6 +392,8 @@ async function copyOutput() {
           :dark="dark"
           :readonly="readonly"
           :show-word-count="showWordCount"
+          :autosave="autosaveOptions"
+          :draft="draftOptions"
           :toolbar="toolbarConfig"
           :locale="locale"
           :placeholder="playgroundText.placeholder"
@@ -318,6 +408,8 @@ async function copyOutput() {
           :dark="dark"
           :readonly="readonly"
           :show-word-count="showWordCount"
+          :autosave="autosaveOptions"
+          :draft="draftOptions"
           :toolbar="toolbarConfig"
           :locale="locale"
           :placeholder="playgroundText.placeholder"
@@ -332,6 +424,8 @@ async function copyOutput() {
           :dark="dark"
           :readonly="readonly"
           :show-word-count="showWordCount"
+          :autosave="autosaveOptions"
+          :draft="draftOptions"
           :toolbar="toolbarConfig"
           :locale="locale"
           :placeholder="playgroundText.placeholder"

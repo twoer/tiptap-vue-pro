@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, ref, nextTick } from 'vue'
+import { defineComponent, h, ref, shallowRef, nextTick } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { AllSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
@@ -24,6 +24,53 @@ import type {
 import type { LocaleProp } from './locale'
 import type { EditorBehaviorOptions } from './editorBehaviorOptions'
 import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
+import type { LocalDraftStorage } from './localDraft'
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+function createDraftStorage(initial: Record<string, string> = {}) {
+  const values = new Map(Object.entries(initial))
+  const storage: LocalDraftStorage = {
+    getItem: vi.fn(async key => values.get(key) ?? null),
+    setItem: vi.fn(async (key, value) => { values.set(key, value) }),
+    removeItem: vi.fn(async key => { values.delete(key) }),
+  }
+  return { storage, values }
+}
+
+function localDraftStorageKey(key: string) {
+  return `tiptap-vue-pro:draft:${encodeURIComponent(key)}`
+}
+
+function localDraftEnvelope(key: string, content: string | object) {
+  const identity = typeof content === 'string'
+    ? `string:${content}`
+    : `json:${JSON.stringify(content)}`
+  return JSON.stringify({ version: 1, key, updatedAt: Date.now(), identity, content })
+}
+
+async function settleAsyncState() {
+  await Promise.resolve()
+  await nextTick()
+  await Promise.resolve()
+}
+
+async function waitForDraftStatus(
+  ctx: ProEditorContext,
+  status: ProEditorContext['draftState']['value']['status'],
+) {
+  for (let i = 0; i < 10 && ctx.draftState.value.status !== status; i++) {
+    await settleAsyncState()
+  }
+}
 
 /**
  * useProEditor 的集成测试。
@@ -55,10 +102,14 @@ function mountEditor(opts: {
   debugLogger?: ProEditorDebugLogger
   editorProps?: Record<string, unknown>
   mermaid?: ProEditorOptions['mermaid']
+  autosave?: ProEditorOptions['autosave']
+  draft?: ProEditorOptions['draft']
   onModelValue?: (v: string | object) => void
 }) {
   let ctx: ProEditorContext | undefined
   const modelValue = ref(opts.content ?? '')
+  const autosave = ref<ProEditorOptions['autosave']>(opts.autosave ?? false)
+  const draft = shallowRef<ProEditorOptions['draft']>(opts.draft ?? false)
 
   const Comp = defineComponent({
     setup() {
@@ -81,6 +132,12 @@ function mountEditor(opts: {
         debugLogger: opts.debugLogger,
         editorProps: opts.editorProps,
         mermaid: opts.mermaid,
+        get autosave() {
+          return autosave.value
+        },
+        get draft() {
+          return draft.value
+        },
       } as any)
       return () => h(EditorContent, { editor: ctx!.editor.value })
     },
@@ -93,6 +150,8 @@ function mountEditor(opts: {
       return ctx!
     },
     modelValue,
+    autosave,
+    draft,
   }
 }
 
@@ -131,6 +190,7 @@ afterEach(() => {
   // happy-dom 残留清理(编辑器 unmount 的已知噪音由 setup.ts 兜底)
   localStorage.clear()
   vi.restoreAllMocks()
+  vi.useRealTimers()
   document.body.innerHTML = ''
 })
 
@@ -1431,6 +1491,486 @@ describe('useProEditor — v-model 双向绑定', () => {
     await nextTick()
     const after = ed.getHTML()
     expect(after).toBe(before)
+  })
+})
+
+describe('useProEditor — autosave', () => {
+  it('schedules the exact emitted HTML after a real editor update', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const emitted: Array<string | object> = []
+    const { ctx } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { delay: 20, onSave },
+      onModelValue: value => emitted.push(value),
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>changed</p>')
+    await nextTick()
+
+    expect(ctx.autosaveState.value.status).toBe('dirty')
+    expect(emitted[emitted.length - 1]).toBe('<p>changed</p>')
+    await vi.advanceTimersByTimeAsync(20)
+    expect(onSave).toHaveBeenCalledWith('<p>changed</p>', expect.objectContaining({
+      reason: 'change',
+    }))
+  })
+
+  it('schedules JSON output without converting it to HTML', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx } = mountEditor({
+      content: { type: 'doc', content: [{ type: 'paragraph' }] },
+      output: 'json',
+      autosave: { delay: 0, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>json value</p>')
+    await vi.advanceTimersByTimeAsync(0)
+
+    const saved = onSave.mock.calls[0]?.[0]
+    expect(saved).toEqual(ed.getJSON())
+    expect(typeof saved).toBe('object')
+  })
+
+  it('does not reset pending autosave from the v-model echo watcher', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { delay: 10, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>echo</p>')
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(10)
+
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0]?.[0]).toBe('<p>echo</p>')
+  })
+
+  it('resets pending autosave on a genuine external content update', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx, modelValue } = mountEditor({
+      content: '<p>document A</p>',
+      autosave: { delay: 50, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>pending A</p>')
+    await nextTick()
+    modelValue.value = '<p>document B</p>'
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(ctx.autosaveState.value.status).toBe('idle')
+    expect(ed.getHTML()).toBe('<p>document B</p>')
+  })
+
+  it('resets pending autosave when the document key changes', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx, autosave } = mountEditor({
+      content: '<p>document A</p>',
+      autosave: { key: 'a', delay: 50, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>pending A</p>')
+    await nextTick()
+    autosave.value = { key: 'b', delay: 50, onSave }
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(ctx.autosaveState.value.status).toBe('idle')
+  })
+
+  it('uses updated delay and callback options for later edits', async () => {
+    vi.useFakeTimers()
+    const firstSave = vi.fn()
+    const secondSave = vi.fn()
+    const { ctx, autosave } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { key: 'same', delay: 100, onSave: firstSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>first</p>')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(firstSave).toHaveBeenCalledTimes(1)
+
+    autosave.value = { key: 'same', delay: 10, onSave: secondSave }
+    await nextTick()
+    ed.commands.setContent('<p>second</p>')
+    await vi.advanceTimersByTimeAsync(9)
+    expect(secondSave).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(secondSave).toHaveBeenCalledWith('<p>second</p>', expect.any(Object))
+  })
+
+  it('keeps pending work when an equivalent autosave options object is recreated', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx, autosave } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { key: 'same', delay: 50, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>pending</p>')
+    await nextTick()
+    autosave.value = { key: 'same', delay: 50, onSave }
+    await nextTick()
+
+    expect(ctx.autosaveState.value.status).toBe('dirty')
+    await vi.advanceTimersByTimeAsync(50)
+    expect(onSave).toHaveBeenCalledWith('<p>pending</p>', expect.any(Object))
+  })
+
+  it('flushes autosave manually through ProEditorContext', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { delay: 10_000, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>manual</p>')
+    await ctx.flushAutosave()
+
+    expect(onSave).toHaveBeenCalledWith('<p>manual</p>', expect.objectContaining({
+      reason: 'manual',
+    }))
+  })
+
+  it('retries a failed save through ProEditorContext', async () => {
+    vi.useFakeTimers()
+    const failure = new Error('save failed')
+    const onSave = vi.fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(undefined)
+    const { ctx } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { delay: 0, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>retry me</p>')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(ctx.autosaveState.value).toMatchObject({ status: 'error', error: failure })
+
+    await ctx.retryAutosave()
+    expect(onSave).toHaveBeenCalledTimes(2)
+    expect(onSave.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ reason: 'retry' }))
+    expect(ctx.autosaveState.value.status).toBe('saved')
+  })
+
+  it('does nothing when autosave is false or disabled', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx, autosave } = mountEditor({
+      content: '<p>start</p>',
+      autosave: false,
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>disabled false</p>')
+    await vi.advanceTimersByTimeAsync(1000)
+    autosave.value = { enabled: false, delay: 0, onSave }
+    await nextTick()
+    ed.commands.setContent('<p>disabled option</p>')
+    await vi.advanceTimersByTimeAsync(0)
+    await ctx.flushAutosave()
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(ctx.autosaveState.value.status).toBe('idle')
+  })
+
+  it('performs a best-effort flush on unmount when configured', async () => {
+    vi.useFakeTimers()
+    const save = deferred<void>()
+    const onSave = vi.fn(() => save.promise)
+    const { ctx, wrapper } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { delay: 10_000, saveOnUnmount: true, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>leaving</p>')
+    wrapper.unmount()
+    await Promise.resolve()
+
+    expect(onSave).toHaveBeenCalledWith('<p>leaving</p>', expect.objectContaining({
+      reason: 'unmount',
+    }))
+    save.resolve()
+    await save.promise
+  })
+
+  it('disposes without saving on unmount by default', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const { ctx, wrapper } = mountEditor({
+      content: '<p>start</p>',
+      autosave: { delay: 10_000, onSave },
+    })
+    const ed = await ready(ctx)
+
+    ed.commands.setContent('<p>leaving</p>')
+    wrapper.unmount()
+    await vi.runAllTimersAsync()
+
+    expect(onSave).not.toHaveBeenCalled()
+  })
+})
+
+describe('useProEditor — local drafts', () => {
+  it('writes the exact emitted HTML after a real editor update', async () => {
+    vi.useFakeTimers()
+    const { storage } = createDraftStorage()
+    const { ctx } = mountEditor({
+      content: '<p>server</p>',
+      draft: { key: 'article', delay: 10, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>local draft</p>')
+    await vi.advanceTimersByTimeAsync(10)
+
+    const raw = vi.mocked(storage.setItem).mock.calls[0]?.[1]
+    expect(JSON.parse(raw)).toMatchObject({ content: '<p>local draft</p>' })
+  })
+
+  it('preserves JSON output as an object', async () => {
+    vi.useFakeTimers()
+    const { storage } = createDraftStorage()
+    const { ctx } = mountEditor({
+      content: { type: 'doc', content: [{ type: 'paragraph' }] },
+      output: 'json',
+      draft: { key: 'article', delay: 0, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>json draft</p>')
+    await vi.advanceTimersByTimeAsync(0)
+
+    const raw = vi.mocked(storage.setItem).mock.calls[0]?.[1]
+    expect(JSON.parse(raw).content).toEqual(ed.getJSON())
+  })
+
+  it('cancels pending draft work on a genuine external content update', async () => {
+    vi.useFakeTimers()
+    const { storage } = createDraftStorage()
+    const { ctx, modelValue } = mountEditor({
+      content: '<p>server A</p>',
+      draft: { key: 'article', delay: 50, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>pending A</p>')
+    await nextTick()
+    modelValue.value = '<p>server B</p>'
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(storage.setItem).not.toHaveBeenCalled()
+    expect(ed.getHTML()).toBe('<p>server B</p>')
+  })
+
+  it('discovers a draft without silently restoring it', async () => {
+    const key = localDraftStorageKey('article')
+    const { storage } = createDraftStorage({
+      [key]: localDraftEnvelope('article', '<p>recovered</p>'),
+    })
+    const { ctx } = mountEditor({
+      content: '<p>server</p>',
+      draft: { key: 'article', storage },
+    })
+    const ed = await ready(ctx)
+    await waitForDraftStatus(ctx, 'available')
+
+    expect(ctx.draftState.value).toMatchObject({
+      status: 'available',
+      candidate: { content: '<p>recovered</p>' },
+    })
+    expect(ed.getHTML()).toBe('<p>server</p>')
+  })
+
+  it('restores a candidate through a normal editor update', async () => {
+    vi.useFakeTimers()
+    const key = localDraftStorageKey('article')
+    const { storage } = createDraftStorage({
+      [key]: localDraftEnvelope('article', '<p>recovered</p>'),
+    })
+    const emitted: Array<string | object> = []
+    const { ctx } = mountEditor({
+      content: '<p>server</p>',
+      draft: { key: 'article', delay: 0, storage },
+      onModelValue: value => emitted.push(value),
+    })
+    const ed = await ready(ctx)
+    await waitForDraftStatus(ctx, 'available')
+
+    const candidate = ctx.restoreDraft()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(candidate).toMatchObject({ content: '<p>recovered</p>' })
+    expect(ed.getHTML()).toBe('<p>recovered</p>')
+    expect(emitted[emitted.length - 1]).toBe('<p>recovered</p>')
+  })
+
+  it('discards a draft without changing editor content', async () => {
+    const key = localDraftStorageKey('article')
+    const { storage, values } = createDraftStorage({
+      [key]: localDraftEnvelope('article', '<p>recovered</p>'),
+    })
+    const { ctx } = mountEditor({
+      content: '<p>server</p>',
+      draft: { key: 'article', storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    await expect(ctx.discardDraft()).resolves.toBe('article')
+
+    expect(values.has(key)).toBe(false)
+    expect(ed.getHTML()).toBe('<p>server</p>')
+  })
+
+  it('resets pending work when the draft document key changes', async () => {
+    vi.useFakeTimers()
+    const { storage } = createDraftStorage()
+    const { ctx, draft } = mountEditor({
+      content: '<p>document A</p>',
+      draft: { key: 'a', delay: 50, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>pending A</p>')
+    draft.value = { key: 'b', delay: 50, storage }
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(storage.setItem).not.toHaveBeenCalled()
+  })
+
+  it('clears the matching draft after the latest remote save succeeds', async () => {
+    vi.useFakeTimers()
+    const { storage, values } = createDraftStorage()
+    const { ctx } = mountEditor({
+      content: '<p>server</p>',
+      autosave: { key: 'article', delay: 50, onSave: vi.fn() },
+      draft: { key: 'article', delay: 0, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>saved remotely</p>')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(values.has(localDraftStorageKey('article'))).toBe(true)
+    await vi.advanceTimersByTimeAsync(50)
+    await settleAsyncState()
+
+    expect(values.has(localDraftStorageKey('article'))).toBe(false)
+  })
+
+  it('keeps a newer local draft when an older remote save finishes', async () => {
+    vi.useFakeTimers()
+    const firstSave = deferred<void>()
+    const newerSave = deferred<void>()
+    const onSave = vi.fn()
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementationOnce(() => newerSave.promise)
+    const { storage, values } = createDraftStorage()
+    const { ctx } = mountEditor({
+      content: '<p>server</p>',
+      autosave: { key: 'article', delay: 0, onSave },
+      draft: { key: 'article', delay: 0, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>first</p>')
+    await vi.advanceTimersByTimeAsync(0)
+    ed.commands.setContent('<p>newer</p>')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(JSON.parse(values.get(localDraftStorageKey('article')) ?? '{}').content)
+      .toBe('<p>newer</p>')
+
+    firstSave.resolve()
+    await firstSave.promise
+    await settleAsyncState()
+
+    expect(JSON.parse(values.get(localDraftStorageKey('article')) ?? '{}').content)
+      .toBe('<p>newer</p>')
+  })
+
+  it('keeps the local draft when remote autosave fails', async () => {
+    vi.useFakeTimers()
+    const { storage, values } = createDraftStorage()
+    const { ctx } = mountEditor({
+      content: '<p>server</p>',
+      autosave: {
+        key: 'article',
+        delay: 20,
+        onSave: vi.fn().mockRejectedValue(new Error('offline')),
+      },
+      draft: { key: 'article', delay: 0, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>offline draft</p>')
+    await vi.advanceTimersByTimeAsync(20)
+
+    expect(ctx.autosaveState.value.status).toBe('error')
+    expect(values.has(localDraftStorageKey('article'))).toBe(true)
+  })
+
+  it('keeps pending work when equivalent draft options are recreated', async () => {
+    vi.useFakeTimers()
+    const { storage } = createDraftStorage()
+    const options = { key: 'article', delay: 50, storage }
+    const { ctx, draft } = mountEditor({ content: '<p>server</p>', draft: options })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>pending</p>')
+    draft.value = { ...options }
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(storage.setItem).toHaveBeenCalledTimes(1)
+  })
+
+  it('flushes a pending local draft on unmount best effort', async () => {
+    vi.useFakeTimers()
+    const { storage } = createDraftStorage()
+    const { ctx, wrapper } = mountEditor({
+      content: '<p>server</p>',
+      draft: { key: 'article', delay: 10_000, storage },
+    })
+    const ed = await ready(ctx)
+    await settleAsyncState()
+
+    ed.commands.setContent('<p>leaving</p>')
+    wrapper.unmount()
+    for (let i = 0; i < 10 && vi.mocked(storage.setItem).mock.calls.length === 0; i++) {
+      await settleAsyncState()
+    }
+
+    expect(storage.setItem).toHaveBeenCalledTimes(1)
   })
 })
 

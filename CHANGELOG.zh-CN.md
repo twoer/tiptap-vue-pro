@@ -2,6 +2,20 @@
 
 English: [CHANGELOG.md](./CHANGELOG.md)
 
+## 0.2.0 - 2026-08-10
+
+### 新增
+
+- 新增可选 Autosave,支持防抖、串行请求、latest-content-wins、显式重试、状态事件和卸载时 best-effort flush。
+- 新增版本化本地草稿恢复,支持过期校验、SSR 安全浏览器存储、显式恢复/删除及异步过期结果保护。
+- Element Plus、Naive UI 和 Ant Design Vue 三套 Adapter 新增对等的 Autosave 与草稿恢复 UI,覆盖响应式和暗色模式。
+- 新增中英文 Autosave/本地草稿指南,并补充重试、恢复、持久化和移动端布局的浏览器端到端测试。
+
+### 调整
+
+- 将图片 URL 工具栏状态抽取到共享 headless core controller,同时保持各 Adapter 使用原生 UI 组件。
+- 防止较旧的远端保存成功后误删较新的本地草稿,并在用户显式恢复或删除前保留已发现的历史草稿。
+
 ## 0.1.9 - 2026-08-09
 
 ### 新增

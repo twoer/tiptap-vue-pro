@@ -2,6 +2,20 @@
 
 中文: [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)
 
+## 0.2.0 - 2026-08-10
+
+### Added
+
+- Added opt-in Autosave with debouncing, serialized requests, latest-content-wins behavior, explicit retry, status events, and best-effort unmount flushing.
+- Added versioned local draft recovery with expiry validation, SSR-safe browser storage, explicit Restore/Delete actions, and protection against stale async results.
+- Added equivalent Autosave and draft recovery UI to the Element Plus, Naive UI, and Ant Design Vue adapters, including responsive and dark-mode states.
+- Added Chinese and English Autosave/local draft guides plus end-to-end browser coverage for retry, recovery, persistence, and mobile layout.
+
+### Changed
+
+- Moved image URL toolbar state into a shared headless core controller while preserving each adapter's native UI components.
+- Prevented successful older saves from deleting a newer local draft and preserved discovered historical drafts until users explicitly restore or delete them.
+
 ## 0.1.9 - 2026-08-09
 
 ### Added

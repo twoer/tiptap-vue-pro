@@ -104,18 +104,19 @@
 
 ### AUD-07 Toolbar 共享逻辑复制
 
-**结论: `PARTIAL`。本轮计划中的四个稳定领域已完成抽取，剩余重复继续按领域评估。**
+**结论: `PARTIAL`。五个稳定领域已完成抽取，剩余重复继续按领域评估。**
 
 - 初始 Toolbar `<script setup>` 行数为 Element Plus 784、Naive UI 902、Ant Design Vue 787。模板行数少部分来自压缩排版，不能用“模板只有 38 行”推导 95% 都是纯逻辑。
 - Element Plus 与 Ant 脚本的文本 diff 只有约 13 行，绝大部分逻辑直接重复。Naive UI 因 dropdown render API 不同有更多适配代码，但核心状态和流程仍一致。
 - 初始重复领域包括: 图片裁剪队列与拖动、图片/媒体上传选择、Markdown 导入导出、打印、表格网格、链接对话框状态、当前字体/颜色/代码语言状态。
 - core 已经提供 `runToolbarCommand`、`resolveToolbarOptions`、`toolbarActions` 和 command registry，因此“2350 行全都未共享”的表述过度。Adapter 中仍有明确且大量的共享编排逻辑。
-- 未创建巨型 `useToolbar(ctx)`；已分别完成 `useImageCropController()`、`useToolbarResourceInputs()`、`useToolbarLinkController()` 和 `useToolbarDocumentActions()`。
+- 未创建巨型 `useToolbar(ctx)`；已分别完成 `useImageCropController()`、`useToolbarResourceInputs()`、`useToolbarImageUrlController()`、`useToolbarLinkController()` 和 `useToolbarDocumentActions()`。
 - 图片裁剪 controller 集中队列、对象 URL 生命周期、缩放、拖动、裁剪确认/跳过和失败诊断，三个 Toolbar 各删除 157 行脚本。
 - 资源输入 controller 集中 image/video/file input 触发、单/多选、串行上传、清空和裁剪分流，三套合计再减少 125 行脚本。
+- 网络图片 URL controller 集中弹窗状态、URL 校验、插入、通知和诊断，三套 Toolbar 不再各自维护相同流程。
 - 链接 controller 集中选区快照、已有链接范围、校验、target、插入/更新/移除、通知和诊断，三套合计再减少 211 行脚本。
 - 文档动作 controller 复用既有 `toolbarActions.ts`，集中 Markdown 导入/导出和打印编排，三套合计再减少 88 行脚本。
-- Toolbar `<script setup>` 最终为 Element Plus 477、Naive UI 621、Ant Design Vue 480；相对初始 784 / 902 / 787，三套合计减少 895 行。
+- Toolbar `<script setup>` 最终为 Element Plus 457、Naive UI 601、Ant Design Vue 460；相对初始 784 / 902 / 787，三套合计减少 955 行。
 - 剩余重复主要是表格网格、字体/字号/行高、颜色/高亮、代码语言和部分菜单派生状态。它们与 Adapter dropdown/popover API 耦合更深，不在本轮继续扩大范围。
 
 ### AUD-08 CI 质量门禁
@@ -141,7 +142,7 @@
 
 **结论: `PARTIAL`。入口很宽，但“明显内部实现”尚未得证。**
 
-- TypeScript AST 统计 `packages/core/src/index.ts` 当前共有 242 个命名导出，包含值和类型，比原报告的 69 个更多；本轮新增的 9 个 controller 值/类型符号属于 Adapter SDK。
+- TypeScript AST 统计 `packages/core/src/index.ts` 当前共有 244 个命名导出，包含值和类型，比原报告的 69 个更多；本轮新增的 controller 值/类型符号属于 Adapter SDK。
 - core 根入口同时是最终用户 API 和三个独立 Adapter 包的 SDK，因此 toolbar config、command registry、NodeView context、selection helper 等导出存在真实跨包用途。
 - `FALLBACK_TOOLBAR` 是 Adapter 本地常量，并未从 core 导出。`toolbarConfigData` 也不是对外符号，导出的是被 Adapter 使用的配置常量和解析器。
 - 入口面积增加 semver 负担的风险成立，但不应在 0.1.x patch 中直接删导出。应先建立 API inventory，标记 consumer public / adapter SDK / internal，再设计 `./adapter` 等子路径导出。
@@ -149,7 +150,7 @@
 ## 最终行动项
 
 1. **已完成: CI 质量门禁。** PR/main push 执行 frozen install、build、typecheck 和 unit test；main 文档部署依赖质量检查通过。
-2. **已完成本轮 P1: 按领域抽取 Toolbar 共享逻辑。** 图片裁剪、资源输入、链接编辑和文档动作 controller 已完成；剩余表格/样式/菜单状态继续按收益和 UI 耦合度逐项评估。
+2. **已完成本轮 P1: 按领域抽取 Toolbar 共享逻辑。** 图片裁剪、资源输入、网络图片 URL、链接编辑和文档动作 controller 已完成；剩余表格/样式/菜单状态继续按收益和 UI 耦合度逐项评估。
 3. **已完成: FindReplace 共享状态绑定。** computed 状态和纯命令已下沉，输入框聚焦、UI 原语和模板仍在 Adapter。
 4. **P2: 对 Mermaid 安装体积做产品决策。** 若要保持默认开箱即用，维持现状；若要轻量 core，先设计独立入口/扩展包，不直接改 optional peer。
 5. **P2: 按领域渐进缩减 `useProEditor`。** 等下次表格或资源功能迭代时抽取 controller / command builder，不单独发起全量拆分。
@@ -160,8 +161,8 @@
 ## 核查命令与结果摘要
 
 - `node --input-type=module ... import('./packages/core/dist/index.js')`: 通过，无 DOM 全局时可 import。
-- `pnpm build && pnpm typecheck && pnpm test`: 四个包构建和全仓 typecheck 通过，共 68 个测试文件 / 686 项通过。
-- Core 为 34 个测试文件 / 366 项通过；资源输入、链接编辑和文档动作均有直接 controller 单测。
+- `pnpm build && pnpm typecheck && pnpm test`: 四个包构建和全仓 typecheck 通过，共 69 个测试文件 / 694 项通过。
+- Core 为 35 个测试文件 / 374 项通过；资源输入、网络图片 URL、链接编辑和文档动作均有直接 controller 单测。
 - 三套 Adapter typecheck 和 unit test 全部通过: Element Plus 105、Naive UI 106、Ant Design Vue 109 项。
 - `node scripts/image-crop-playwright-smoke.mjs`: 三套 Adapter 的弹窗、缩放、拖动、跳过和确认流程通过。
 - `node scripts/find-replace-playwright-smoke.mjs`: 三套 Adapter 的搜索、导航、替换、焦点和切换流程通过。

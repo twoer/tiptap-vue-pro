@@ -163,6 +163,14 @@ export const ZH_CN_LOCALE_MESSAGES = {
 
   'preview.readonly': '预览模式(只读)',
   'wordCount.characters': '{count} 字符',
+  'autosave.dirty': '未保存',
+  'autosave.saving': '保存中...',
+  'autosave.saved': '已保存',
+  'autosave.error': '保存失败',
+  'autosave.retry': '重试',
+  'draft.recovery.message': '发现未保存的本地草稿',
+  'draft.recovery.restore': '恢复',
+  'draft.recovery.discard': '删除',
 
   'notify.imageUploadFailed': '图片上传失败',
   'notify.videoUploadFailed': '视频上传失败',
@@ -377,6 +385,14 @@ export const EN_US_LOCALE_MESSAGES: LocaleMessages = {
 
   'preview.readonly': 'Preview mode (read only)',
   'wordCount.characters': '{count} characters',
+  'autosave.dirty': 'Unsaved',
+  'autosave.saving': 'Saving...',
+  'autosave.saved': 'Saved',
+  'autosave.error': 'Save failed',
+  'autosave.retry': 'Retry',
+  'draft.recovery.message': 'An unsaved local draft is available',
+  'draft.recovery.restore': 'Restore',
+  'draft.recovery.discard': 'Delete',
 
   'notify.imageUploadFailed': 'Image upload failed',
   'notify.videoUploadFailed': 'Video upload failed',

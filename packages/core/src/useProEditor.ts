@@ -41,6 +41,8 @@ import type {
 } from './types'
 import type { ProEditorDebugLogFn } from './debug'
 import { getDefaultMermaidSource } from './mermaid'
+import { createAutosaveController } from './autosave'
+import { createLocalDraftController } from './localDraft'
 
 function contentLength(value: unknown) {
   if (typeof value === 'string') return value.length
@@ -121,6 +123,14 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   const findReplaceState = ref(EMPTY_FIND_REPLACE_STATE)
   const t = ((key, paramsOrFallback, fallback) =>
     resolvedLocale.value.t(key, paramsOrFallback, fallback)) as ReturnType<typeof resolveLocale>['t']
+  const autosaveController = createAutosaveController(
+    () => options.autosave,
+    options.content,
+  )
+  const localDraftController = createLocalDraftController(
+    () => options.draft,
+    options.content,
+  )
   const exts = extensions ?? createDefaultExtensions(
     placeholder ?? t('placeholder.default'),
     {},
@@ -188,7 +198,9 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     editorProps: resolvedEditorProps,
     onUpdate: ({ editor: ed }: { editor: CoreEditor }) => {
       isUpdatingFromEditor = true
-      emitValue(ed)
+      const value = emitValue(ed)
+      autosaveController.schedule(value)
+      localDraftController.schedule(value)
       syncWordCount(ed)
     },
     onSelectionUpdate: ({ editor: ed }: { editor: CoreEditor }) => {
@@ -210,6 +222,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
 
   const loaded = computed(() => !!editor.value)
   const wordCount = ref({ characters: 0, words: 0 })
+  let draftDiscoveryStarted = false
 
   // 防止 v-model 回写触发内容重置导致的循环
   let isUpdatingFromEditor = false
@@ -233,6 +246,13 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       if (ed) {
         debugLog('lifecycle', 'editor-ready', { hasEditor: true })
         syncWordCount(ed)
+        if (!draftDiscoveryStarted) {
+          draftDiscoveryStarted = true
+          const current = getOutput() === 'html' ? ed.getHTML() : ed.getJSON()
+          autosaveController.reset(current)
+          localDraftController.reset(current)
+          void localDraftController.discover(current)
+        }
       }
     },
     { immediate: true },
@@ -248,6 +268,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       output,
       contentLength: contentLength(val),
     })
+    return val
   }
 
   // 外部值变化 → 写入编辑器(跳过编辑器自己触发的回写)
@@ -272,11 +293,63 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
           ? JSON.stringify(ed.getJSON())
           : ed.getHTML()
       if (incoming === current) return
+      autosaveController.reset(next)
+      localDraftController.reset(next)
+      void localDraftController.discover(next)
       debugLog('content', 'external-sync', {
         output,
         contentLength: contentLength(next),
       })
       ed.commands.setContent(next ?? '', { emitUpdate: false })
+    },
+  )
+
+  watch(
+    [
+      () => {
+        const autosave = options.autosave
+        return !!autosave && autosave.enabled !== false
+      },
+      () => {
+        const autosave = options.autosave
+        return autosave ? autosave.key : undefined
+      },
+    ],
+    () => {
+      const ed = editor.value
+      const current = ed
+        ? (getOutput() === 'html' ? ed.getHTML() : ed.getJSON())
+        : options.content
+      autosaveController.reset(current)
+    },
+  )
+
+  watch(
+    [
+      () => {
+        const draft = options.draft
+        return !!draft && draft.enabled !== false
+      },
+      () => {
+        const draft = options.draft
+        return draft ? draft.key : undefined
+      },
+    ],
+    () => {
+      const ed = editor.value
+      const current = ed
+        ? (getOutput() === 'html' ? ed.getHTML() : ed.getJSON())
+        : options.content
+      localDraftController.reset(current)
+      void localDraftController.discover(current)
+    },
+  )
+
+  watch(
+    () => autosaveController.state.value,
+    (autosaveState) => {
+      if (autosaveState.status !== 'saved') return
+      void localDraftController.markRemoteSaved(autosaveController.getLastSavedContent())
     },
   )
 
@@ -1453,9 +1526,27 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   // ---- 只读 ----
   const setEditable = (val: boolean) => editor.value?.setEditable(val)
 
+  function restoreDraft() {
+    const ed = editor.value
+    if (!ed) return null
+    const candidate = localDraftController.restore()
+    if (!candidate) return null
+    ed.commands.setContent(candidate.content, { emitUpdate: true })
+    return candidate
+  }
+
   // ---- 销毁(useEditor 已自行管理,这里仅占位保持接口完整) ----
   onBeforeUnmount(() => {
     debugLog('lifecycle', 'destroy')
+    const autosave = options.autosave
+    if (autosave && autosave.enabled !== false && autosave.saveOnUnmount) {
+      void autosaveController.flush('unmount')
+        .finally(() => autosaveController.dispose())
+    } else {
+      autosaveController.dispose()
+    }
+    void localDraftController.flush()
+      .finally(() => localDraftController.dispose())
     // useEditor 内部已注册 onBeforeUnmount 销毁 editor
   })
 
@@ -1472,6 +1563,13 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     setEditable,
     tableState,
     findReplaceState,
+    autosaveState: autosaveController.state,
+    flushAutosave: autosaveController.flush,
+    retryAutosave: autosaveController.retry,
+    draftState: localDraftController.state,
+    restoreDraft,
+    discardDraft: localDraftController.discard,
+    flushDraft: localDraftController.flush,
     notify: notifyFn,
     t,
   }

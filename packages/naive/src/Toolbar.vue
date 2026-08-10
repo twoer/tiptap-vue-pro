@@ -55,6 +55,7 @@ import {
   runToolbarCommand,
   useImageCropController,
   useToolbarDocumentActions,
+  useToolbarImageUrlController,
   useToolbarLinkController,
   useToolbarResourceInputs,
   TOOLBAR_ALIGN_OPTIONS,
@@ -248,42 +249,21 @@ function onAttachmentCommand(command: string | number) {
   else if (command === 'file') triggerFileUpload()
 }
 
+const {
+  visible: urlModalVisible,
+  url: imageUrl,
+  open: openUrlDialog,
+  confirm: confirmUrlImage,
+} = useToolbarImageUrlController({
+  getContext: () => ctx.value,
+  prepareInsert,
+  debugLog: (...args) => props.debugLog?.(...args),
+})
+
 function onImageSelect(key: string | number) {
   props.debugLog?.('adapter', 'dropdown-command', { menu: 'image', command: key })
   if (key === 'upload') triggerImageUpload()
   else if (key === 'url') openUrlDialog()
-}
-
-// 网络图片:弹窗输入 URL 后用 setImage 插入。
-const urlModalVisible = ref(false)
-const imageUrl = ref('')
-function isSupportedImageUrl(url: string) {
-  try {
-    const parsed = new URL(url, 'http://tiptap-vue-pro.local')
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-function openUrlDialog() {
-  prepareInsert()
-  imageUrl.value = ''
-  urlModalVisible.value = true
-  props.debugLog?.('adapter', 'dialog-open', { dialog: 'image-url' })
-}
-function confirmUrlImage() {
-  props.debugLog?.('adapter', 'dialog-confirm', { dialog: 'image-url' })
-  const url = imageUrl.value.trim()
-  if (!url) {
-    urlModalVisible.value = false
-    return
-  }
-  if (!isSupportedImageUrl(url)) {
-    ctx.value.notify(t('notify.invalidImageUrl'), 'warning')
-    return false
-  }
-  ctx.value.commands.setImage(url)
-  urlModalVisible.value = false
 }
 
 const {

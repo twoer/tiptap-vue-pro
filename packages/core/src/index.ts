@@ -153,6 +153,31 @@ export { useToolbarDocumentActions } from './toolbarDocumentActions'
 export type { ToolbarDocumentActionsOptions } from './toolbarDocumentActions'
 export { useToolbarLinkController } from './toolbarLinkController'
 export type { ToolbarLinkControllerOptions } from './toolbarLinkController'
+export { useToolbarImageUrlController } from './toolbarImageUrlController'
+export type { ToolbarImageUrlControllerOptions } from './toolbarImageUrlController'
+export { createAutosaveController } from './autosave'
+export type {
+  AutosaveController,
+  AutosaveOptions,
+  AutosaveReason,
+  AutosaveSaveContext,
+  AutosaveState,
+  AutosaveStatus,
+} from './autosave'
+export {
+  createBrowserLocalDraftStorage,
+  createLocalDraftController,
+} from './localDraft'
+export type {
+  Awaitable,
+  LocalDraftCandidate,
+  LocalDraftController,
+  LocalDraftEnvelopeV1,
+  LocalDraftOptions,
+  LocalDraftState,
+  LocalDraftStatus,
+  LocalDraftStorage,
+} from './localDraft'
 export { useToolbarResourceInputs } from './toolbarResourceInputs'
 export type { ToolbarResourceInputsOptions } from './toolbarResourceInputs'
 export {

@@ -3,7 +3,7 @@ import { ref, shallowRef, watch, computed, onMounted, onBeforeUnmount, provide }
 import { EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3'
 import { AntButton, AntInput, AntModal, AntTooltip, antMessage } from './antDesignPrimitives'
 import { Pencil } from 'lucide-vue-next'
-import { MERMAID_NODE_VIEW_CONTEXT, SLASH_COMMAND_ITEMS, createDebugLogger, resolveEditorBehaviorOptions, resolveLocale, runSlashCommandItem, useEditorEventBridge, useImageDropPaste, useProEditor, type SlashCommandItem, type SlashCommandRenderState, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
+import { MERMAID_NODE_VIEW_CONTEXT, SLASH_COMMAND_ITEMS, createDebugLogger, resolveEditorBehaviorOptions, resolveLocale, runSlashCommandItem, useEditorEventBridge, useImageDropPaste, useProEditor, type AutosaveOptions, type AutosaveState, type LocalDraftCandidate, type LocalDraftOptions, type SlashCommandItem, type SlashCommandRenderState, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
@@ -53,6 +53,10 @@ const props = withDefaults(
     dark?: boolean
     /** 是否显示底部字数统计,默认 true */
     showWordCount?: boolean
+    /** 自动保存配置。默认关闭。 */
+    autosave?: false | AutosaveOptions<string | object>
+    /** 本地草稿恢复配置。默认关闭。 */
+    draft?: false | LocalDraftOptions<string | object>
     /** 工具栏配置:false 隐藏内置按钮;数组控制内置按钮分组/顺序 */
     toolbar?: ToolbarProp
     /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
@@ -74,6 +78,8 @@ const props = withDefaults(
     readonly: false,
     dark: false,
     showWordCount: true,
+    autosave: false,
+    draft: false,
     toolbar: undefined,
     toolbarOptions: undefined,
     editorBehaviorOptions: undefined,
@@ -83,6 +89,12 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | object]
+  'autosave-status-change': [state: AutosaveState]
+  'autosave-error': [error: unknown]
+  'draft-found': [candidate: LocalDraftCandidate<string | object>]
+  'draft-restored': [candidate: LocalDraftCandidate<string | object>]
+  'draft-cleared': [key: string]
+  'draft-error': [error: unknown]
 }>()
 
 // Core 的 content 用一个可变 ref,把 v-model 和 Core 内部双向绑定桥接起来
@@ -160,6 +172,12 @@ const ctx = useProEditor({
   mermaid: {
     nodeViewRenderer: VueNodeViewRenderer(MermaidBlockView),
   },
+  get autosave() {
+    return props.autosave
+  },
+  get draft() {
+    return props.draft
+  },
   get debug() {
     return props.debug
   },
@@ -173,6 +191,24 @@ const ctx = useProEditor({
     else antMessage.info(msg)
   },
 } as any)
+
+watch(
+  () => ctx.autosaveState.value,
+  (state) => {
+    emit('autosave-status-change', { ...state })
+    if (state.status === 'error' && state.error !== null) {
+      emit('autosave-error', state.error)
+    }
+  },
+)
+
+watch(
+  () => ctx.draftState.value,
+  (state) => {
+    if (state.status === 'available' && state.candidate) emit('draft-found', { ...state.candidate })
+    if (state.status === 'error' && state.error !== null) emit('draft-error', state.error)
+  },
+)
 
 const debugLog: ProEditorDebugLogFn = (...args) => {
   createDebugLogger({
@@ -338,6 +374,37 @@ function confirmSlashUrlImage() {
 
 // 字数
 const wordCount = computed(() => ctx.wordCount.value)
+const autosaveEnabled = computed(() => (
+  props.autosave !== false && props.autosave?.enabled !== false
+))
+const autosaveLabel = computed(() => {
+  const status = ctx.autosaveState.value.status
+  return status === 'idle' ? '' : t(`autosave.${status}` as LocaleKey)
+})
+const autosaveRetryPending = ref(false)
+async function flushAutosave(...args: Parameters<ProEditorContext['flushAutosave']>) {
+  await ctx.flushAutosave(...args)
+}
+async function retryAutosave() {
+  if (autosaveRetryPending.value) return
+  autosaveRetryPending.value = true
+  try {
+    await ctx.retryAutosave()
+  } finally {
+    autosaveRetryPending.value = false
+  }
+}
+function restoreDraft() {
+  const candidate = ctx.restoreDraft()
+  if (candidate) emit('draft-restored', { ...candidate })
+  return candidate
+}
+async function discardDraft() {
+  const key = await ctx.discardDraft()
+  if (key) emit('draft-cleared', key)
+  return key
+}
+defineExpose({ flushAutosave, retryAutosave, restoreDraft, discardDraft })
 const fallbackT = resolveLocale().t
 function t(key: LocaleKey, params?: Record<string, string | number>) {
   return ctx.t?.(key, params) ?? fallbackT(key, params)
@@ -401,6 +468,19 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
           </span>
         </AntButton>
       </AntTooltip>
+    </div>
+
+    <div
+      v-if="!readonly && !isPreview && ctx.draftState.value.status === 'available'"
+      class="tvp-draft-recovery"
+      role="status"
+      aria-live="polite"
+    >
+      <span>{{ t('draft.recovery.message') }}</span>
+      <span class="tvp-draft-recovery__actions">
+        <AntButton text size="small" class="tvp-draft-restore" @click="restoreDraft">{{ t('draft.recovery.restore') }}</AntButton>
+        <AntButton text size="small" class="tvp-draft-discard" @click="discardDraft">{{ t('draft.recovery.discard') }}</AntButton>
+      </span>
     </div>
 
     <div class="tvp-content-shell">
@@ -496,8 +576,19 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       :editor-behavior-options="props.editorBehaviorOptions"
     />
 
-    <div v-if="!readonly && !isPreview && showWordCount" class="tvp-footer">
-      <span>{{ t('wordCount.characters', { count: wordCount.characters }) }}</span>
+    <div v-if="!readonly && !isPreview && (showWordCount || autosaveEnabled)" class="tvp-footer">
+      <span v-if="autosaveEnabled" class="tvp-autosave-status-group">
+        <span class="tvp-autosave-status" aria-live="polite">{{ autosaveLabel }}</span>
+        <AntButton
+          v-if="ctx.autosaveState.value.status === 'error'"
+          text
+          size="small"
+          class="tvp-autosave-retry"
+          :disabled="autosaveRetryPending"
+          @click="retryAutosave"
+        >{{ t('autosave.retry') }}</AntButton>
+      </span>
+      <span v-if="showWordCount">{{ t('wordCount.characters', { count: wordCount.characters }) }}</span>
     </div>
 
     <input
@@ -661,6 +752,9 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   --tvp-ant-color-primary: #409eff;
   --tvp-ant-color-primary-light-8: #1d3043;
   --tvp-ant-color-primary-light-9: #18222c;
+  --tvp-ant-warning-color: #ffc53d;
+  --tvp-ant-warning-bg: #2b2517;
+  --tvp-ant-warning-border: #594a1f;
 }
 
 .tvp-content-shell {
@@ -1458,11 +1552,52 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 
 .tvp-footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 12px;
   padding: 4px 12px;
   font-size: 12px;
   color: var(--tvp-ant-text-color-secondary, #909399);
   border-top: 1px solid var(--tvp-ant-border-color-lighter, #ebeef5);
+}
+
+.tvp-autosave-status {
+  min-width: 72px;
+  text-align: right;
+}
+
+.tvp-autosave-status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tvp-autosave-retry {
+  flex-shrink: 0;
+}
+
+.tvp-draft-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  color: var(--tvp-ant-warning-color, #d89614);
+  background: var(--tvp-ant-warning-bg, #fffbe6);
+  border-bottom: 1px solid var(--tvp-ant-warning-border, #ffe58f);
+  font-size: 12px;
+}
+
+.tvp-draft-recovery__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tvp-editor--ant-design-vue .tvp-draft-recovery .tvp-draft-restore,
+.tvp-editor--ant-design-vue .tvp-draft-recovery .tvp-draft-discard {
+  color: inherit !important;
 }
 
 .tvp-image-input {

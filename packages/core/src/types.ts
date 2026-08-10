@@ -10,6 +10,16 @@ import type { LocaleProp, LocaleTranslate } from './locale'
 import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
 import type { MermaidBlockOptions } from './extensions/mermaidBlock'
 import type { MermaidViewMode } from './mermaid'
+import type {
+  AutosaveOptions,
+  AutosaveReason,
+  AutosaveState,
+} from './autosave'
+import type {
+  LocalDraftCandidate,
+  LocalDraftOptions,
+  LocalDraftState,
+} from './localDraft'
 
 /**
  * 扩展数组类型,v3 用 Extensions(同时接受 Extension 和 Node)。
@@ -111,6 +121,10 @@ export interface ProEditorOptions {
   slashCommand?: false | Partial<SlashCommandExtensionOptions>
   /** Mermaid 块配置。adapter 用它注入各自的 Vue NodeView。 */
   mermaid?: Partial<MermaidBlockOptions>
+  /** 自动保存配置。false 或 enabled=false 时关闭。 */
+  autosave?: false | AutosaveOptions<string | object>
+  /** 本地草稿配置。默认关闭,启用时必须提供稳定文档 key。 */
+  draft?: false | LocalDraftOptions<string | object>
   /** 是否只读 */
   editable?: boolean
   /**
@@ -167,6 +181,22 @@ export interface ProEditorContext {
   tableState: Ref<TableState>
   /** 查找替换状态。adapter 用它显示面板、匹配数量和当前命中项。 */
   findReplaceState: Ref<FindReplaceState>
+  /** 自动保存状态。每次状态转换都会替换为新的不可变快照。 */
+  autosaveState: Readonly<Ref<AutosaveState>>
+  /** 立即保存当前待处理内容。 */
+  flushAutosave: (
+    reason?: Extract<AutosaveReason, 'change' | 'manual' | 'unmount'>,
+  ) => Promise<void>
+  /** 重试最近一次失败的保存。 */
+  retryAutosave: () => Promise<void>
+  /** 本地草稿发现与恢复状态。 */
+  draftState: Readonly<Ref<LocalDraftState<string | object>>>
+  /** 显式恢复已发现的草稿,不会自动覆盖外部内容。 */
+  restoreDraft: () => LocalDraftCandidate<string | object> | null
+  /** 删除当前文档的本地草稿并返回其 key。 */
+  discardDraft: () => Promise<string | null>
+  /** 立即写入待处理的本地草稿。 */
+  flushDraft: () => Promise<void>
   /**
    * 消息提示。adapter 注入的 UI 库实现(EP 的 ElMessage / Naive 的 useMessage),
    * 供工具栏等组件在「导入成功 / 链接校验失败」等场景统一调用,文案与触发点对齐。

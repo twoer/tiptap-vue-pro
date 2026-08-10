@@ -1,14 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, type Ref } from 'vue'
 import { readFileSync } from 'node:fs'
 import ProEditorNaive from './ProEditorNaive.vue'
 import { useProEditor } from 'tiptap-vue-pro-core'
-import type { EditorBehaviorOptions, FindReplaceState, ProEditorContext, SlashCommandRenderState, ToolbarOptions } from 'tiptap-vue-pro-core'
+import type { AutosaveState, EditorBehaviorOptions, FindReplaceState, LocalDraftState, ProEditorContext, SlashCommandRenderState, ToolbarOptions } from 'tiptap-vue-pro-core'
 
 const mockState = vi.hoisted(() => ({
   ctx: undefined as ProEditorContext | undefined,
 }))
+
+type TestEditorContext = Omit<ProEditorContext, 'autosaveState' | 'draftState'> & {
+  autosaveState: Ref<AutosaveState>
+  draftState: Ref<LocalDraftState<string | object>>
+}
 
 vi.mock('tiptap-vue-pro-core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('tiptap-vue-pro-core')>()
@@ -18,7 +23,7 @@ vi.mock('tiptap-vue-pro-core', async (importOriginal) => {
   }
 })
 
-function createCtx(findReplace?: Partial<FindReplaceState>) {
+function createCtx(findReplace?: Partial<FindReplaceState>, autosave?: Partial<AutosaveState>, draft?: Partial<LocalDraftState<string | object>>) {
   return {
     editor: ref({
       on: vi.fn(),
@@ -61,8 +66,21 @@ function createCtx(findReplace?: Partial<FindReplaceState>) {
       matches: [],
       ...findReplace,
     }),
+    autosaveState: ref({
+      status: 'idle',
+      lastSavedAt: null,
+      error: null,
+      hasUnsavedChanges: false,
+      ...autosave,
+    }),
+    flushAutosave: vi.fn(),
+    retryAutosave: vi.fn(),
+    draftState: ref({ status: 'idle', candidate: null, error: null, ...draft }),
+    restoreDraft: vi.fn(),
+    discardDraft: vi.fn(),
+    flushDraft: vi.fn(),
     notify: vi.fn(),
-  } as unknown as ProEditorContext
+  } as unknown as TestEditorContext
 }
 
 const childStubs = {
@@ -175,6 +193,163 @@ describe('ProEditorNaive', () => {
       debug,
       debugLogger,
     })
+  })
+
+  it('把响应式 autosave 配置传给 core', async () => {
+    const first = { key: 'a', onSave: vi.fn() }
+    const second = { key: 'b', onSave: vi.fn() }
+    wrapper = mount(ProEditorNaive, {
+      props: { autosave: first },
+      global: { stubs: childStubs },
+    })
+    const calls = vi.mocked(useProEditor).mock.calls
+    const options = calls[calls.length - 1]?.[0]
+
+    expect(options?.autosave).toEqual(first)
+    await wrapper.setProps({ autosave: second })
+    expect(options?.autosave).toEqual(second)
+  })
+
+  it('autosave 关闭时不渲染状态', () => {
+    wrapper = mount(ProEditorNaive, {
+      global: { stubs: childStubs },
+    })
+
+    expect(wrapper.find('.tvp-autosave-status').exists()).toBe(false)
+  })
+
+  it.each([
+    ['dirty', '未保存'],
+    ['saving', '保存中...'],
+    ['saved', '已保存'],
+    ['error', '保存失败'],
+  ] as const)('渲染 autosave %s 状态', async (status, label) => {
+    const ctx = createCtx()
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorNaive, {
+      props: { autosave: { onSave: vi.fn() } },
+      global: { stubs: childStubs },
+    })
+
+    ctx.autosaveState.value = {
+      status,
+      lastSavedAt: status === 'saved' ? Date.now() : null,
+      error: status === 'error' ? new Error('failed') : null,
+      hasUnsavedChanges: status !== 'saved',
+    }
+    await nextTick()
+
+    expect(wrapper.find('.tvp-autosave-status').text()).toBe(label)
+    expect(wrapper.find('.tvp-autosave-status').attributes('aria-live')).toBe('polite')
+  })
+
+  it('隐藏字数统计时仍渲染 autosave 状态', () => {
+    mockState.ctx = createCtx(undefined, { status: 'dirty', hasUnsavedChanges: true })
+    wrapper = mount(ProEditorNaive, {
+      props: { showWordCount: false, autosave: { onSave: vi.fn() } },
+      global: { stubs: childStubs },
+    })
+
+    expect(wrapper.find('.tvp-footer').exists()).toBe(true)
+    expect(wrapper.find('.tvp-autosave-status').text()).toBe('未保存')
+    expect(wrapper.text()).not.toContain('字符')
+  })
+
+  it('发出不可反向修改 Core 的 autosave 状态快照', async () => {
+    const ctx = createCtx()
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorNaive, {
+      props: { autosave: { onSave: vi.fn() } },
+      global: { stubs: childStubs },
+    })
+    const dirty: AutosaveState = {
+      status: 'dirty', lastSavedAt: null, error: null, hasUnsavedChanges: true,
+    }
+
+    ctx.autosaveState.value = dirty
+    await nextTick()
+    const snapshot = wrapper.emitted('autosave-status-change')?.[0]?.[0] as AutosaveState
+
+    expect(snapshot).toEqual(dirty)
+    expect(snapshot).not.toBe(dirty)
+    snapshot.status = 'saved'
+    expect(ctx.autosaveState.value.status).toBe('dirty')
+  })
+
+  it('每次 error 状态转换只发出一次 autosave-error', async () => {
+    const ctx = createCtx()
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorNaive, {
+      props: { autosave: { onSave: vi.fn() } },
+      global: { stubs: childStubs },
+    })
+    const first = new Error('first')
+    const second = new Error('second')
+
+    ctx.autosaveState.value = { status: 'error', lastSavedAt: null, error: first, hasUnsavedChanges: true }
+    await nextTick()
+    await nextTick()
+    expect(wrapper.emitted('autosave-error')).toEqual([[first]])
+
+    ctx.autosaveState.value = { status: 'saving', lastSavedAt: null, error: null, hasUnsavedChanges: true }
+    await nextTick()
+    ctx.autosaveState.value = { status: 'error', lastSavedAt: null, error: second, hasUnsavedChanges: true }
+    await nextTick()
+    expect(wrapper.emitted('autosave-error')).toEqual([[first], [second]])
+  })
+
+  it('只在 autosave error 状态显示重试并调用 Core', async () => {
+    const ctx = createCtx(undefined, {
+      status: 'error', error: new Error('failed'), hasUnsavedChanges: true,
+    })
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorNaive, {
+      props: { autosave: { onSave: vi.fn() } },
+      global: { stubs: childStubs },
+    })
+
+    const retry = wrapper.find('.tvp-autosave-retry')
+    expect(retry.text()).toBe('重试')
+    await retry.trigger('click')
+    expect(ctx.retryAutosave).toHaveBeenCalledTimes(1)
+
+    ctx.autosaveState.value = {
+      status: 'saved', lastSavedAt: Date.now(), error: null, hasUnsavedChanges: false,
+    }
+    await nextTick()
+    expect(wrapper.find('.tvp-autosave-retry').exists()).toBe(false)
+  })
+
+  it('在组件实例公开 autosave flush 和 retry 命令', async () => {
+    const ctx = createCtx()
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorNaive, { global: { stubs: childStubs } })
+    const vm = wrapper.vm as unknown as {
+      flushAutosave: ProEditorContext['flushAutosave']
+      retryAutosave: ProEditorContext['retryAutosave']
+    }
+
+    await vm.flushAutosave()
+    await vm.retryAutosave()
+    expect(ctx.flushAutosave).toHaveBeenCalledTimes(1)
+    expect(ctx.retryAutosave).toHaveBeenCalledTimes(1)
+  })
+
+  it('显示并执行本地草稿恢复和删除动作', async () => {
+    const candidate = { key: 'article', updatedAt: 1, content: '<p>draft</p>' }
+    const ctx = createCtx(undefined, undefined, { status: 'available', candidate })
+    vi.mocked(ctx.restoreDraft).mockReturnValue(candidate)
+    vi.mocked(ctx.discardDraft).mockResolvedValue('article')
+    mockState.ctx = ctx
+    wrapper = mount(ProEditorNaive, { props: { draft: { key: 'article' } }, global: { stubs: childStubs } })
+
+    expect(wrapper.find('.tvp-draft-recovery').text()).toContain('发现未保存的本地草稿')
+    await wrapper.find('.tvp-draft-restore').trigger('click')
+    await wrapper.find('.tvp-draft-discard').trigger('click')
+    expect(ctx.restoreDraft).toHaveBeenCalledTimes(1)
+    expect(ctx.discardDraft).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('draft-restored')).toEqual([[candidate]])
+    expect(wrapper.emitted('draft-cleared')).toEqual([['article']])
   })
 
   it('readonly=true 时隐藏工具栏和所有浮层入口', () => {
