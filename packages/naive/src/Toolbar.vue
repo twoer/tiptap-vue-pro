@@ -13,7 +13,7 @@
  * - 颜色色板 / 表格网格用 NPopover + 自绘
  * - 链接弹窗用 NModal
  */
-import { computed, ref, h, defineComponent, markRaw } from 'vue'
+import { computed, ref, h, defineComponent, markRaw, type Component } from 'vue'
 import {
   NButton,
   NTooltip,
@@ -39,6 +39,7 @@ import {
   FileDown, FileUp,
   Eraser, Search, Printer,
   Maximize2, Minimize2, Eye, Pencil,
+  Plus, Ellipsis,
 } from 'lucide-vue-next'
 import {
   DEFAULT_TOOLBAR,
@@ -49,6 +50,8 @@ import {
   getCommandLabel,
   isToolbarCommandActive,
   normalizeToolbarConfig,
+  resolveToolbarLayout,
+  resolveToolbarCompactActions,
   resolveLocale,
   resolveEditorBehaviorOptions,
   resolveToolbarOptions,
@@ -69,8 +72,10 @@ import type {
   HorizontalRuleVariant,
   ProEditorContext,
   ToolbarBuiltinKey,
+  ToolbarCompactMenuId,
   ToolbarCommandPayload,
   ToolbarConfig,
+  ToolbarLayoutMode,
   ToolbarHeadingLevel,
   ToolbarHorizontalRuleOption,
   ToolbarMarkdownAction,
@@ -130,6 +135,8 @@ const props = withDefaults(
     isPreview?: boolean
     /** 工具栏配置。false 表示不渲染内置按钮 */
     toolbar?: ToolbarProp
+    /** 工具栏布局模式 */
+    toolbarLayout?: ToolbarLayoutMode
     /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
     toolbarOptions?: ToolbarOptions
     /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
@@ -139,6 +146,7 @@ const props = withDefaults(
   }>(),
   {
     toolbar: undefined,
+    toolbarLayout: 'classic',
     toolbarOptions: undefined,
     editorBehaviorOptions: undefined,
   },
@@ -183,7 +191,7 @@ const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
-const toolbarGroups = computed(() => {
+const normalizedToolbar = computed(() => {
   if (props.toolbar === false) return []
   const source = props.toolbar ?? (DEFAULT_TOOLBAR.length > 0 ? DEFAULT_TOOLBAR : FALLBACK_TOOLBAR)
   const normalized = normalizeToolbarConfig(source)
@@ -191,6 +199,10 @@ const toolbarGroups = computed(() => {
     ? normalized
     : source.map((group) => [...group])
 })
+const toolbarLayout = computed(() => resolveToolbarLayout(normalizedToolbar.value, props.toolbarLayout))
+const toolbarGroups = computed(() => toolbarLayout.value.groups)
+const compactMenus = computed(() => toolbarLayout.value.menus)
+const compactTrailing = computed(() => toolbarLayout.value.trailing)
 
 /**
  * 插入类操作前的预处理:若编辑器从未获得焦点,先把光标定位到文档末尾。
@@ -586,6 +598,120 @@ function onMdSelect(key: string | number) {
   runMarkdownAction(String(key))
 }
 
+interface CompactMenuAction {
+  key: string
+  item: ToolbarBuiltinKey
+  label: string
+  icon: Component
+}
+
+function compactMenuLabel(id: ToolbarCompactMenuId) {
+  return t(`toolbar.compact.${id}` as LocaleKey)
+}
+
+function compactMenuIcon(id: ToolbarCompactMenuId): Component {
+  if (id === 'format') return Type
+  if (id === 'list') return List
+  if (id === 'insert') return Plus
+  return Ellipsis
+}
+
+function compactItemIcon(item: ToolbarBuiltinKey): Component {
+  const icons: Partial<Record<ToolbarBuiltinKey, Component>> = {
+    strike: Strikethrough,
+    code: Code,
+    superscript: Superscript,
+    subscript: Subscript,
+    clearFormat: Eraser,
+    decreaseIndent: IndentDecrease,
+    increaseIndent: IndentIncrease,
+    bulletList: List,
+    orderedList: ListOrdered,
+    taskList: ListChecks,
+    blockquote: Quote,
+    image: ImagePlus,
+    attachment: File,
+    mermaid: Workflow,
+    hr: Minus,
+    findReplace: Search,
+    markdown: MarkdownIcon,
+    print: Printer,
+  }
+  return icons[item] ?? Ellipsis
+}
+
+function compactMenuActions(items: ToolbarBuiltinKey[]): CompactMenuAction[] {
+  return resolveToolbarCompactActions(items, {
+    hasImageUpload: HAS_IMAGE_UPLOAD.value,
+    allowImageUrl: IMAGE_ALLOW_URL.value,
+    hasAssetUpload: Boolean(props.uploadAsset),
+    horizontalRules: HORIZONTAL_RULE_OPTIONS.value,
+    markdown: TOOLBAR_MARKDOWN_OPTIONS,
+  }).map((action) => {
+    if (action.item === 'image') {
+      return {
+        ...action,
+        label: t(action.payload === 'upload' ? 'toolbar.image.upload' : 'toolbar.image.url'),
+        icon: action.payload === 'upload' ? ImagePlus : Link2,
+      }
+    }
+    if (action.item === 'attachment') {
+      return {
+        ...action,
+        label: t(action.payload === 'video' ? 'toolbar.attachment.video' : 'toolbar.attachment.file'),
+        icon: action.payload === 'video' ? Video : File,
+      }
+    }
+    if (action.item === 'hr') {
+      const option = HORIZONTAL_RULE_OPTIONS.value.find(({ value }) => value === action.payload)
+      return { ...action, label: `${commandLabel('hr')} · ${option ? horizontalRuleLabel(option) : action.payload}`, icon: Minus }
+    }
+    if (action.item === 'markdown') {
+      const markdownAction = action.payload as ToolbarMarkdownAction
+      return {
+        ...action,
+        label: t(`toolbar.markdown.${markdownAction}` as LocaleKey),
+        icon: markdownAction === 'import' ? FileUp : FileDown,
+      }
+    }
+    return { ...action, label: commandLabel(action.item), icon: compactItemIcon(action.item) }
+  })
+}
+const visibleCompactMenus = computed(() =>
+  compactMenus.value.filter((menu) => compactMenuActions(menu.items).length > 0),
+)
+
+function compactMenuOptions(items: ToolbarBuiltinKey[]): DropdownOption[] {
+  return compactMenuActions(items).map((action) => ({
+    key: action.key,
+    label: () => h('span', {
+      class: ['tvp-menu-item', 'tvp-compact-menu-item', commandActive(action.item) ? 'is-active' : ''],
+      style: {
+        display: 'inline-flex',
+        minWidth: '116px',
+        alignItems: 'center',
+        gap: '6px',
+        lineHeight: '1',
+        color: commandActive(action.item) ? 'var(--n-primary-color, #18a058)' : undefined,
+        fontWeight: commandActive(action.item) ? '500' : undefined,
+      },
+    }, [
+      h(action.icon, { size: 16, style: 'display:block;flex:0 0 auto;' }),
+      h('span', null, action.label),
+    ]),
+  }))
+}
+
+function onCompactMenuSelect(key: string | number) {
+  const [item, payload] = String(key).split(':') as [ToolbarBuiltinKey, string | undefined]
+  if (item === 'image') return onImageSelect(payload ?? '')
+  if (item === 'attachment') return onAttachmentCommand(payload ?? '')
+  if (item === 'hr') return onHorizontalRuleSelect(payload ?? 'solid')
+  if (item === 'markdown') return onMdSelect(payload ?? 'export')
+  if (item === 'mermaid') prepareInsert()
+  runCommand(item)
+}
+
 const {
   visible: linkDialogVisible,
   url: linkUrl,
@@ -603,7 +729,7 @@ const {
 </script>
 
 <template>
-  <div class="tvp-toolbar">
+  <div class="tvp-toolbar" :class="`is-${toolbarLayout.mode}`">
     <slot
       name="before"
       :ctx="ctx"
@@ -613,20 +739,24 @@ const {
       :toggle-preview="togglePreview"
     />
 
-    <template v-for="(group, groupIndex) in toolbarGroups" :key="groupIndex">
+    <span
+      v-for="(group, groupIndex) in toolbarGroups"
+      :key="groupIndex"
+      class="tvp-toolbar-section"
+    >
       <span v-if="groupIndex > 0" class="tvp-divider" />
-
-      <template v-for="item in group" :key="item">
+      <span class="tvp-toolbar-group">
+        <template v-for="item in group" :key="item">
         <NTooltip v-if="item === 'undo'" placement="top" :show-arrow="false">
           <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="18" /></NButton>
+            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="16" /></NButton>
           </template>
           {{ commandLabel('undo') }}
         </NTooltip>
 
         <NTooltip v-else-if="item === 'redo'" placement="top" :show-arrow="false">
           <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="18" /></NButton>
+            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="16" /></NButton>
           </template>
           {{ commandLabel('redo') }}
         </NTooltip>
@@ -713,7 +843,7 @@ const {
               :aria-label="commandLabel('bold')"
               :type="commandActive('bold') ? 'primary' : 'default'"
               @click="runCommand('bold')"
-            ><Bold :size="18" /></NButton>
+            ><Bold :size="16" /></NButton>
           </template>
           {{ commandLabel('bold') }}
         </NTooltip>
@@ -726,7 +856,7 @@ const {
               :aria-label="commandLabel('italic')"
               :type="commandActive('italic') ? 'primary' : 'default'"
               @click="runCommand('italic')"
-            ><Italic :size="18" /></NButton>
+            ><Italic :size="16" /></NButton>
           </template>
           {{ commandLabel('italic') }}
         </NTooltip>
@@ -739,7 +869,7 @@ const {
               :aria-label="commandLabel('strike')"
               :type="commandActive('strike') ? 'primary' : 'default'"
               @click="runCommand('strike')"
-            ><Strikethrough :size="18" /></NButton>
+            ><Strikethrough :size="16" /></NButton>
           </template>
           {{ commandLabel('strike') }}
         </NTooltip>
@@ -752,7 +882,7 @@ const {
               :aria-label="commandLabel('underline')"
               :type="commandActive('underline') ? 'primary' : 'default'"
               @click="runCommand('underline')"
-            ><Underline :size="18" /></NButton>
+            ><Underline :size="16" /></NButton>
           </template>
           {{ commandLabel('underline') }}
         </NTooltip>
@@ -765,7 +895,7 @@ const {
               :aria-label="commandLabel('code')"
               :type="commandActive('code') ? 'primary' : 'default'"
               @click="runCommand('code')"
-            ><Code :size="18" /></NButton>
+            ><Code :size="16" /></NButton>
           </template>
           {{ commandLabel('code') }}
         </NTooltip>
@@ -778,7 +908,7 @@ const {
               :aria-label="commandLabel('superscript')"
               :type="commandActive('superscript') ? 'primary' : 'default'"
               @click="runCommand('superscript')"
-            ><Superscript :size="18" /></NButton>
+            ><Superscript :size="16" /></NButton>
           </template>
           {{ commandLabel('superscript') }}
         </NTooltip>
@@ -791,7 +921,7 @@ const {
               :aria-label="commandLabel('subscript')"
               :type="commandActive('subscript') ? 'primary' : 'default'"
               @click="runCommand('subscript')"
-            ><Subscript :size="18" /></NButton>
+            ><Subscript :size="16" /></NButton>
           </template>
           {{ commandLabel('subscript') }}
         </NTooltip>
@@ -802,7 +932,7 @@ const {
               <NPopover trigger="click" placement="bottom" :width="260">
                 <template #trigger>
                   <NButton text class="tvp-icon-btn" :aria-label="commandLabel('color')">
-                    <Type :size="18" :style="{ color: currentColor || 'inherit' }" />
+                    <Type :size="16" :style="{ color: currentColor || 'inherit' }" />
                   </NButton>
                 </template>
                 <div class="tvp-color-panel">
@@ -840,7 +970,7 @@ const {
               <NPopover trigger="click" placement="bottom" :width="260">
                 <template #trigger>
                   <NButton text class="tvp-icon-btn" :aria-label="commandLabel('highlight')">
-                    <Highlighter :size="18" :style="{ color: currentHighlight || 'inherit' }" />
+                    <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
                   </NButton>
                 </template>
                 <div class="tvp-color-panel">
@@ -882,7 +1012,7 @@ const {
                 @select="onAlignSelect"
               >
                 <NButton text class="tvp-icon-btn" :aria-label="commandLabel('align')">
-                  <component :is="alignIcon" :size="18" />
+                  <component :is="alignIcon" :size="16" />
                 </NButton>
               </NDropdown>
             </span>
@@ -897,7 +1027,7 @@ const {
               class="tvp-icon-btn"
               :aria-label="commandLabel('decreaseIndent')"
               @click="runCommand('decreaseIndent')"
-            ><IndentDecrease :size="18" /></NButton>
+            ><IndentDecrease :size="16" /></NButton>
           </template>
           {{ commandLabel('decreaseIndent') }}
         </NTooltip>
@@ -909,7 +1039,7 @@ const {
               class="tvp-icon-btn"
               :aria-label="commandLabel('increaseIndent')"
               @click="runCommand('increaseIndent')"
-            ><IndentIncrease :size="18" /></NButton>
+            ><IndentIncrease :size="16" /></NButton>
           </template>
           {{ commandLabel('increaseIndent') }}
         </NTooltip>
@@ -922,7 +1052,7 @@ const {
               :aria-label="commandLabel('bulletList')"
               :type="commandActive('bulletList') ? 'primary' : 'default'"
               @click="runCommand('bulletList')"
-            ><List :size="18" /></NButton>
+            ><List :size="16" /></NButton>
           </template>
           {{ commandLabel('bulletList') }}
         </NTooltip>
@@ -935,7 +1065,7 @@ const {
               :aria-label="commandLabel('orderedList')"
               :type="commandActive('orderedList') ? 'primary' : 'default'"
               @click="runCommand('orderedList')"
-            ><ListOrdered :size="18" /></NButton>
+            ><ListOrdered :size="16" /></NButton>
           </template>
           {{ commandLabel('orderedList') }}
         </NTooltip>
@@ -948,7 +1078,7 @@ const {
               :aria-label="commandLabel('taskList')"
               :type="commandActive('taskList') ? 'primary' : 'default'"
               @click="runCommand('taskList')"
-            ><ListChecks :size="18" /></NButton>
+            ><ListChecks :size="16" /></NButton>
           </template>
           {{ commandLabel('taskList') }}
         </NTooltip>
@@ -961,7 +1091,7 @@ const {
               :aria-label="commandLabel('blockquote')"
               :type="commandActive('blockquote') ? 'primary' : 'default'"
               @click="runCommand('blockquote')"
-            ><Quote :size="18" /></NButton>
+            ><Quote :size="16" /></NButton>
           </template>
           {{ commandLabel('blockquote') }}
         </NTooltip>
@@ -984,7 +1114,7 @@ const {
                   class="tvp-icon-btn"
                   :aria-label="commandLabel('codeBlock')"
                   :type="commandActive('codeBlock') ? 'primary' : 'default'"
-                ><Code :size="18" /></NButton>
+                ><Code :size="16" /></NButton>
               </NDropdown>
             </span>
           </template>
@@ -1000,7 +1130,7 @@ const {
                 :render-label="renderHorizontalRuleLabel"
                 @select="onHorizontalRuleSelect"
               >
-                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('hr')"><Minus :size="18" /></NButton>
+                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('hr')"><Minus :size="16" /></NButton>
               </NDropdown>
             </span>
           </template>
@@ -1015,7 +1145,7 @@ const {
               :aria-label="commandLabel('link')"
               :type="ctx.isActive('link') ? 'primary' : 'default'"
               @click="openLinkDialog"
-            ><Link :size="18" /></NButton>
+            ><Link :size="16" /></NButton>
           </template>
           {{ commandLabel('link') }}
         </NTooltip>
@@ -1029,7 +1159,7 @@ const {
                 :render-label="renderImageLabel"
                 @select="onImageSelect"
               >
-                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('image')"><ImagePlus :size="18" /></NButton>
+                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('image')"><ImagePlus :size="16" /></NButton>
               </NDropdown>
             </span>
           </template>
@@ -1042,7 +1172,7 @@ const {
               class="tvp-icon-btn"
               :aria-label="HAS_IMAGE_UPLOAD ? t('toolbar.image.upload') : t('toolbar.image.url')"
               @click="HAS_IMAGE_UPLOAD ? triggerImageUpload() : openUrlDialog()"
-            ><ImagePlus :size="18" /></NButton>
+            ><ImagePlus :size="16" /></NButton>
           </template>
           {{ HAS_IMAGE_UPLOAD ? t('toolbar.image.upload') : t('toolbar.image.url') }}
         </NTooltip>
@@ -1055,7 +1185,7 @@ const {
                 :options="attachmentOptions"
                 @select="onAttachmentCommand"
               >
-                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('attachment')"><File :size="18" /></NButton>
+                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('attachment')"><File :size="16" /></NButton>
               </NDropdown>
             </span>
           </template>
@@ -1067,7 +1197,7 @@ const {
             <span class="tvp-tooltip-trigger">
               <NPopover v-model:show="tablePopover" trigger="click" placement="bottom">
                 <template #trigger>
-                  <NButton text class="tvp-icon-btn" :aria-label="commandLabel('table')"><Table :size="18" /></NButton>
+                  <NButton text class="tvp-icon-btn" :aria-label="commandLabel('table')"><Table :size="16" /></NButton>
                 </template>
                 <div class="tvp-table-grid" @mouseleave="resetTableHover">
                   <div
@@ -1096,21 +1226,21 @@ const {
 
         <NTooltip v-else-if="item === 'mermaid'" placement="top" :show-arrow="false">
           <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="18" /></NButton>
+            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="16" /></NButton>
           </template>
           {{ commandLabel('mermaid') }}
         </NTooltip>
 
         <NTooltip v-else-if="item === 'clearFormat'" placement="top" :show-arrow="false">
           <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="18" /></NButton>
+            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="16" /></NButton>
           </template>
           {{ commandLabel('clearFormat') }}
         </NTooltip>
 
         <NTooltip v-else-if="item === 'findReplace'" placement="top" :show-arrow="false">
           <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="18" /></NButton>
+            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="16" /></NButton>
           </template>
           {{ commandLabel('findReplace') }}
         </NTooltip>
@@ -1124,7 +1254,7 @@ const {
                 :render-label="renderMdLabel"
                 @select="onMdSelect"
               >
-                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="18" /></NButton>
+                <NButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="16" /></NButton>
               </NDropdown>
             </span>
           </template>
@@ -1133,7 +1263,7 @@ const {
 
         <NTooltip v-else-if="item === 'print'" placement="top" :show-arrow="false">
           <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="18" /></NButton>
+            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="16" /></NButton>
           </template>
           {{ commandLabel('print') }}
         </NTooltip>
@@ -1141,7 +1271,7 @@ const {
         <NTooltip v-else-if="item === 'fullscreen'" placement="top" :show-arrow="false">
           <template #trigger>
             <NButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">
-              <component :is="isFullscreen ? Minimize2 : Maximize2" :size="18" />
+              <component :is="isFullscreen ? Minimize2 : Maximize2" :size="16" />
             </NButton>
           </template>
           {{ isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen') }}
@@ -1150,13 +1280,58 @@ const {
         <NTooltip v-else-if="item === 'preview'" placement="top" :show-arrow="false">
           <template #trigger>
             <NButton text class="tvp-icon-btn" :aria-label="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')" @click="togglePreview">
-              <component :is="isPreview ? Pencil : Eye" :size="18" />
+              <component :is="isPreview ? Pencil : Eye" :size="16" />
             </NButton>
           </template>
           {{ isPreview ? t('toolbar.preview.edit') : commandLabel('preview') }}
         </NTooltip>
-      </template>
-    </template>
+        </template>
+      </span>
+    </span>
+
+    <span
+      v-for="(menu, menuIndex) in visibleCompactMenus"
+      :key="`compact-${menu.id}`"
+      class="tvp-toolbar-section"
+    >
+      <span v-if="toolbarGroups.length > 0 || menuIndex > 0" class="tvp-divider" />
+      <NDropdown
+        trigger="click"
+        :options="compactMenuOptions(menu.items)"
+        :theme-overrides="CODE_BLOCK_DROPDOWN_THEME_OVERRIDES"
+        @select="onCompactMenuSelect"
+      >
+        <NButton
+          text
+          class="tvp-compact-menu-trigger"
+          :aria-label="compactMenuLabel(menu.id)"
+          :data-toolbar-menu="menu.id"
+        >
+          <component :is="compactMenuIcon(menu.id)" :size="16" />
+          <span>{{ compactMenuLabel(menu.id) }}</span>
+          <ChevronDown :size="13" />
+        </NButton>
+      </NDropdown>
+    </span>
+
+    <span v-if="compactTrailing.length > 0" class="tvp-toolbar-trailing">
+      <NTooltip v-if="compactTrailing.includes('preview')" placement="top" :show-arrow="false">
+        <template #trigger>
+          <NButton text class="tvp-icon-btn" :aria-label="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')" @click="togglePreview">
+            <component :is="isPreview ? Pencil : Eye" :size="16" />
+          </NButton>
+        </template>
+        {{ isPreview ? t('toolbar.preview.edit') : commandLabel('preview') }}
+      </NTooltip>
+      <NTooltip v-if="compactTrailing.includes('fullscreen')" placement="top" :show-arrow="false">
+        <template #trigger>
+          <NButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">
+            <component :is="isFullscreen ? Minimize2 : Maximize2" :size="16" />
+          </NButton>
+        </template>
+        {{ isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen') }}
+      </NTooltip>
+    </span>
 
     <slot
       name="after"
@@ -1309,7 +1484,11 @@ const {
  */
 .tvp-toolbar .tvp-icon-btn {
   width: 32px;
+  min-width: 32px;
+  max-width: 32px;
   height: 32px;
+  flex: 0 0 32px;
+  box-sizing: border-box;
   padding: 0;
 }
 
@@ -1321,6 +1500,7 @@ const {
 .tvp-toolbar .tvp-icon-btn.n-button--primary-type {
   border-color: transparent;
   background: color-mix(in srgb, var(--n-primary-color, #18a058) 10%, transparent);
+  box-shadow: inset 0 0 0 2px var(--tvp-naive-toolbar-bg, #fff);
   color: var(--n-primary-color, #18a058);
 }
 
@@ -1330,9 +1510,24 @@ const {
   color: var(--n-primary-color-hover, #36ad6a);
 }
 
+.tvp-toolbar :deep(.n-button:hover) {
+  box-shadow: inset 0 0 0 2px var(--tvp-naive-toolbar-bg, #fff);
+}
+
 .tvp-tooltip-trigger {
   display: inline-flex;
   align-items: center;
+}
+
+.tvp-toolbar :deep(.n-button__content) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tvp-toolbar :deep(.n-button__content svg) {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .tvp-toolbar .tvp-select-btn {
@@ -1343,7 +1538,10 @@ const {
 }
 
 .tvp-toolbar .tvp-select-btn--heading {
-  width: 50px;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  flex: 0 0 56px;
 }
 
 .tvp-toolbar .tvp-select-btn--size,
@@ -1357,7 +1555,7 @@ const {
 
 .tvp-select-btn :deep(.n-button__content) {
   min-width: 0;
-  gap: 1px;
+  gap: 6px;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -1382,6 +1580,36 @@ const {
     flex-wrap: wrap;
     overflow-x: visible;
   }
+}
+
+.tvp-toolbar-section,
+.tvp-toolbar-group,
+.tvp-toolbar-trailing {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.tvp-toolbar-trailing {
+  min-width: 66px;
+  flex: 1 0 auto;
+  justify-content: flex-end;
+}
+
+.tvp-toolbar .tvp-compact-menu-trigger {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.tvp-compact-menu-item {
+  min-width: 116px;
+}
+
+.tvp-compact-menu-item.is-active {
+  color: var(--n-primary-color, #18a058);
+  font-weight: 500;
 }
 
 .tvp-image-input {
@@ -1544,7 +1772,7 @@ const {
 }
 
 .tvp-caret {
-  margin-left: 6px;
+  margin-left: 0;
   font-size: 10px;
   opacity: 0.6;
 }

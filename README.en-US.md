@@ -43,7 +43,7 @@ Tiptap Vue Pro packages those pieces as a UI-independent core plus three equival
 
 - Tiptap v3 + Vue 3 + TypeScript
 - HTML / JSON output with `v-model`
-- Full toolbar: headings, formatting, font family, font size, line height, colors, highlights, alignment, lists, links, images, tables, Mermaid, divider styles, Markdown, print, preview, and fullscreen
+- Full toolbar with `classic` expanded and `compact` prioritized layouts for formatting, insertion, document, and view actions
 - Code block workflow with syntax highlighting for 17 default languages, language icons, contextual language switching, and one-click copy
 - Slash Command quick insert: type `/` to insert headings, tasks, lists, tables, images, dividers, code blocks, and Mermaid diagrams
 - Editor-native find and replace: Ctrl/⌘ + F opens a panel with highlights, previous/next navigation, case-sensitive search, replace current, and replace all
@@ -101,7 +101,7 @@ const content = ref('<p>hello world</p>')
 </script>
 
 <template>
-  <ProEditorElementPlus v-model="content" />
+  <ProEditorElementPlus v-model="content" toolbar-layout="compact" />
 </template>
 ```
 

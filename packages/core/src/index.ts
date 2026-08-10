@@ -191,7 +191,13 @@ export type { ProMarkdownManager } from './markdown'
 export {
   DEFAULT_TOOLBAR,
   normalizeToolbarConfig,
+  resolveToolbarLayout,
 } from './toolbar'
+export { resolveToolbarCompactActions } from './toolbarCompactActions'
+export type {
+  ToolbarCompactAction,
+  ToolbarCompactActionOptions,
+} from './toolbarCompactActions'
 export {
   TOOLBAR_ALIGN_OPTIONS,
   TOOLBAR_CODE_BLOCK_LANGUAGES,
@@ -294,9 +300,13 @@ export type {
 } from './findReplace'
 export type {
   ToolbarBuiltinKey,
+  ToolbarCompactMenu,
+  ToolbarCompactMenuId,
   ToolbarConfig,
   ToolbarGroupConfig,
+  ToolbarLayoutMode,
   ToolbarProp,
+  ResolvedToolbarLayout,
 } from './toolbar'
 
 export type {

@@ -138,5 +138,7 @@ const toolbar: ToolbarConfig = [
 
 Pass `:toolbar="false"` to hide built-in buttons. Use the `toolbar` slot to fully replace the built-in toolbar.
 
+Set `toolbar-layout="compact"` to move lower-frequency actions into structured menus. The default `classic` mode keeps the fully expanded layout.
+
 Full docs: https://twoer.github.io/tiptap-vue-pro/en/
 Online demo: https://twoer.github.io/tiptap-vue-pro/playground/

@@ -137,5 +137,7 @@ const toolbar: ToolbarConfig = [
 
 传 `:toolbar="false"` 可隐藏内置按钮;使用 `toolbar` 插槽可完全替换内置工具栏。
 
+设置 `toolbar-layout="compact"` 可将低频操作收进结构化菜单;默认 `classic` 保持全部展开布局。
+
 完整文档: https://twoer.github.io/tiptap-vue-pro/
 在线 Demo: https://twoer.github.io/tiptap-vue-pro/playground/

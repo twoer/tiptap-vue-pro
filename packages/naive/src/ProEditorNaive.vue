@@ -53,6 +53,7 @@ import {
   type Extensions,
   type NotifyType,
   type ProEditorContext,
+  type ToolbarLayoutMode,
   type ToolbarOptions,
   type ToolbarProp,
   type EditorBehaviorOptions,
@@ -103,6 +104,8 @@ const props = withDefaults(
     draft?: false | LocalDraftOptions<string | object>
     /** 工具栏配置:false 隐藏内置按钮;数组控制内置按钮分组/顺序 */
     toolbar?: ToolbarProp
+    /** 工具栏布局。classic 保持全部展开，compact 收纳低频操作 */
+    toolbarLayout?: ToolbarLayoutMode
     /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
     toolbarOptions?: ToolbarOptions
     /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
@@ -125,6 +128,7 @@ const props = withDefaults(
     autosave: false,
     draft: false,
     toolbar: undefined,
+    toolbarLayout: 'classic',
     toolbarOptions: undefined,
     editorBehaviorOptions: undefined,
     debug: undefined,
@@ -507,6 +511,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           :is-fullscreen="isFullscreen"
           :is-preview="isPreview"
           :toolbar="props.toolbar"
+          :toolbar-layout="props.toolbarLayout"
           :toolbar-options="props.toolbarOptions"
           :editor-behavior-options="props.editorBehaviorOptions"
           :debug-log="debugLog"
@@ -689,6 +694,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 <style>
 /* 编辑器容器 */
 .tvp-editor {
+  --tvp-naive-toolbar-bg: #fff;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -708,6 +714,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
  * 局部补齐同名 --n-* 变量,这样组件级 :dark="true" 不依赖 html.dark 或宿主页。
  */
 .tvp-editor--dark {
+  --tvp-naive-toolbar-bg: #18181c;
   --n-color: #18181c;
   --n-color-hover: rgba(255, 255, 255, 0.09);
   --n-border-color: rgba(255, 255, 255, 0.14);

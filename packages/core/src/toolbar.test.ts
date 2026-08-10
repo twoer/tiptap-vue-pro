@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_TOOLBAR, normalizeToolbarConfig } from './toolbar'
+import {
+  DEFAULT_TOOLBAR,
+  normalizeToolbarConfig,
+  resolveToolbarLayout,
+} from './toolbar'
 
 describe('toolbar config', () => {
   it('normalizes false into no groups', () => {
@@ -37,5 +41,61 @@ describe('toolbar config', () => {
       ['findReplace', 'markdown', 'print'],
       ['preview', 'fullscreen'],
     ])
+  })
+
+  it('keeps classic layout groups unchanged', () => {
+    const toolbar = [['bold', 'strike'], ['image', 'preview']] as const
+
+    expect(resolveToolbarLayout(toolbar.map((group) => [...group]), 'classic')).toEqual({
+      mode: 'classic',
+      groups: [['bold', 'strike'], ['image', 'preview']],
+      menus: [],
+      trailing: [],
+    })
+  })
+
+  it('partitions compact layout without dropping configured commands', () => {
+    const layout = resolveToolbarLayout(DEFAULT_TOOLBAR, 'compact')
+
+    expect(layout).toEqual({
+      mode: 'compact',
+      groups: [
+        ['undo', 'redo'],
+        ['heading', 'fontFamily', 'fontSize', 'lineHeight'],
+        ['bold', 'italic', 'underline'],
+        ['color', 'highlight'],
+        ['align'],
+        ['codeBlock'],
+        ['link', 'table'],
+      ],
+      menus: [
+        { id: 'format', items: ['strike', 'code', 'superscript', 'subscript', 'clearFormat'] },
+        { id: 'list', items: ['decreaseIndent', 'increaseIndent', 'bulletList', 'orderedList', 'taskList', 'blockquote'] },
+        { id: 'insert', items: ['image', 'attachment', 'mermaid', 'hr'] },
+        { id: 'more', items: ['findReplace', 'markdown', 'print'] },
+      ],
+      trailing: ['preview', 'fullscreen'],
+    })
+
+    const resolvedItems = [
+      ...layout.groups.flat(),
+      ...layout.menus.flatMap((menu) => menu.items),
+      ...layout.trailing,
+    ]
+    expect(resolvedItems).toEqual(expect.arrayContaining(DEFAULT_TOOLBAR.flat()))
+    expect(new Set(resolvedItems).size).toBe(new Set(DEFAULT_TOOLBAR.flat()).size)
+  })
+
+  it('omits empty compact menus and preserves configured item order inside a menu', () => {
+    expect(resolveToolbarLayout([
+      ['print', 'findReplace'],
+      ['bold'],
+      ['fullscreen'],
+    ], 'compact')).toEqual({
+      mode: 'compact',
+      groups: [['bold']],
+      menus: [{ id: 'more', items: ['print', 'findReplace'] }],
+      trailing: ['fullscreen'],
+    })
   })
 })

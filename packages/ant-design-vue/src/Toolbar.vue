@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, h, defineComponent, markRaw } from 'vue'
+import { computed, ref, h, defineComponent, markRaw, type Component } from 'vue'
 import { AntButton, AntTooltip, AntDropdown, AntDropdownMenu, AntDropdownItem, AntModal, AntInput, AntCheckbox, AntSlider } from './antDesignPrimitives'
 import {
   Undo2, Redo2, ChevronDown,
@@ -15,6 +15,7 @@ import {
   FileDown, FileUp,
   Eraser, Search, Printer,
   Maximize2, Minimize2, Eye, Pencil,
+  Plus, Ellipsis,
 } from 'lucide-vue-next'
 import {
   DEFAULT_TOOLBAR,
@@ -25,6 +26,8 @@ import {
   getCommandLabel,
   isToolbarCommandActive,
   normalizeToolbarConfig,
+  resolveToolbarLayout,
+  resolveToolbarCompactActions,
   resolveLocale,
   resolveEditorBehaviorOptions,
   resolveToolbarOptions,
@@ -43,8 +46,10 @@ import type {
   HorizontalRuleVariant,
   ProEditorContext,
   ToolbarBuiltinKey,
+  ToolbarCompactMenuId,
   ToolbarCommandPayload,
   ToolbarConfig,
+  ToolbarLayoutMode,
   ToolbarHeadingLevel,
   ToolbarHorizontalRuleOption,
   ToolbarMarkdownAction,
@@ -123,6 +128,8 @@ const props = withDefaults(
     dark?: boolean
     /** 工具栏配置。false 表示不渲染内置按钮 */
     toolbar?: ToolbarProp
+    /** 工具栏布局模式 */
+    toolbarLayout?: ToolbarLayoutMode
     /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
     toolbarOptions?: ToolbarOptions
     /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
@@ -132,6 +139,7 @@ const props = withDefaults(
   }>(),
   {
     toolbar: undefined,
+    toolbarLayout: 'classic',
     toolbarOptions: undefined,
     editorBehaviorOptions: undefined,
   },
@@ -176,7 +184,7 @@ const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
-const toolbarGroups = computed(() => {
+const normalizedToolbar = computed(() => {
   if (props.toolbar === false) return []
   const source = props.toolbar ?? (DEFAULT_TOOLBAR.length > 0 ? DEFAULT_TOOLBAR : FALLBACK_TOOLBAR)
   const normalized = normalizeToolbarConfig(source)
@@ -184,6 +192,10 @@ const toolbarGroups = computed(() => {
     ? normalized
     : source.map((group) => [...group])
 })
+const toolbarLayout = computed(() => resolveToolbarLayout(normalizedToolbar.value, props.toolbarLayout))
+const toolbarGroups = computed(() => toolbarLayout.value.groups)
+const compactMenus = computed(() => toolbarLayout.value.menus)
+const compactTrailing = computed(() => toolbarLayout.value.trailing)
 
 /**
  * 插入类操作前的预处理:若编辑器从未获得焦点(用户没点进去过),
@@ -439,6 +451,95 @@ const MARKDOWN_OPTIONS = computed(() =>
   })),
 )
 
+interface CompactMenuAction {
+  key: string
+  item: ToolbarBuiltinKey
+  label: string
+  icon: Component
+}
+
+function compactMenuLabel(id: ToolbarCompactMenuId) {
+  return t(`toolbar.compact.${id}` as LocaleKey)
+}
+
+function compactMenuIcon(id: ToolbarCompactMenuId): Component {
+  if (id === 'format') return Type
+  if (id === 'list') return List
+  if (id === 'insert') return Plus
+  return Ellipsis
+}
+
+function compactItemIcon(item: ToolbarBuiltinKey): Component {
+  const icons: Partial<Record<ToolbarBuiltinKey, Component>> = {
+    strike: Strikethrough,
+    code: Code,
+    superscript: Superscript,
+    subscript: Subscript,
+    clearFormat: Eraser,
+    decreaseIndent: IndentDecrease,
+    increaseIndent: IndentIncrease,
+    bulletList: List,
+    orderedList: ListOrdered,
+    taskList: ListChecks,
+    blockquote: Quote,
+    image: ImagePlus,
+    attachment: File,
+    mermaid: Workflow,
+    hr: Minus,
+    findReplace: Search,
+    markdown: MarkdownIcon,
+    print: Printer,
+  }
+  return icons[item] ?? Ellipsis
+}
+
+function compactMenuActions(items: ToolbarBuiltinKey[]): CompactMenuAction[] {
+  return resolveToolbarCompactActions(items, {
+    hasImageUpload: HAS_IMAGE_UPLOAD.value,
+    allowImageUrl: IMAGE_ALLOW_URL.value,
+    hasAssetUpload: Boolean(props.uploadAsset),
+    horizontalRules: HORIZONTAL_RULE_OPTIONS.value,
+    markdown: TOOLBAR_MARKDOWN_OPTIONS,
+  }).map((action) => {
+    if (action.item === 'image') {
+      return {
+        ...action,
+        label: t(action.payload === 'upload' ? 'toolbar.image.upload' : 'toolbar.image.url'),
+        icon: action.payload === 'upload' ? ImagePlus : Link2,
+      }
+    }
+    if (action.item === 'attachment') {
+      return {
+        ...action,
+        label: t(action.payload === 'video' ? 'toolbar.attachment.video' : 'toolbar.attachment.file'),
+        icon: action.payload === 'video' ? Video : File,
+      }
+    }
+    if (action.item === 'hr') {
+      const option = HORIZONTAL_RULE_OPTIONS.value.find(({ value }) => value === action.payload)
+      return { ...action, label: `${commandLabel('hr')} · ${option ? horizontalRuleLabel(option) : action.payload}`, icon: Minus }
+    }
+    if (action.item === 'markdown') {
+      const markdownAction = action.payload as ToolbarMarkdownAction
+      return { ...action, label: t(`toolbar.markdown.${markdownAction}` as LocaleKey), icon: markdownOptionIcon(markdownAction) }
+    }
+    return { ...action, label: commandLabel(action.item), icon: compactItemIcon(action.item) }
+  })
+}
+const visibleCompactMenus = computed(() =>
+  compactMenus.value.filter((menu) => compactMenuActions(menu.items).length > 0),
+)
+
+function onCompactMenuCommand(command: string | number | object) {
+  const [item, payload] = String(command).split(':') as [ToolbarBuiltinKey, string | undefined]
+  if (item === 'image') return onImageCommand(payload ?? '')
+  if (item === 'attachment') return onAttachmentCommand(payload ?? '')
+  if (item === 'hr') return onHorizontalRule(payload ?? 'solid')
+  if (item === 'markdown') return onMarkdownCommand(payload as ToolbarMarkdownAction)
+  if (item === 'mermaid') prepareInsert()
+  runCommand(item)
+}
+
 const currentFontLabel = computed(
   () => FONT_FAMILIES.value.find((font) => font.value === currentTextStyle.value.fontFamily)?.label ?? commandLabel('fontFamily'),
 )
@@ -462,7 +563,7 @@ const {
 </script>
 
 <template>
-  <div class="tvp-toolbar">
+  <div class="tvp-toolbar" :class="`is-${toolbarLayout.mode}`">
     <slot
       name="before"
       :ctx="ctx"
@@ -472,20 +573,24 @@ const {
       :toggle-preview="togglePreview"
     />
 
-    <template v-for="(group, groupIndex) in toolbarGroups" :key="groupIndex">
+    <span
+      v-for="(group, groupIndex) in toolbarGroups"
+      :key="groupIndex"
+      class="tvp-toolbar-section"
+    >
       <span v-if="groupIndex > 0" class="tvp-divider" />
-
-      <template v-for="item in group" :key="item">
+      <span class="tvp-toolbar-group">
+        <template v-for="item in group" :key="item">
         <AntTooltip v-if="item === 'undo'" :content="commandLabel('undo')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="18" /></AntButton>
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'redo'" :content="commandLabel('redo')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="18" /></AntButton>
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="16" /></AntButton>
         </AntTooltip>
 
         <AntDropdown v-else-if="item === 'heading'" trigger="click" @command="onHeading">
-          <AntButton text :aria-label="commandLabel('heading')">
+          <AntButton text class="tvp-select-btn tvp-select-btn--heading" :aria-label="commandLabel('heading')">
             {{ headingLabel }}
             <ChevronDown :size="14" class="tvp-caret" />
           </AntButton>
@@ -566,7 +671,7 @@ const {
             :aria-label="commandLabel('bold')"
             :type="commandActive('bold') ? 'primary' : 'default'"
             @click="runCommand('bold')"
-          ><Bold :size="18" /></AntButton>
+          ><Bold :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'italic'" :content="commandLabel('italic')" placement="top" :show-after="300">
@@ -576,7 +681,7 @@ const {
             :aria-label="commandLabel('italic')"
             :type="commandActive('italic') ? 'primary' : 'default'"
             @click="runCommand('italic')"
-          ><Italic :size="18" /></AntButton>
+          ><Italic :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'strike'" :content="commandLabel('strike')" placement="top" :show-after="300">
@@ -586,7 +691,7 @@ const {
             :aria-label="commandLabel('strike')"
             :type="commandActive('strike') ? 'primary' : 'default'"
             @click="runCommand('strike')"
-          ><Strikethrough :size="18" /></AntButton>
+          ><Strikethrough :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'underline'" :content="commandLabel('underline')" placement="top" :show-after="300">
@@ -596,7 +701,7 @@ const {
             :aria-label="commandLabel('underline')"
             :type="commandActive('underline') ? 'primary' : 'default'"
             @click="runCommand('underline')"
-          ><Underline :size="18" /></AntButton>
+          ><Underline :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'code'" :content="commandLabel('code')" placement="top" :show-after="300">
@@ -606,7 +711,7 @@ const {
             :aria-label="commandLabel('code')"
             :type="commandActive('code') ? 'primary' : 'default'"
             @click="runCommand('code')"
-          ><Code :size="18" /></AntButton>
+          ><Code :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'superscript'" :content="commandLabel('superscript')" placement="top" :show-after="300">
@@ -616,7 +721,7 @@ const {
             :aria-label="commandLabel('superscript')"
             :type="commandActive('superscript') ? 'primary' : 'default'"
             @click="runCommand('superscript')"
-          ><Superscript :size="18" /></AntButton>
+          ><Superscript :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'subscript'" :content="commandLabel('subscript')" placement="top" :show-after="300">
@@ -626,12 +731,12 @@ const {
             :aria-label="commandLabel('subscript')"
             :type="commandActive('subscript') ? 'primary' : 'default'"
             @click="runCommand('subscript')"
-          ><Subscript :size="18" /></AntButton>
+          ><Subscript :size="16" /></AntButton>
         </AntTooltip>
 
         <AntDropdown v-else-if="item === 'color'" trigger="click">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('color')">
-            <Type :size="18" :style="{ color: currentColor || 'inherit' }" />
+            <Type :size="16" :style="{ color: currentColor || 'inherit' }" />
           </AntButton>
           <template #dropdown>
             <div class="tvp-color-panel">
@@ -662,7 +767,7 @@ const {
 
         <AntDropdown v-else-if="item === 'highlight'" trigger="click">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('highlight')">
-            <Highlighter :size="18" :style="{ color: currentHighlight || 'inherit' }" />
+            <Highlighter :size="16" :style="{ color: currentHighlight || 'inherit' }" />
           </AntButton>
           <template #dropdown>
             <div class="tvp-color-panel">
@@ -693,7 +798,7 @@ const {
 
         <AntDropdown v-else-if="item === 'align'" trigger="click" @command="onAlign">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('align')">
-            <component :is="alignIcon" :size="18" />
+            <component :is="alignIcon" :size="16" />
           </AntButton>
           <template #dropdown>
             <AntDropdownMenu>
@@ -716,7 +821,7 @@ const {
             class="tvp-icon-btn"
             :aria-label="commandLabel('decreaseIndent')"
             @click="runCommand('decreaseIndent')"
-          ><IndentDecrease :size="18" /></AntButton>
+          ><IndentDecrease :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'increaseIndent'" :content="commandLabel('increaseIndent')" placement="top" :show-after="300">
@@ -725,7 +830,7 @@ const {
             class="tvp-icon-btn"
             :aria-label="commandLabel('increaseIndent')"
             @click="runCommand('increaseIndent')"
-          ><IndentIncrease :size="18" /></AntButton>
+          ><IndentIncrease :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'bulletList'" :content="commandLabel('bulletList')" placement="top" :show-after="300">
@@ -735,7 +840,7 @@ const {
             :aria-label="commandLabel('bulletList')"
             :type="commandActive('bulletList') ? 'primary' : 'default'"
             @click="runCommand('bulletList')"
-          ><List :size="18" /></AntButton>
+          ><List :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'orderedList'" :content="commandLabel('orderedList')" placement="top" :show-after="300">
@@ -745,7 +850,7 @@ const {
             :aria-label="commandLabel('orderedList')"
             :type="commandActive('orderedList') ? 'primary' : 'default'"
             @click="runCommand('orderedList')"
-          ><ListOrdered :size="18" /></AntButton>
+          ><ListOrdered :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'taskList'" :content="commandLabel('taskList')" placement="top" :show-after="300">
@@ -755,7 +860,7 @@ const {
             :aria-label="commandLabel('taskList')"
             :type="commandActive('taskList') ? 'primary' : 'default'"
             @click="runCommand('taskList')"
-          ><ListChecks :size="18" /></AntButton>
+          ><ListChecks :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'blockquote'" :content="commandLabel('blockquote')" placement="top" :show-after="300">
@@ -765,7 +870,7 @@ const {
             :aria-label="commandLabel('blockquote')"
             :type="commandActive('blockquote') ? 'primary' : 'default'"
             @click="runCommand('blockquote')"
-          ><Quote :size="18" /></AntButton>
+          ><Quote :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'codeBlock'" :content="`${commandLabel('codeBlock')}:${currentCodeBlockLabel}`" placement="top" :show-after="300">
@@ -775,7 +880,7 @@ const {
               class="tvp-icon-btn"
               :aria-label="commandLabel('codeBlock')"
               :type="commandActive('codeBlock') ? 'primary' : 'default'"
-            ><Code :size="18" /></AntButton>
+            ><Code :size="16" /></AntButton>
             <template #dropdown>
               <AntDropdownMenu :theme="props.dark ? 'dark' : 'light'">
                 <AntDropdownItem
@@ -811,7 +916,7 @@ const {
 
         <AntTooltip v-else-if="item === 'hr'" :content="commandLabel('hr')" placement="top" :show-after="300">
           <AntDropdown trigger="click" @command="onHorizontalRule">
-            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('hr')"><Minus :size="18" /></AntButton>
+            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('hr')"><Minus :size="16" /></AntButton>
             <template #dropdown>
               <AntDropdownMenu>
                 <AntDropdownItem
@@ -836,12 +941,12 @@ const {
             :aria-label="commandLabel('link')"
             :type="ctx.isActive('link') ? 'primary' : 'default'"
             @click="openLinkDialog"
-          ><Link :size="18" /></AntButton>
+          ><Link :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'image' && SHOW_IMAGE_DROPDOWN" :content="commandLabel('image')" placement="top" :show-after="300">
           <AntDropdown trigger="click" @command="onImageCommand">
-            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('image')"><ImagePlus :size="18" /></AntButton>
+            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('image')"><ImagePlus :size="16" /></AntButton>
             <template #dropdown>
               <AntDropdownMenu>
                 <AntDropdownItem v-if="uploadImage" command="upload">
@@ -860,12 +965,12 @@ const {
             class="tvp-icon-btn"
             :aria-label="HAS_IMAGE_UPLOAD ? t('toolbar.image.upload') : t('toolbar.image.url')"
             @click="HAS_IMAGE_UPLOAD ? triggerImageUpload() : openUrlDialog()"
-          ><ImagePlus :size="18" /></AntButton>
+          ><ImagePlus :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'attachment' && uploadAsset" :content="commandLabel('attachment')" placement="top" :show-after="300">
           <AntDropdown trigger="click" @command="onAttachmentCommand">
-            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('attachment')"><File :size="18" /></AntButton>
+            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('attachment')"><File :size="16" /></AntButton>
             <template #dropdown>
               <AntDropdownMenu>
                 <AntDropdownItem command="video">
@@ -881,7 +986,7 @@ const {
 
         <AntTooltip v-else-if="item === 'table'" :content="commandLabel('table')" placement="top" :show-after="300">
           <AntDropdown v-model:visible="tableDropdownVisible" trigger="click" @command="onTableInsert">
-            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('table')"><Table :size="18" /></AntButton>
+            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('table')"><Table :size="16" /></AntButton>
             <template #dropdown>
               <div class="tvp-table-grid" @mouseleave="resetTableHover">
                 <div
@@ -907,20 +1012,20 @@ const {
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'mermaid'" :content="commandLabel('mermaid')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="18" /></AntButton>
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'clearFormat'" :content="commandLabel('clearFormat')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="18" /></AntButton>
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'findReplace'" :content="commandLabel('findReplace')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="18" /></AntButton>
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'markdown'" :content="commandLabel('markdown')" placement="top" :show-after="300">
           <AntDropdown trigger="click" @command="onMarkdownCommand">
-            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="18" /></AntButton>
+            <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="16" /></AntButton>
             <template #dropdown>
               <AntDropdownMenu>
                 <AntDropdownItem
@@ -938,22 +1043,85 @@ const {
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'print'" :content="commandLabel('print')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="18" /></AntButton>
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="16" /></AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'fullscreen'" :content="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" placement="top" :show-after="300">
           <AntButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">
-            <component :is="isFullscreen ? Minimize2 : Maximize2" :size="18" />
+            <component :is="isFullscreen ? Minimize2 : Maximize2" :size="16" />
           </AntButton>
         </AntTooltip>
 
         <AntTooltip v-else-if="item === 'preview'" :content="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')" placement="top" :show-after="300">
           <AntButton text class="tvp-icon-btn" :aria-label="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')" @click="togglePreview">
-            <component :is="isPreview ? Pencil : Eye" :size="18" />
+            <component :is="isPreview ? Pencil : Eye" :size="16" />
           </AntButton>
         </AntTooltip>
-      </template>
-    </template>
+        </template>
+      </span>
+    </span>
+
+    <span
+      v-for="(menu, menuIndex) in visibleCompactMenus"
+      :key="`compact-${menu.id}`"
+      class="tvp-toolbar-section"
+    >
+      <span v-if="toolbarGroups.length > 0 || menuIndex > 0" class="tvp-divider" />
+      <AntDropdown
+        trigger="click"
+        overlay-class-name="tvp-ant-compact-toolbar-dropdown"
+        @command="onCompactMenuCommand"
+      >
+        <AntButton
+          text
+          class="tvp-compact-menu-trigger"
+          :aria-label="compactMenuLabel(menu.id)"
+          :data-toolbar-menu="menu.id"
+        >
+          <component :is="compactMenuIcon(menu.id)" :size="16" />
+          <span>{{ compactMenuLabel(menu.id) }}</span>
+          <ChevronDown :size="13" />
+        </AntButton>
+        <template #dropdown>
+          <AntDropdownMenu :theme="dark ? 'dark' : 'light'">
+            <AntDropdownItem
+              v-for="action in compactMenuActions(menu.items)"
+              :key="action.key"
+              :command="action.key"
+              :class="{ 'is-active': commandActive(action.item) }"
+            >
+              <span class="tvp-menu-item tvp-compact-menu-item">
+                <component :is="action.icon" :size="16" />
+                <span>{{ action.label }}</span>
+              </span>
+            </AntDropdownItem>
+          </AntDropdownMenu>
+        </template>
+      </AntDropdown>
+    </span>
+
+    <span v-if="compactTrailing.length > 0" class="tvp-toolbar-trailing">
+      <AntTooltip
+        v-if="compactTrailing.includes('preview')"
+        :content="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')"
+        placement="top"
+        :show-after="300"
+      >
+        <AntButton text class="tvp-icon-btn" :aria-label="isPreview ? t('toolbar.preview.edit') : commandLabel('preview')" @click="togglePreview">
+          <component :is="isPreview ? Pencil : Eye" :size="16" />
+        </AntButton>
+      </AntTooltip>
+      <AntTooltip
+        v-if="compactTrailing.includes('fullscreen')"
+        :content="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')"
+        placement="top"
+        :show-after="300"
+      >
+        <AntButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">
+          <component :is="isFullscreen ? Minimize2 : Maximize2" :size="16" />
+        </AntButton>
+      </AntTooltip>
+    </span>
 
     <slot
       name="after"
@@ -1128,7 +1296,11 @@ const {
   align-items: center;
   justify-content: center;
   width: 32px;
+  min-width: 32px;
+  max-width: 32px;
   height: 32px;
+  flex: 0 0 32px;
+  box-sizing: border-box;
   padding: 0;
   line-height: 1;
 }
@@ -1141,7 +1313,7 @@ const {
 .tvp-toolbar :deep(.tvp-ant-button--primary.tvp-icon-btn) {
   border-color: transparent;
   background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 2px var(--tvp-ant-fill-color-blank, #fff);
   color: var(--tvp-ant-color-primary, #1677ff);
 }
 
@@ -1151,12 +1323,16 @@ const {
   color: var(--tvp-ant-color-primary, #1677ff);
 }
 
+.tvp-toolbar :deep(.tvp-ant-button:hover) {
+  box-shadow: inset 0 0 0 2px var(--tvp-ant-fill-color-blank, #fff);
+}
+
 .tvp-toolbar :deep(.tvp-ant-button.tvp-icon-btn > span) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   line-height: 1;
 }
 
@@ -1173,6 +1349,32 @@ const {
  */
 .tvp-toolbar :deep(.tvp-ant-button + .tvp-ant-button) {
   margin-left: 0;
+}
+
+.tvp-toolbar :deep(.tvp-ant-button:not(.tvp-icon-btn) > span) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.tvp-toolbar :deep(.tvp-ant-button:not(.tvp-icon-btn)) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.tvp-toolbar :deep(.tvp-ant-button:not(.tvp-icon-btn) svg) {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.tvp-toolbar :deep(.tvp-ant-button.tvp-select-btn--heading) {
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  flex: 0 0 56px;
+  padding: 0 4px;
 }
 
 .tvp-toolbar {
@@ -1198,6 +1400,39 @@ const {
     flex-wrap: wrap;
     overflow-x: visible;
   }
+}
+
+.tvp-toolbar-section,
+.tvp-toolbar-group,
+.tvp-toolbar-trailing {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.tvp-toolbar-trailing {
+  min-width: 66px;
+  flex: 1 0 auto;
+  justify-content: flex-end;
+}
+
+.tvp-toolbar :deep(.tvp-ant-button.tvp-compact-menu-trigger) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.tvp-compact-menu-item {
+  min-width: 116px;
+}
+
+:global(.tvp-ant-compact-toolbar-dropdown .ant-dropdown-menu-item.is-active) {
+  color: var(--tvp-ant-color-primary, #1677ff);
+  background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
 }
 
 /* 隐藏的图片选择 input */
@@ -1435,7 +1670,7 @@ const {
 }
 
 .tvp-caret {
-  margin-left: 6px;
+  margin-left: 0;
   font-size: 10px;
   opacity: 0.6;
 }
