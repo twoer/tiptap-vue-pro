@@ -30,11 +30,12 @@ handoff or broad changes.
 `docs/current` is a current-state control plane. It should not become a generated
 project harness, a task log, or a duplicate of `docs/plans`.
 
-### Treat Slash Command As Planned, Not Implemented
+### Inventory Public API Before Splitting Packages
 
-The current slash command document under `docs/plans` is an implementation plan.
-Before coding, refresh assumptions against the current dependencies and adapter
-state.
+Keep the existing core root entry compatible during `0.2.x`. Record consumer,
+adapter, and internal ownership before adding subpath exports or splitting
+packages. A new package boundary must solve a demonstrated consumer or
+maintenance problem, not only rename imports.
 
 ## Protected Decisions
 

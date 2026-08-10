@@ -16,6 +16,19 @@ pnpm build
 Use the full baseline before release-level handoff or after broad cross-package
 changes.
 
+## Packed Package Verification
+
+After `pnpm build`, verify the same tarballs and entry points npm consumers use:
+
+```bash
+pnpm test:package-exports
+```
+
+This packs all four packages, installs them in a temporary consumer, and checks
+package metadata, ESM, CommonJS, TypeScript, SSR-safe imports, and a production
+Vue/Vite app using all three adapters. Run it for release preparation and
+package build or export changes.
+
 ## Focused Package Checks
 
 Core changes:

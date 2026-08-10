@@ -22,6 +22,7 @@
     "test:preview:e2e": "node scripts/preview-playwright-smoke.mjs",
     "test:autosave:e2e": "node scripts/autosave-playwright-smoke.mjs",
     "test:drafts:e2e": "node scripts/local-draft-playwright-smoke.mjs",
+    "test:package-exports": "node scripts/package-exports-smoke.mjs",
     "postinstall": "node node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild/install.js || true"
   },
   "devDependencies": {

@@ -13,6 +13,7 @@ directory small, current, and tied to this repository.
 | --- | --- |
 | Understand the product and architecture | [project-context.md](project-context.md) |
 | Find the owning package for a change | [work-map.md](work-map.md) |
+| Check current core API ownership | [core-api-inventory.md](core-api-inventory.md) |
 | Pick or resume the next feature slice | [roadmap.md](roadmap.md) |
 | Choose the right checks before handoff | [verification.md](verification.md) |
 | Check stable project decisions | [decisions.md](decisions.md) |

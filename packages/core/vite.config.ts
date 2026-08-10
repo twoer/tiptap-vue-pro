@@ -8,8 +8,7 @@ export default defineConfig({
       entryRoot: 'src',
       outDir: 'dist',
       exclude: ['src/**/*.test.ts', 'src/test/**'],
-      // Tiptap 的类型来自 peer 依赖,不打包进 d.ts
-      rollupTypes: false,
+      rollupTypes: true,
     }),
   ],
   build: {
@@ -31,6 +30,7 @@ export default defineConfig({
         /^@codemirror\//,
       ],
       output: {
+        interop: 'auto',
         globals: (id) => {
           const globals: Record<string, string> = {
             vue: 'Vue',
