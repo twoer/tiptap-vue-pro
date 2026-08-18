@@ -108,6 +108,19 @@ export default defineConfig({
   title: 'Tiptap Vue Pro',
   description: '基于 Tiptap v3 + Vue 3 的富文本编辑器组件',
   base: '/tiptap-vue-pro/',
+  head: [
+    [
+      'script',
+      {},
+      `var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?493e0429c8397770b298bb0eafc35fd8";
+  var s = document.getElementsByTagName("script")[0];
+  s.parentNode.insertBefore(hm, s);
+})();`,
+    ],
+  ],
   srcExclude: ['feature-gap-analysis.md', 'plans/**'],
   cleanUrls: true,
   lastUpdated: true,
