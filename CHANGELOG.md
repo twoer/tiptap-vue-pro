@@ -2,6 +2,12 @@
 
 中文: [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)
 
+## 0.2.2 - 2026-08-20
+
+### Fixed
+
+- Pinned Tiptap runtime dependencies to the compatible `3.27.1` release so fresh npm installations do not mix incompatible Tiptap versions.
+
 ## 0.2.1 - 2026-08-20
 
 ### Added
