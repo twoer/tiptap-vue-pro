@@ -20,19 +20,19 @@ importers:
 
   packages/ant-design-vue:
     dependencies:
-      '@tiptap/extension-bubble-menu':
-        specifier: 3.27.1
-        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
       lucide-vue-next:
         specifier: ^1.0.0
         version: 1.0.0(vue@3.5.39(typescript@5.9.3))
       tiptap-vue-pro-core:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@tiptap/core':
         specifier: 3.27.1
         version: 3.27.1(@tiptap/pm@3.27.1)
+      '@tiptap/extension-bubble-menu':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
       '@tiptap/pm':
         specifier: 3.27.1
         version: 3.27.1
@@ -87,6 +87,13 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.8
         version: 6.43.8
+      lowlight:
+        specifier: 3.3.0
+        version: 3.3.0
+      mermaid:
+        specifier: ^11.16.0
+        version: 11.16.0
+    devDependencies:
       '@tiptap/core':
         specifier: 3.27.1
         version: 3.27.1(@tiptap/pm@3.27.1)
@@ -141,13 +148,6 @@ importers:
       '@tiptap/vue-3':
         specifier: 3.27.1
         version: 3.27.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)(vue@3.5.39(typescript@5.9.3))
-      lowlight:
-        specifier: 3.3.0
-        version: 3.3.0
-      mermaid:
-        specifier: ^11.16.0
-        version: 11.16.0
-    devDependencies:
       '@types/node':
         specifier: ^26.0.1
         version: 26.0.1
@@ -178,19 +178,19 @@ importers:
 
   packages/element-plus:
     dependencies:
-      '@tiptap/extension-bubble-menu':
-        specifier: 3.27.1
-        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
       lucide-vue-next:
         specifier: ^1.0.0
         version: 1.0.0(vue@3.5.39(typescript@5.9.3))
       tiptap-vue-pro-core:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@tiptap/core':
         specifier: 3.27.1
         version: 3.27.1(@tiptap/pm@3.27.1)
+      '@tiptap/extension-bubble-menu':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
       '@tiptap/pm':
         specifier: 3.27.1
         version: 3.27.1
@@ -230,19 +230,19 @@ importers:
 
   packages/naive:
     dependencies:
-      '@tiptap/extension-bubble-menu':
-        specifier: 3.27.1
-        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
       lucide-vue-next:
         specifier: ^1.0.0
         version: 1.0.0(vue@3.5.39(typescript@5.9.3))
       tiptap-vue-pro-core:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@tiptap/core':
         specifier: 3.27.1
         version: 3.27.1(@tiptap/pm@3.27.1)
+      '@tiptap/extension-bubble-menu':
+        specifier: 3.27.1
+        version: 3.27.1(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
       '@tiptap/pm':
         specifier: 3.27.1
         version: 3.27.1

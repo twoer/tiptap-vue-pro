@@ -148,8 +148,8 @@ function assertPackedManifest(entry, sourceManifest, packedManifest, coreVersion
   if (entry.componentExport) {
     assert.equal(
       packedManifest.dependencies?.['tiptap-vue-pro-core'],
-      coreVersion,
-      `${entry.name} must pack with the matching concrete core version`,
+      `^${coreVersion}`,
+      `${entry.name} must pack with a caret range of the released core version`,
     )
   }
 }
@@ -170,16 +170,16 @@ function installedVersion(projects, dependencyName) {
   throw new Error(`Cannot resolve installed version for ${dependencyName}`)
 }
 
-function writeConsumerFixture(consumerDirectory, tarballs, projects) {
+function writeConsumerFixture(consumerDirectory, tarballs, projects, tiptapPeerNames) {
   const dependencies = Object.fromEntries(
     packageMatrix.map(entry => [entry.name, `file:${tarballs.get(entry.name)}`]),
   )
 
+  // Tiptap v3 家族必须整套装同一版本: 只装三件套时, 其余 peer 会被自动装成最新版,
+  // 与锁定的旧版 core 混装后在运行时报错。这里按文档指引锁全套 workspace 版本。
   for (const name of [
     'vue',
-    '@tiptap/core',
-    '@tiptap/pm',
-    '@tiptap/vue-3',
+    ...tiptapPeerNames,
     'element-plus',
     'naive-ui',
     'ant-design-vue',
@@ -455,9 +455,16 @@ function main() {
     }
 
     const projects = JSON.parse(run('pnpm', ['list', '-r', '--depth', '0', '--json']))
+    const tiptapPeerNames = new Set()
+    for (const manifest of sourceManifests.values()) {
+      for (const name of Object.keys(manifest.peerDependencies ?? {})) {
+        if (name.startsWith('@tiptap/'))
+          tiptapPeerNames.add(name)
+      }
+    }
     const consumerDirectory = join(tempDirectory, 'consumer')
     mkdirSync(consumerDirectory)
-    writeConsumerFixture(consumerDirectory, tarballs, projects)
+    writeConsumerFixture(consumerDirectory, tarballs, projects, tiptapPeerNames)
 
     process.stdout.write('Installing packed packages... ')
     run('pnpm', ['install', '--ignore-scripts', '--prefer-offline'], consumerDirectory)

@@ -1,6 +1,6 @@
 {
   "name": "tiptap-vue-pro-core",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Tiptap Vue Pro 的 UI 无关核心层:封装 Tiptap v3,提供 composable 与类型契约",
   "author": "twoer",
   "license": "MIT",
@@ -51,7 +51,22 @@
   },
   "peerDependencies": {
     "@tiptap/core": "^3.0.0",
+    "@tiptap/extension-character-count": "^3.0.0",
+    "@tiptap/extension-code-block-lowlight": "^3.0.0",
+    "@tiptap/extension-color": "^3.0.0",
+    "@tiptap/extension-highlight": "^3.0.0",
+    "@tiptap/extension-image": "^3.0.0",
+    "@tiptap/extension-list": "^3.0.0",
+    "@tiptap/extension-placeholder": "^3.0.0",
+    "@tiptap/extension-subscript": "^3.0.0",
+    "@tiptap/extension-superscript": "^3.0.0",
+    "@tiptap/extension-table": "^3.0.0",
+    "@tiptap/extension-text-align": "^3.0.0",
+    "@tiptap/extension-text-style": "^3.0.0",
+    "@tiptap/markdown": "^3.0.0",
     "@tiptap/pm": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "@tiptap/suggestion": "^3.0.0",
     "@tiptap/vue-3": "^3.0.0",
     "vue": "^3.4.0"
   },
@@ -61,6 +76,10 @@
     "@codemirror/search": "^6.7.1",
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.8",
+    "lowlight": "3.3.0",
+    "mermaid": "^11.16.0"
+  },
+  "devDependencies": {
     "@tiptap/core": "3.27.1",
     "@tiptap/extension-character-count": "3.27.1",
     "@tiptap/extension-code-block-lowlight": "3.27.1",
@@ -79,10 +98,6 @@
     "@tiptap/starter-kit": "3.27.1",
     "@tiptap/suggestion": "3.27.1",
     "@tiptap/vue-3": "3.27.1",
-    "lowlight": "3.3.0",
-    "mermaid": "^11.16.0"
-  },
-  "devDependencies": {
     "@types/node": "^26.0.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/test-utils": "^2.4.11",

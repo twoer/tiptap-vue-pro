@@ -23,6 +23,22 @@ pnpm add @tiptap/core @tiptap/pm @tiptap/vue-3
 
 :::
 
+::: tip About Tiptap versions
+Tiptap v3 official packages pin each other to the exact same version (`@tiptap/vue-3` requires `@tiptap/core` to be the identical version). It is recommended to **not** pin `@tiptap/*` versions manually — installing the latest family as shown above keeps every package consistent automatically.
+
+If your project must pin an older version (e.g. `3.27.1`), make sure **all** `@tiptap/*` packages are locked to the same version and pin the family via `overrides` (npm) in your `package.json`; otherwise npm may fail with `ERESOLVE` or install duplicate copies that break at runtime:
+
+```json
+{
+  "overrides": {
+    "@tiptap/core": "3.27.1",
+    "@tiptap/pm": "3.27.1",
+    "@tiptap/vue-3": "3.27.1"
+  }
+}
+```
+:::
+
 ## Minimal Example
 
 ```vue

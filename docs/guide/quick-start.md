@@ -23,6 +23,22 @@ pnpm add @tiptap/core @tiptap/pm @tiptap/vue-3
 
 :::
 
+::: tip 关于 Tiptap 版本
+Tiptap v3 官方包之间互相精确锁定版本(`@tiptap/vue-3` 要求 `@tiptap/core` 必须完全同版本)。推荐**不要手动锁定** `@tiptap/*` 版本,按上面默认安装最新的全家桶即可,所有包会自动保持一致。
+
+如果你的项目必须锁定旧版本(例如 `3.27.1`),请确保**所有** `@tiptap/*` 包都锁同一版本,并在 `package.json` 中配合 `overrides`(npm)固定全家桶,否则 npm 解析时会出现 `ERESOLVE` 冲突或多副本运行时错误:
+
+```json
+{
+  "overrides": {
+    "@tiptap/core": "3.27.1",
+    "@tiptap/pm": "3.27.1",
+    "@tiptap/vue-3": "3.27.1"
+  }
+}
+```
+:::
+
 ## 最小示例
 
 ```vue
