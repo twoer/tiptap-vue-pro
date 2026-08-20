@@ -2,6 +2,14 @@
 
 中文: [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)
 
+## 0.2.1 - 2026-08-20
+
+### Added
+
+- Added an optional compact toolbar layout via `toolbarLayout="compact"`, moving lower-frequency actions into More formatting, Lists and indent, Insert, and More menus.
+- Added compact toolbar parity across all three adapters while preserving the classic layout as the default.
+- Added package compatibility checks covering ESM, CommonJS, TypeScript, SSR, and packed export artifacts.
+
 ## 0.2.0 - 2026-08-10
 
 ### Added

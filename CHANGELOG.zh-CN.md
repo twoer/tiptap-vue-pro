@@ -2,6 +2,14 @@
 
 English: [CHANGELOG.md](./CHANGELOG.md)
 
+## 0.2.1 - 2026-08-20
+
+### 新增
+
+- 新增可选紧凑工具栏布局,通过 `toolbarLayout="compact"` 将低频操作收纳到“更多格式”“列表与缩进”“插入”和“更多”菜单中。
+- 三套 Adapter 对等支持紧凑工具栏,并保留经典布局作为默认行为。
+- 新增发布包兼容性检查,验证 ESM、CommonJS、TypeScript、SSR 和打包产物导出。
+
 ## 0.2.0 - 2026-08-10
 
 ### 新增
