@@ -43,7 +43,7 @@ Tiptap Vue Pro 把这些能力封装成一套 UI 无关 core,再提供三套对�
 
 - Tiptap v3 + Vue 3 + TypeScript
 - HTML / JSON 输出,支持 `v-model`
-- 完整工具栏:标题、格式化、字体、字号、行高、颜色、高亮、对齐、列表、链接、图片、表格、Mermaid、分割线样式、Markdown、打印、预览、全屏
+- 完整工具栏:支持 `classic` 全量展开与 `compact` 分层收纳,覆盖标题、格式化、字体、颜色、列表、插入、文档和视图操作
 - 代码块体验:17 种默认语言语法高亮、语言图标、上下文切换语言和一键复制代码
 - Slash Command 快捷插入:输入 `/` 可快速插入标题、待办、列表、表格、图片、分割线、代码块和 Mermaid 图表
 - 编辑器内查找替换:Ctrl/⌘ + F 打开面板,支持高亮、上/下一个、大小写敏感、替换当前和替换全部
@@ -101,7 +101,7 @@ const content = ref('<p>hello world</p>')
 </script>
 
 <template>
-  <ProEditorElementPlus v-model="content" />
+  <ProEditorElementPlus v-model="content" toolbar-layout="compact" />
 </template>
 ```
 

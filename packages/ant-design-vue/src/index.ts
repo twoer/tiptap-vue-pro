@@ -16,6 +16,7 @@ export type {
   ToolbarBuiltinKey,
   ToolbarConfig,
   ToolbarGroupConfig,
+  ToolbarLayoutMode,
   ToolbarOptions,
   ToolbarFontFamilyOption,
   ToolbarCodeBlockLanguageOption,

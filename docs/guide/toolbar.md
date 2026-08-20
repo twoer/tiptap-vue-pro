@@ -2,6 +2,8 @@
 
 `toolbar` prop 用二维数组描述内置按钮分组。数组顺序就是渲染顺序。
 
+`toolbarLayout` 控制呈现密度。默认 `classic` 保持历史版本的全部展开布局;设置为 `compact` 后,常用格式保留在主工具栏,低频操作进入“更多格式”“列表与缩进”“插入”“更多”菜单。命令能力和 `toolbar` 配置不会丢失。
+
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -17,7 +19,7 @@ const toolbar: ToolbarConfig = [
 </script>
 
 <template>
-  <ProEditorElementPlus v-model="content" :toolbar="toolbar">
+  <ProEditorElementPlus v-model="content" :toolbar="toolbar" toolbar-layout="compact">
     <template #toolbar-after="{ ctx }">
       <ElButton text @click="ctx.commands.hr('dashed')">虚线</ElButton>
     </template>
@@ -47,6 +49,8 @@ const toolbar: ToolbarConfig = [
 | `toolbar-after` | 插入到内置工具栏按钮后 |
 
 ## 内置按钮
+
+compact 布局仍让代码块语言和表格网格选择器保持独立入口;图片上传/网络图片、视频/文件、四种分割线以及 Markdown 导入/导出会在对应菜单中展开。桌面端只在操作组边界换行,移动端保持单行横向滚动。
 
 | 分组 | 功能 |
 | --- | --- |

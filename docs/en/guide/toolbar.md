@@ -2,6 +2,8 @@
 
 The `toolbar` prop uses a two-dimensional array to describe built-in button groups. The array order is the render order.
 
+`toolbarLayout` controls presentation density. The default `classic` mode preserves the fully expanded historical layout. Set it to `compact` to keep common formatting actions on the toolbar and move lower-frequency actions into More formatting, Lists and indent, Insert, and More menus. Commands and `toolbar` configuration remain available.
+
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -17,7 +19,7 @@ const toolbar: ToolbarConfig = [
 </script>
 
 <template>
-  <ProEditorElementPlus v-model="content" :toolbar="toolbar">
+  <ProEditorElementPlus v-model="content" :toolbar="toolbar" toolbar-layout="compact">
     <template #toolbar-after="{ ctx }">
       <ElButton text @click="ctx.commands.hr('dashed')">Dashed</ElButton>
     </template>
@@ -47,6 +49,8 @@ Pass `:toolbar="false"` to hide all built-in buttons. Use the `toolbar` slot whe
 | `toolbar-after` | Inserts content after built-in toolbar buttons |
 
 ## Built-In Buttons
+
+Compact mode keeps the code-language and table-grid pickers as dedicated controls. Image upload/URL, video/file upload, divider variants, and Markdown import/export expand inside their corresponding menus. Desktop wrapping occurs only at action-group boundaries; mobile stays on one horizontally scrollable row.
 
 | Group | Features |
 | --- | --- |

@@ -16,6 +16,7 @@
 | `autosave` | `false \| AutosaveOptions<string \| object>` | `false` | 自动保存配置,启用后在 footer 显示保存状态 |
 | `draft` | `false \| LocalDraftOptions<string \| object>` | `false` | 本地草稿恢复配置,启用时必须提供稳定文档 key |
 | `toolbar` | `ToolbarConfig \| false` | 默认完整工具栏 | 控制工具栏按钮分组和顺序 |
+| `toolbarLayout` | `'classic' \| 'compact'` | `'classic'` | 工具栏布局;compact 会把低频操作收进结构化菜单 |
 | `toolbarOptions` | `ToolbarOptions` | 默认菜单配置 | 控制工具栏菜单数据和动作参数 |
 | `editorBehaviorOptions` | `EditorBehaviorOptions` | 默认行为配置 | 控制链接、表格、图片等默认行为 |
 | `extensions` | `Extensions` | 默认扩展包 | 自定义 Tiptap 扩展,传入后覆盖默认扩展包 |

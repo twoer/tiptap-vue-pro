@@ -41,6 +41,10 @@ export const ZH_CN_LOCALE_MESSAGES = {
   'command.preview': '预览',
 
   'toolbar.heading.body': '正文',
+  'toolbar.compact.format': '更多格式',
+  'toolbar.compact.list': '列表与缩进',
+  'toolbar.compact.insert': '插入',
+  'toolbar.compact.more': '更多',
   'toolbar.heading.level': '标题 {level}',
   'toolbar.fontFamily.default': '默认字体',
   'toolbar.fontSize.default': '默认字号',
@@ -263,6 +267,10 @@ export const EN_US_LOCALE_MESSAGES: LocaleMessages = {
   'command.preview': 'Preview',
 
   'toolbar.heading.body': 'Body',
+  'toolbar.compact.format': 'More formatting',
+  'toolbar.compact.list': 'Lists and indent',
+  'toolbar.compact.insert': 'Insert',
+  'toolbar.compact.more': 'More',
   'toolbar.heading.level': 'Heading {level}',
   'toolbar.fontFamily.default': 'Default font',
   'toolbar.fontSize.default': 'Default size',

@@ -16,6 +16,7 @@ The three adapters expose the same props.
 | `autosave` | `false \| AutosaveOptions<string \| object>` | `false` | Autosave config; shows save status in the footer when enabled |
 | `draft` | `false \| LocalDraftOptions<string \| object>` | `false` | Local draft recovery config; requires a stable document key |
 | `toolbar` | `ToolbarConfig \| false` | Full default toolbar | Controls toolbar button groups and order |
+| `toolbarLayout` | `'classic' \| 'compact'` | `'classic'` | Toolbar layout; compact moves lower-frequency actions into structured menus |
 | `toolbarOptions` | `ToolbarOptions` | Default menu config | Controls toolbar menu data and action parameters |
 | `editorBehaviorOptions` | `EditorBehaviorOptions` | Default behavior config | Controls default behavior for links, tables, images, and media |
 | `extensions` | `Extensions` | Default extension set | Custom Tiptap extensions; replaces the default extension set when provided |

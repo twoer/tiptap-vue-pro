@@ -3,7 +3,7 @@ import { ref, shallowRef, watch, computed, onMounted, onBeforeUnmount, provide }
 import { EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3'
 import { ElButton, ElDialog, ElInput, ElTooltip, ElMessage } from 'element-plus'
 import { Pencil } from 'lucide-vue-next'
-import { MERMAID_NODE_VIEW_CONTEXT, SLASH_COMMAND_ITEMS, createDebugLogger, resolveEditorBehaviorOptions, resolveLocale, runSlashCommandItem, useEditorEventBridge, useImageDropPaste, useProEditor, type AutosaveOptions, type AutosaveState, type LocalDraftCandidate, type LocalDraftOptions, type SlashCommandItem, type SlashCommandRenderState, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
+import { MERMAID_NODE_VIEW_CONTEXT, SLASH_COMMAND_ITEMS, createDebugLogger, resolveEditorBehaviorOptions, resolveLocale, runSlashCommandItem, useEditorEventBridge, useImageDropPaste, useProEditor, type AutosaveOptions, type AutosaveState, type LocalDraftCandidate, type LocalDraftOptions, type SlashCommandItem, type SlashCommandRenderState, type UploadAsset, type UploadImage, type OutputFormat, type Extensions, type NotifyType, type ProEditorContext, type ToolbarLayoutMode, type ToolbarOptions, type ToolbarProp, type EditorBehaviorOptions, type LocaleKey, type LocaleProp, type ProEditorDebugLogger, type ProEditorDebugLogFn, type ProEditorDebugOptions } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
 import TableBubbleMenu from './TableBubbleMenu.vue'
@@ -59,6 +59,8 @@ const props = withDefaults(
     draft?: false | LocalDraftOptions<string | object>
     /** 工具栏配置:false 隐藏内置按钮;数组控制内置按钮分组/顺序 */
     toolbar?: ToolbarProp
+    /** 工具栏布局。classic 保持全部展开，compact 收纳低频操作 */
+    toolbarLayout?: ToolbarLayoutMode
     /** 工具栏选项配置。用于覆盖菜单数据、表格网格、Markdown 和打印等预设 */
     toolbarOptions?: ToolbarOptions
     /** 编辑器行为配置。用于覆盖链接、表格、图片等默认行为 */
@@ -81,6 +83,7 @@ const props = withDefaults(
     autosave: false,
     draft: false,
     toolbar: undefined,
+    toolbarLayout: 'classic',
     toolbarOptions: undefined,
     editorBehaviorOptions: undefined,
     debug: undefined,
@@ -443,6 +446,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
       :is-fullscreen="isFullscreen"
       :is-preview="isPreview"
       :toolbar="props.toolbar"
+      :toolbar-layout="props.toolbarLayout"
       :toolbar-options="props.toolbarOptions"
       :editor-behavior-options="props.editorBehaviorOptions"
       :debug-log="debugLog"

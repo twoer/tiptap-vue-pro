@@ -10,6 +10,7 @@ export default defineConfig({
       entryRoot: 'src',
       outDir: 'dist',
       exclude: ['src/**/*.test.ts', 'src/test/**'],
+      rollupTypes: true,
     }),
   ],
   build: {

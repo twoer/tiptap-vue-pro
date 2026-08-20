@@ -240,6 +240,34 @@ describe('Element Plus Toolbar', () => {
     expect(wrapper.find('button[aria-label="标题"]').exists()).toBe(false)
   })
 
+  it('compact 布局收纳低频操作并保留复杂选择器与视图操作', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, toolbarLayout: 'compact' },
+    })
+
+    expect(wrapper.find('.tvp-toolbar.is-compact').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="更多格式"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="列表与缩进"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="插入"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="更多"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="删除线"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="代码块"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="插入表格"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="预览"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="全屏"]').exists()).toBe(true)
+  })
+
+  it('compact 布局不会渲染没有可用动作的空菜单', () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      props: { ctx, toolbar: [['attachment']], toolbarLayout: 'compact' },
+    })
+
+    expect(wrapper.find('button[aria-label="插入"]').exists()).toBe(false)
+  })
+
   it('使用 core 命令注册表的 label 渲染基础按钮', () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
@@ -842,12 +870,27 @@ describe('Element Plus Toolbar', () => {
     expect(source).toContain(':accept="MARKDOWN_IMPORT_ACCEPT"')
   })
 
-  it('纯图标按钮保持 32px 正方形击中区', () => {
+  it('纯图标按钮保持 16px 图形和 32px 稳定击中区', () => {
     const source = readFileSync(`${process.cwd()}/src/Toolbar.vue`, 'utf8')
 
     expect(source).toContain('.tvp-toolbar :deep(.el-button.tvp-icon-btn)')
     expect(source).toContain('width: 32px')
+    expect(source).toContain('min-width: 32px')
+    expect(source).toContain('max-width: 32px')
+    expect(source).toContain('flex: 0 0 32px')
     expect(source).toContain('height: 32px')
     expect(source).toContain('padding: 0')
+    expect(source).not.toContain(':size="18"')
+  })
+
+  it('标题选择按钮保持固定宽度,切换正文和标题时不挤动工具栏', () => {
+    const source = readFileSync(`${process.cwd()}/src/Toolbar.vue`, 'utf8')
+
+    expect(source).toContain('class="tvp-select-btn tvp-select-btn--heading"')
+    expect(source).toContain('.el-button.tvp-select-btn--heading')
+    expect(source).toContain('width: 56px')
+    expect(source).toContain('min-width: 56px')
+    expect(source).toContain('max-width: 56px')
+    expect(source).toContain('flex: 0 0 56px')
   })
 })

@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import { ProEditorNaive } from 'tiptap-vue-pro-naive'
 import { ProEditorAntDesignVue } from 'tiptap-vue-pro-ant-design-vue'
-import type { AutosaveOptions, EditorBehaviorOptions, LocalDraftOptions, LocaleCode, ToolbarConfig } from 'tiptap-vue-pro-core'
+import type { AutosaveOptions, EditorBehaviorOptions, LocalDraftOptions, LocaleCode } from 'tiptap-vue-pro-core'
 // 生产级图片上传示例:XHR 真实上传 + 进度条 + 三态提示,详见文件内注释
 import { IMAGE_UPLOAD_MAX_SIZE, uploadImage } from './uploadImage'
 import { MEDIA_UPLOAD_MAX_SIZE, uploadAsset } from './uploadAsset'
@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
 const dark = ref(false)
 const readonly = ref(false)
 const showWordCount = ref(true)
-const compactToolbar = ref(false)
+const compactToolbar = ref(true)
 const output = ref<'html' | 'json'>('html')
 const locale = ref<LocaleCode>('zh-CN')
 const playgroundText = computed(() => {
@@ -175,15 +175,6 @@ const currentUiPackage = computed(() =>
     : route.value === 'ant-design-vue'
       ? 'tiptap-vue-pro-ant-design-vue'
       : 'tiptap-vue-pro-element-plus',
-)
-const toolbarConfig = computed<ToolbarConfig | undefined>(() =>
-  compactToolbar.value
-    ? [
-        ['undo', 'redo'],
-        ['bold', 'italic', 'underline'],
-        ['link', 'image', 'attachment'],
-      ]
-    : undefined,
 )
 const editorBehaviorOptions: EditorBehaviorOptions = {
   image: {
@@ -394,7 +385,7 @@ async function copyOutput() {
           :show-word-count="showWordCount"
           :autosave="autosaveOptions"
           :draft="draftOptions"
-          :toolbar="toolbarConfig"
+          :toolbar-layout="compactToolbar ? 'compact' : 'classic'"
           :locale="locale"
           :placeholder="playgroundText.placeholder"
           :upload-image="uploadImage"
@@ -410,7 +401,7 @@ async function copyOutput() {
           :show-word-count="showWordCount"
           :autosave="autosaveOptions"
           :draft="draftOptions"
-          :toolbar="toolbarConfig"
+          :toolbar-layout="compactToolbar ? 'compact' : 'classic'"
           :locale="locale"
           :placeholder="playgroundText.placeholder"
           :upload-image="uploadImage"
@@ -426,7 +417,7 @@ async function copyOutput() {
           :show-word-count="showWordCount"
           :autosave="autosaveOptions"
           :draft="draftOptions"
-          :toolbar="toolbarConfig"
+          :toolbar-layout="compactToolbar ? 'compact' : 'classic'"
           :locale="locale"
           :placeholder="playgroundText.placeholder"
           :upload-image="uploadImage"
