@@ -2,6 +2,17 @@
 
 This page provides minimal business integration examples you can copy directly. The three adapters share the same props; the main differences are component names, style entries, and UI library dependencies.
 
+::: tip Start from a business scenario
+If you are integrating a real admin workflow, start with [Business Recipes](/en/guide/recipes/). They are split by article forms, autosave, uploads, and readonly preview so you do not have to scan one long examples page first.
+:::
+
+## Business scenario entry points
+
+- [Admin Rich Text Form](/en/guide/recipes/business-editor-form)
+- [Autosave + Local Drafts](/en/guide/recipes/autosave-drafts)
+- [Image, Video, and Attachment Uploads](/en/guide/recipes/uploads)
+- [Readonly Preview and Detail Pages](/en/guide/recipes/readonly-preview)
+
 ## Admin Form Editor
 
 Use this for article editors, announcements, product descriptions, help-center entries, and other admin forms. The example uses Element Plus form components to host the editor and submits the title and rich text content together.

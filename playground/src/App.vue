@@ -9,53 +9,34 @@ import { IMAGE_UPLOAD_MAX_SIZE, uploadImage } from './uploadImage'
 import { MEDIA_UPLOAD_MAX_SIZE, uploadAsset } from './uploadAsset'
 // HTML 美化:用 DOMParser 解析 + 递归序列化,把紧凑 HTML 格式化成带缩进可读形式
 import { formatHTML } from './formatHTML'
+import {
+  isScenarioKey,
+  playgroundScenarios,
+  scenarioOrder,
+  type ScenarioKey,
+} from './scenarios'
 
 // ---- hash 路由:用 location.hash 区分 UI 适配页(#/element-plus | #/naive | #/ant-design-vue)----
 // 选 hash 而非 history:GitHub Pages 下 history 刷新会 404,hash 天然可刷新可分享。
 type UiKey = 'element-plus' | 'naive' | 'ant-design-vue'
 function readHashRoute(): UiKey {
-  const h = location.hash.replace(/^#\/?/, '')
+  const h = location.hash.replace(/^#\/?/, '').split('?')[0]
   if (h === 'ant-design-vue') return 'ant-design-vue'
   return h === 'naive' ? 'naive' : 'element-plus'
 }
 const route = ref<UiKey>(readHashRoute())
 
-// 编辑器内容:覆盖主要能力(标题/格式化/颜色/对齐/列表/任务/引用/代码块/表格)
-function createDemoContent(uiName: string) {
-  return (
-    '<h2>你好,tiptap-vue-pro 👋</h2>' +
-    `<p>这是一个基于 <strong>Tiptap v3</strong> + <em>${uiName}</em> 的富文本编辑器组件。</p>` +
-    '<p><span style="color: #e0398b">文字颜色</span>、<mark data-color="#fff3b0">背景高亮</mark>、<u>下划线</u>、<s>删除线</s> 都开箱即用。</p>' +
-    '<p style="text-align: center">← 这一行是居中对齐 →</p>' +
-    '<ul><li>开箱即用的工具栏</li><li>图片上传 / 粘贴 / 拖拽</li><li>表格、代码块、列表、任务列表</li></ul>' +
-    '<ul data-type="taskList"><li data-checked="false"><label><input type="checkbox"><span></span></label><div><p>试试顶部的开关切换演示</p></div></li>' +
-    '<li data-checked="true"><label><input type="checkbox" checked=""><span></span></label><div><p>已完成项会有删除线</p></div></li></ul>' +
-    '<blockquote>选中文字会浮现气泡菜单(加粗/斜体/链接...)。</blockquote>' +
-    '<pre><code>const editor = useProEditor({ content })\n// 开箱即用的 Tiptap v3 封装</code></pre>' +
-    '<h3>Mermaid 编辑与预览</h3>' +
-    '<div data-type="mermaid-block" data-view-mode="split"><pre><code class="language-mermaid">flowchart LR\n  A[编辑代码] --&gt; B[实时预览]\n  B --&gt; C[保存视图]</code></pre></div>' +
-    '<table><tbody>' +
-    '<tr><th>模块</th><th>能力</th><th>状态</th><th>备注</th></tr>' +
-    '<tr><td>表格</td><td>行列操作</td><td>OK</td><td>结构调整</td></tr>' +
-    '<tr><td>表格</td><td>区域选择</td><td>OK</td><td>矩形选区</td></tr>' +
-    '<tr><td>表格</td><td>合并拆分</td><td>OK</td><td>单元格编排</td></tr>' +
-    '</tbody></table>' +
-    '<h3>图片功能(对标飞书)</h3>' +
-    '<p>点击下方图片选中 → 浮现工具条:拖拽四角调整大小、切换左/中/右对齐、编辑题注、替换、删除。</p>' +
-    '<img src="https://avatars.githubusercontent.com/u/7254263" data-align="center" data-caption="示例图片:点击我试试调整大小与对齐" width="320">'
-  )
+function readHashScenario(): ScenarioKey {
+  const query = location.hash.split('?')[1] ?? ''
+  const scenario = new URLSearchParams(query).get('scenario')
+  return scenario && isScenarioKey(scenario) ? scenario : 'basic'
 }
 
-const content = ref(createDemoContent(
-  route.value === 'naive'
-    ? 'Naive UI'
-    : route.value === 'ant-design-vue'
-      ? 'Ant Design Vue'
-      : 'Element Plus',
-))
+const selectedScenarioKey = ref<ScenarioKey>(readHashScenario())
+const initialScenario = playgroundScenarios[selectedScenarioKey.value]
 
-const autosaveEnabled = ref(true)
-const draftEnabled = ref(true)
+const autosaveEnabled = ref(initialScenario.defaults.autosaveEnabled ?? true)
+const draftEnabled = ref(initialScenario.defaults.draftEnabled ?? true)
 const simulateAutosaveFailure = ref(false)
 let autosaveAttemptCount = 0
 let autosaveSuccessCount = 0
@@ -72,7 +53,7 @@ async function simulateAutosave(value: string | object) {
 const autosaveOptions = computed<false | AutosaveOptions<string | object>>(() => (
   autosaveEnabled.value
     ? {
-        key: route.value,
+        key: `${route.value}-${selectedScenarioKey.value}`,
         delay: 400,
         onSave: simulateAutosave,
       }
@@ -80,7 +61,7 @@ const autosaveOptions = computed<false | AutosaveOptions<string | object>>(() =>
 ))
 const draftOptions = computed<false | LocalDraftOptions<string | object>>(() => (
   draftEnabled.value
-    ? { key: `playground-${route.value}`, delay: 200 }
+    ? { key: `playground-${route.value}-${selectedScenarioKey.value}`, delay: 200 }
     : false
 ))
 
@@ -97,6 +78,7 @@ const debugWindow = window as Window & {
 
 function syncRoute() {
   route.value = readHashRoute()
+  selectedScenarioKey.value = readHashScenario()
 }
 onMounted(() => {
   syncRoute()
@@ -119,10 +101,10 @@ onBeforeUnmount(() => {
 
 // 演示开关
 const dark = ref(false)
-const readonly = ref(false)
+const readonly = ref(initialScenario.defaults.readonly ?? false)
 const showWordCount = ref(true)
-const compactToolbar = ref(true)
-const output = ref<'html' | 'json'>('html')
+const compactToolbar = ref(initialScenario.defaults.compactToolbar ?? true)
+const output = ref<'html' | 'json'>(initialScenario.defaults.output ?? 'html')
 const locale = ref<LocaleCode>('zh-CN')
 const playgroundText = computed(() => {
   if (locale.value === 'en-US') {
@@ -134,6 +116,8 @@ const playgroundText = computed(() => {
       autosave: 'Autosave',
       autosaveFailure: 'Fail saves',
       drafts: 'Local drafts',
+      scenario: 'Scenario',
+      viewDocs: 'View recipe',
       language: 'Language',
       output: 'Output',
       reset: 'Reset demo',
@@ -151,9 +135,11 @@ const playgroundText = computed(() => {
     wordCount: '字数',
     compactToolbar: '精简工具栏',
     autosave: '自动保存',
-    autosaveFailure: '模拟失败',
-    drafts: '本地草稿',
-    language: '语言',
+      autosaveFailure: '模拟失败',
+      drafts: '本地草稿',
+      scenario: '场景',
+      viewDocs: '查看文档',
+      language: '语言',
     output: '输出',
     reset: '重置示例',
     editor: '编辑器',
@@ -176,6 +162,61 @@ const currentUiPackage = computed(() =>
       ? 'tiptap-vue-pro-ant-design-vue'
       : 'tiptap-vue-pro-element-plus',
 )
+const currentScenario = computed(() => playgroundScenarios[selectedScenarioKey.value])
+const content = ref(initialScenario.createContent(
+  route.value === 'naive'
+    ? 'Naive UI'
+    : route.value === 'ant-design-vue'
+      ? 'Ant Design Vue'
+      : 'Element Plus',
+))
+const scenarioTitle = computed(() =>
+  locale.value === 'en-US' ? currentScenario.value.enTitle : currentScenario.value.zhTitle,
+)
+const scenarioDescription = computed(() =>
+  locale.value === 'en-US'
+    ? currentScenario.value.enDescription
+    : currentScenario.value.zhDescription,
+)
+const docsBase = import.meta.env.BASE_URL.includes('/playground/')
+  ? import.meta.env.BASE_URL.replace(/playground\/$/, '')
+  : '/'
+const scenarioDocsHref = computed(() => {
+  const localizedPath = locale.value === 'en-US'
+    ? `en/${currentScenario.value.docsPath}`
+    : currentScenario.value.docsPath
+  return `${docsBase}${localizedPath}`
+})
+
+function buildHash(ui: UiKey, scenario: ScenarioKey = selectedScenarioKey.value) {
+  return `#/${ui}?scenario=${scenario}`
+}
+
+function selectScenario(key: ScenarioKey) {
+  if (key === selectedScenarioKey.value) return
+  location.hash = buildHash(route.value, key)
+}
+
+function applyScenarioDefaults(key: ScenarioKey) {
+  const defaults = playgroundScenarios[key].defaults
+  readonly.value = defaults.readonly ?? false
+  autosaveEnabled.value = defaults.autosaveEnabled ?? true
+  draftEnabled.value = defaults.draftEnabled ?? true
+  compactToolbar.value = defaults.compactToolbar ?? true
+  output.value = defaults.output ?? 'html'
+  simulateAutosaveFailure.value = false
+}
+
+function resetDemoContent() {
+  applyScenarioDefaults(selectedScenarioKey.value)
+  content.value = currentScenario.value.createContent(currentUiName.value)
+}
+
+watch(selectedScenarioKey, (key) => {
+  applyScenarioDefaults(key)
+  content.value = playgroundScenarios[key].createContent(currentUiName.value)
+})
+
 const editorBehaviorOptions: EditorBehaviorOptions = {
   image: {
     maxSize: IMAGE_UPLOAD_MAX_SIZE,
@@ -221,10 +262,6 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
       },
     },
   },
-}
-
-function resetDemoContent() {
-  content.value = createDemoContent(currentUiName.value)
 }
 
 // 暗色模式:
@@ -281,16 +318,51 @@ async function copyOutput() {
 
     <!-- UI 适配页导航:hash 路由,可刷新可分享 -->
     <nav class="ui-nav">
-      <a href="#/element-plus" class="ui-nav__item" :class="{ 'is-active': route === 'element-plus' }">
+      <a
+        :href="buildHash('element-plus')"
+        class="ui-nav__item"
+        :class="{ 'is-active': route === 'element-plus' }"
+      >
         Element Plus
       </a>
-      <a href="#/naive" class="ui-nav__item" :class="{ 'is-active': route === 'naive' }">
+      <a
+        :href="buildHash('naive')"
+        class="ui-nav__item"
+        :class="{ 'is-active': route === 'naive' }"
+      >
         Naive UI
       </a>
-      <a href="#/ant-design-vue" class="ui-nav__item" :class="{ 'is-active': route === 'ant-design-vue' }">
+      <a
+        :href="buildHash('ant-design-vue')"
+        class="ui-nav__item"
+        :class="{ 'is-active': route === 'ant-design-vue' }"
+      >
         Ant Design Vue
       </a>
     </nav>
+
+    <section class="scenario-panel" aria-label="Playground scenarios">
+      <div class="scenario-panel__intro">
+        <p class="scenario-panel__eyebrow">{{ playgroundText.scenario }}</p>
+        <h2>{{ scenarioTitle }}</h2>
+        <p>{{ scenarioDescription }}</p>
+        <a class="scenario-panel__docs" :href="scenarioDocsHref" target="_blank" rel="noreferrer">
+          {{ playgroundText.viewDocs }} →
+        </a>
+      </div>
+      <div class="scenario-tabs" role="list" aria-label="Scenario selector">
+        <button
+          v-for="key in scenarioOrder"
+          :key="key"
+          type="button"
+          class="scenario-tabs__item"
+          :class="{ 'is-active': selectedScenarioKey === key }"
+          @click="selectScenario(key)"
+        >
+          {{ locale === 'en-US' ? playgroundScenarios[key].enTitle : playgroundScenarios[key].zhTitle }}
+        </button>
+      </div>
+    </section>
 
     <!--
       演示开关:展示组件的几个 prop。
@@ -608,6 +680,124 @@ html.dark .ui-nav__item.is-active {
   background: #1d1e1f;
 }
 
+.scenario-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+  margin-bottom: 18px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+}
+
+.scenario-panel__intro {
+  min-width: 0;
+}
+
+.scenario-panel__eyebrow {
+  margin: 0 0 4px;
+  color: #409eff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.scenario-panel h2 {
+  margin: 0 0 6px;
+  color: #303133;
+  font-size: 18px;
+}
+
+.scenario-panel p {
+  margin: 0;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.scenario-panel__docs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: #409eff;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.scenario-panel__docs:hover {
+  text-decoration: underline;
+}
+
+.scenario-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.scenario-tabs__item {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 999px;
+  background: #fff;
+  color: #606266;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.scenario-tabs__item:hover {
+  color: #409eff;
+  border-color: #c6e2ff;
+  background: #ecf5ff;
+}
+
+.scenario-tabs__item.is-active {
+  color: #fff;
+  border-color: #409eff;
+  background: #409eff;
+  font-weight: 700;
+}
+
+html.dark .scenario-panel {
+  background: #1d1e1f;
+  border-color: #363637;
+}
+
+html.dark .scenario-panel h2 {
+  color: #e5eaf3;
+}
+
+html.dark .scenario-panel p {
+  color: #cfd3dc;
+}
+
+html.dark .scenario-panel__docs {
+  color: #79bbff;
+}
+
+html.dark .scenario-tabs__item {
+  color: #cfd3dc;
+  background: #1d1e1f;
+  border-color: #414243;
+}
+
+html.dark .scenario-tabs__item:hover {
+  color: #79bbff;
+  border-color: #409eff;
+  background: #18222c;
+}
+
+html.dark .scenario-tabs__item.is-active {
+  color: #fff;
+  border-color: #409eff;
+  background: #409eff;
+}
+
 /*
  * 开关区:不依赖任何 UI 库,用固定色 + html.dark 切暗色,
  * 保证各 adapter 页面外观完全一致。
@@ -892,6 +1082,10 @@ html.dark .page__footer {
     align-items: center;
     justify-content: space-between;
     font-size: 14px;
+  }
+  .scenario-panel {
+    grid-template-columns: minmax(220px, 0.95fr) minmax(0, 1.25fr);
+    align-items: center;
   }
   .demo-toolbar__group--right {
     justify-content: flex-end;

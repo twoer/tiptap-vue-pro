@@ -2,6 +2,17 @@
 
 这一页给出可以直接复制的最小业务接入示例。三套 Adapter 的 props 一致,差异主要是组件名、样式文件和 UI 库依赖。
 
+::: tip 先从业务场景开始
+如果你正在接入真实后台,建议优先看 [业务 Recipes](/guide/recipes/):它们按文章表单、自动保存、上传、只读预览等场景拆开,比从一长页示例里找代码更快。
+:::
+
+## 业务场景入口
+
+- [后台富文本表单](/guide/recipes/business-editor-form)
+- [自动保存 + 本地草稿](/guide/recipes/autosave-drafts)
+- [图片、视频和附件上传](/guide/recipes/uploads)
+- [只读预览和详情页](/guide/recipes/readonly-preview)
+
 ## 后台表单编辑器
 
 适合文章、公告、商品详情、帮助中心等后台表单。这个示例使用 Element Plus 表单组件承载编辑器,提交时把标题和富文本内容一起发送给业务接口。
