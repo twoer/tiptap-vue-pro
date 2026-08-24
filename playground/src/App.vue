@@ -162,6 +162,11 @@ const currentUiPackage = computed(() =>
       ? 'tiptap-vue-pro-ant-design-vue'
       : 'tiptap-vue-pro-element-plus',
 )
+const currentEditorComponent = computed(() => {
+  if (route.value === 'naive') return ProEditorNaive
+  if (route.value === 'ant-design-vue') return ProEditorAntDesignVue
+  return ProEditorElementPlus
+})
 const currentScenario = computed(() => playgroundScenarios[selectedScenarioKey.value])
 const content = ref(initialScenario.createContent(
   route.value === 'naive'
@@ -190,6 +195,11 @@ const scenarioDocsHref = computed(() => {
 
 function buildHash(ui: UiKey, scenario: ScenarioKey = selectedScenarioKey.value) {
   return `#/${ui}?scenario=${scenario}`
+}
+
+function selectUi(ui: UiKey) {
+  if (ui === route.value) return
+  location.hash = buildHash(ui)
 }
 
 function selectScenario(key: ScenarioKey) {
@@ -322,6 +332,7 @@ async function copyOutput() {
         :href="buildHash('element-plus')"
         class="ui-nav__item"
         :class="{ 'is-active': route === 'element-plus' }"
+        @click.prevent="selectUi('element-plus')"
       >
         Element Plus
       </a>
@@ -329,6 +340,7 @@ async function copyOutput() {
         :href="buildHash('naive')"
         class="ui-nav__item"
         :class="{ 'is-active': route === 'naive' }"
+        @click.prevent="selectUi('naive')"
       >
         Naive UI
       </a>
@@ -336,33 +348,11 @@ async function copyOutput() {
         :href="buildHash('ant-design-vue')"
         class="ui-nav__item"
         :class="{ 'is-active': route === 'ant-design-vue' }"
+        @click.prevent="selectUi('ant-design-vue')"
       >
         Ant Design Vue
       </a>
     </nav>
-
-    <section class="scenario-panel" aria-label="Playground scenarios">
-      <div class="scenario-panel__intro">
-        <p class="scenario-panel__eyebrow">{{ playgroundText.scenario }}</p>
-        <h2>{{ scenarioTitle }}</h2>
-        <p>{{ scenarioDescription }}</p>
-        <a class="scenario-panel__docs" :href="scenarioDocsHref" target="_blank" rel="noreferrer">
-          {{ playgroundText.viewDocs }} →
-        </a>
-      </div>
-      <div class="scenario-tabs" role="list" aria-label="Scenario selector">
-        <button
-          v-for="key in scenarioOrder"
-          :key="key"
-          type="button"
-          class="scenario-tabs__item"
-          :class="{ 'is-active': selectedScenarioKey === key }"
-          @click="selectScenario(key)"
-        >
-          {{ locale === 'en-US' ? playgroundScenarios[key].enTitle : playgroundScenarios[key].zhTitle }}
-        </button>
-      </div>
-    </section>
 
     <!--
       演示开关:展示组件的几个 prop。
@@ -371,49 +361,53 @@ async function copyOutput() {
     -->
     <section class="demo-toolbar" aria-label="Playground controls">
       <div class="demo-toolbar__group">
-        <label class="control control--switch">
-          <input v-model="dark" type="checkbox" class="toggle" data-testid="dark-toggle" />
-          <span>{{ playgroundText.dark }}</span>
-        </label>
-        <label class="control control--switch">
-          <input v-model="readonly" type="checkbox" class="toggle" />
-          <span>{{ playgroundText.readonly }}</span>
-        </label>
-        <label class="control control--switch">
-          <input
-            v-model="showWordCount"
-            type="checkbox"
-            class="toggle"
-            data-testid="word-count-toggle"
-          />
-          <span>{{ playgroundText.wordCount }}</span>
-        </label>
-        <label class="control control--switch">
-          <input v-model="compactToolbar" type="checkbox" class="toggle" />
-          <span>{{ playgroundText.compactToolbar }}</span>
-        </label>
-        <label class="control control--switch">
-          <input
-            v-model="autosaveEnabled"
-            type="checkbox"
-            class="toggle"
-            data-testid="autosave-toggle"
-          />
-          <span>{{ playgroundText.autosave }}</span>
-        </label>
-        <label class="control control--switch">
-          <input
-            v-model="simulateAutosaveFailure"
-            type="checkbox"
-            class="toggle"
-            data-testid="autosave-failure-toggle"
-          />
-          <span>{{ playgroundText.autosaveFailure }}</span>
-        </label>
-        <label class="control control--switch">
-          <input v-model="draftEnabled" type="checkbox" class="toggle" data-testid="draft-toggle" />
-          <span>{{ playgroundText.drafts }}</span>
-        </label>
+        <div class="demo-toolbar__cluster">
+          <label class="control control--switch">
+            <input v-model="dark" type="checkbox" class="toggle" data-testid="dark-toggle" />
+            <span>{{ playgroundText.dark }}</span>
+          </label>
+          <label class="control control--switch">
+            <input v-model="readonly" type="checkbox" class="toggle" />
+            <span>{{ playgroundText.readonly }}</span>
+          </label>
+          <label class="control control--switch">
+            <input
+              v-model="showWordCount"
+              type="checkbox"
+              class="toggle"
+              data-testid="word-count-toggle"
+            />
+            <span>{{ playgroundText.wordCount }}</span>
+          </label>
+          <label class="control control--switch">
+            <input v-model="compactToolbar" type="checkbox" class="toggle" />
+            <span>{{ playgroundText.compactToolbar }}</span>
+          </label>
+        </div>
+        <div class="demo-toolbar__cluster">
+          <label class="control control--switch">
+            <input
+              v-model="autosaveEnabled"
+              type="checkbox"
+              class="toggle"
+              data-testid="autosave-toggle"
+            />
+            <span>{{ playgroundText.autosave }}</span>
+          </label>
+          <label class="control control--switch">
+            <input
+              v-model="simulateAutosaveFailure"
+              type="checkbox"
+              class="toggle"
+              data-testid="autosave-failure-toggle"
+            />
+            <span>{{ playgroundText.autosaveFailure }}</span>
+          </label>
+          <label class="control control--switch">
+            <input v-model="draftEnabled" type="checkbox" class="toggle" data-testid="draft-toggle" />
+            <span>{{ playgroundText.drafts }}</span>
+          </label>
+        </div>
       </div>
       <div class="demo-toolbar__group demo-toolbar__group--right">
         <label class="control">
@@ -437,6 +431,29 @@ async function copyOutput() {
     </section>
 
     <main class="workbench">
+      <aside class="scenario-sidebar" aria-label="Playground scenarios">
+        <p class="scenario-sidebar__eyebrow">{{ playgroundText.scenario }}</p>
+        <div class="scenario-sidebar__list" aria-label="Scenario selector">
+          <button
+            v-for="key in scenarioOrder"
+            :key="key"
+            type="button"
+            class="scenario-sidebar__item"
+            :class="{ 'is-active': selectedScenarioKey === key }"
+            @click="selectScenario(key)"
+          >
+            {{ locale === 'en-US' ? playgroundScenarios[key].enTitle : playgroundScenarios[key].zhTitle }}
+          </button>
+        </div>
+        <div class="scenario-sidebar__detail">
+          <h2>{{ scenarioTitle }}</h2>
+          <p>{{ scenarioDescription }}</p>
+          <a class="scenario-sidebar__docs" :href="scenarioDocsHref" target="_blank" rel="noreferrer">
+            {{ playgroundText.viewDocs }} →
+          </a>
+        </div>
+      </aside>
+
       <section class="demo demo--editor">
         <div class="demo__head">
           <h3>{{ playgroundText.editor }}</h3>
@@ -444,66 +461,38 @@ async function copyOutput() {
         </div>
         <!--
           三个 UI 适配各占一个「页面」,用 hash 路由切换。
-          两版 props 对等、共享同一份 content(v-model 互通),只挂载当前路由对应的那一个,
-          避免不同 adapter 的暗色与弹层机制同屏混用。
-          v-if 而非 v-show:非当前页的编辑器实例不创建,互不干扰。
+          三版 props 对等、共享同一份 content(v-model 互通)。
+          KeepAlive 缓存已打开过的 adapter,避免切换回来时销毁/重建 Tiptap 实例造成闪烁。
         -->
-        <ProEditorElementPlus
-          v-if="route === 'element-plus'"
-          v-model="content"
-          :output="output"
-          :dark="dark"
-          :readonly="readonly"
-          :show-word-count="showWordCount"
-          :autosave="autosaveOptions"
-          :draft="draftOptions"
-          :toolbar-layout="compactToolbar ? 'compact' : 'classic'"
-          :locale="locale"
-          :placeholder="playgroundText.placeholder"
-          :upload-image="uploadImage"
-          :upload-asset="uploadAsset"
-          :editor-behavior-options="editorBehaviorOptions"
-        />
-        <ProEditorNaive
-          v-else-if="route === 'naive'"
-          v-model="content"
-          :output="output"
-          :dark="dark"
-          :readonly="readonly"
-          :show-word-count="showWordCount"
-          :autosave="autosaveOptions"
-          :draft="draftOptions"
-          :toolbar-layout="compactToolbar ? 'compact' : 'classic'"
-          :locale="locale"
-          :placeholder="playgroundText.placeholder"
-          :upload-image="uploadImage"
-          :upload-asset="uploadAsset"
-          :editor-behavior-options="editorBehaviorOptions"
-        />
-        <ProEditorAntDesignVue
-          v-else
-          v-model="content"
-          :output="output"
-          :dark="dark"
-          :readonly="readonly"
-          :show-word-count="showWordCount"
-          :autosave="autosaveOptions"
-          :draft="draftOptions"
-          :toolbar-layout="compactToolbar ? 'compact' : 'classic'"
-          :locale="locale"
-          :placeholder="playgroundText.placeholder"
-          :upload-image="uploadImage"
-          :upload-asset="uploadAsset"
-          :editor-behavior-options="editorBehaviorOptions"
-        />
+        <div class="editor-stage">
+          <KeepAlive>
+            <component
+              :is="currentEditorComponent"
+              :key="route"
+              v-model="content"
+              :output="output"
+              :dark="dark"
+              :readonly="readonly"
+              :show-word-count="showWordCount"
+              :autosave="autosaveOptions"
+              :draft="draftOptions"
+              :toolbar-layout="compactToolbar ? 'compact' : 'classic'"
+              :locale="locale"
+              :placeholder="playgroundText.placeholder"
+              :upload-image="uploadImage"
+              :upload-asset="uploadAsset"
+              :editor-behavior-options="editorBehaviorOptions"
+            />
+          </KeepAlive>
+        </div>
       </section>
 
       <section class="demo demo--output">
         <div class="demo__head">
           <h3>{{ playgroundText.output }} · {{ output.toUpperCase() }}</h3>
-          <button class="copy-btn" @click="copyOutput">
+          <!-- <button class="copy-btn" @click="copyOutput">
             {{ copied ? playgroundText.copied : playgroundText.copy }}
-          </button>
+          </button> -->
         </div>
         <pre class="output">{{ outputPreview }}</pre>
       </section>
@@ -543,14 +532,14 @@ html.dark body {
 /* —— 移动端基础 —— */
 .page {
   /* 移动端:小 padding,贴近视口 */
-  padding: 20px 14px 40px;
+  padding: 12px 12px 32px;
 }
 
 .page__header {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .page__title {
@@ -558,20 +547,21 @@ html.dark body {
 }
 
 .page__eyebrow {
-  margin: 0 0 4px;
-  font-size: 12px;
+  margin: 0 0 3px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0;
   color: #409eff;
 }
 
 .page__header h1 {
-  margin: 0 0 6px;
-  font-size: 22px;
+  margin: 0 0 4px;
+  font-size: 21px;
+  line-height: 1.18;
 }
 
 .page__header p {
-  margin: 0 0 10px;
+  margin: 0;
   color: #909399;
   font-size: 13px;
   line-height: 1.5;
@@ -585,7 +575,7 @@ html.dark .page__header p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .page__meta code {
@@ -637,34 +627,63 @@ html.dark .status-pill {
  */
 .ui-nav {
   display: inline-flex;
+  align-items: center;
   gap: 2px;
-  margin-bottom: 20px;
+  max-width: 100%;
+  margin-bottom: 10px;
   padding: 3px;
+  overflow-x: auto;
   background: #eef0f3;
   border-radius: 8px;
 }
 
 .ui-nav__item {
-  /* 比普通文字行更大,保证视觉权重 + 触摸击中区 */
-  padding: 8px 18px;
-  font-size: 14px;
+  /* 锁定 tab 高度,避免首次加载与切换后因字体/active 状态重算出现高度跳变 */
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  justify-content: center;
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1;
   color: #606266;
   text-decoration: none;
   border-radius: 6px;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  white-space: nowrap;
+  transition: none;
 }
 
 .ui-nav__item:hover:not(.is-active) {
   color: #409eff;
 }
 
+.ui-nav__item:focus-visible,
+.scenario-sidebar__item:focus-visible,
+.reset-btn:focus-visible,
+.copy-btn:focus-visible,
+.native-select:focus-visible {
+  outline: 2px solid #409eff;
+  outline-offset: 2px;
+}
+
+.ui-nav__item:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 2px #409eff;
+}
+
 .ui-nav__item.is-active {
   /* 白色凸起卡片:浅灰轨道上的高对比块 */
   color: #409eff;
   background: #fff;
-  font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ui-nav__item.is-active:focus-visible {
+  box-shadow:
+    inset 0 0 0 2px #409eff,
+    0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 html.dark .ui-nav {
@@ -680,42 +699,84 @@ html.dark .ui-nav__item.is-active {
   background: #1d1e1f;
 }
 
-.scenario-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
-  padding: 14px;
-  margin-bottom: 18px;
-  background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-}
-
-.scenario-panel__intro {
+.scenario-sidebar {
   min-width: 0;
+  padding: 2px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
-.scenario-panel__eyebrow {
-  margin: 0 0 4px;
-  color: #409eff;
+.scenario-sidebar__eyebrow {
+  margin: 0 0 8px;
+  color: #909399;
   font-size: 12px;
   font-weight: 700;
 }
 
-.scenario-panel h2 {
-  margin: 0 0 6px;
-  color: #303133;
-  font-size: 18px;
+.scenario-sidebar__list {
+  display: flex;
+  overflow-x: auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding-bottom: 4px;
 }
 
-.scenario-panel p {
+.scenario-sidebar__item {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #606266;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.scenario-sidebar__item:hover {
+  color: #409eff;
+  background: #ecf5ff;
+}
+
+.scenario-sidebar__item.is-active {
+  position: relative;
+  color: #409eff;
+  background: #ecf5ff;
+}
+
+.scenario-sidebar__item.is-active::before {
+  content: '';
+  position: absolute;
+  inset: 7px auto 7px 0;
+  width: 3px;
+  border-radius: 999px;
+  background: #409eff;
+}
+
+.scenario-sidebar__detail {
+  display: none;
+}
+
+.scenario-sidebar__detail h2 {
+  margin: 0 0 6px;
+  color: #303133;
+  font-size: 16px;
+}
+
+.scenario-sidebar__detail p {
   margin: 0;
   color: #606266;
   font-size: 13px;
   line-height: 1.6;
 }
 
-.scenario-panel__docs {
+.scenario-sidebar__docs {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -726,76 +787,43 @@ html.dark .ui-nav__item.is-active {
   text-decoration: none;
 }
 
-.scenario-panel__docs:hover {
+.scenario-sidebar__docs:hover {
   text-decoration: underline;
 }
 
-.scenario-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+html.dark .scenario-sidebar {
+  background: transparent;
 }
 
-.scenario-tabs__item {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid #dcdfe6;
-  border-radius: 999px;
-  background: #fff;
-  color: #606266;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+html.dark .scenario-sidebar__eyebrow {
+  color: #a3a6ad;
 }
 
-.scenario-tabs__item:hover {
-  color: #409eff;
-  border-color: #c6e2ff;
-  background: #ecf5ff;
-}
-
-.scenario-tabs__item.is-active {
-  color: #fff;
-  border-color: #409eff;
-  background: #409eff;
-  font-weight: 700;
-}
-
-html.dark .scenario-panel {
-  background: #1d1e1f;
-  border-color: #363637;
-}
-
-html.dark .scenario-panel h2 {
-  color: #e5eaf3;
-}
-
-html.dark .scenario-panel p {
+html.dark .scenario-sidebar__item {
   color: #cfd3dc;
+  background: transparent;
 }
 
-html.dark .scenario-panel__docs {
+html.dark .scenario-sidebar__item:hover {
   color: #79bbff;
-}
-
-html.dark .scenario-tabs__item {
-  color: #cfd3dc;
-  background: #1d1e1f;
-  border-color: #414243;
-}
-
-html.dark .scenario-tabs__item:hover {
-  color: #79bbff;
-  border-color: #409eff;
   background: #18222c;
 }
 
-html.dark .scenario-tabs__item.is-active {
-  color: #fff;
-  border-color: #409eff;
-  background: #409eff;
+html.dark .scenario-sidebar__item.is-active {
+  color: #79bbff;
+  background: #18222c;
+}
+
+html.dark .scenario-sidebar__detail h2 {
+  color: #e5eaf3;
+}
+
+html.dark .scenario-sidebar__detail p {
+  color: #cfd3dc;
+}
+
+html.dark .scenario-sidebar__docs {
+  color: #79bbff;
 }
 
 /*
@@ -805,12 +833,12 @@ html.dark .scenario-tabs__item.is-active {
 .demo-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 10px;
-  margin-bottom: 18px;
-  background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 6px;
+  gap: 8px;
+  padding: 0;
+  margin-bottom: 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   font-size: 13px;
 }
 
@@ -818,7 +846,19 @@ html.dark .scenario-tabs__item.is-active {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
+}
+
+.demo-toolbar__cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 10px;
+}
+
+.demo-toolbar__cluster + .demo-toolbar__cluster {
+  padding-left: 0;
+  border-left: 0;
 }
 
 .demo-toolbar__group--right {
@@ -826,14 +866,17 @@ html.dark .scenario-tabs__item.is-active {
 }
 
 html.dark .demo-toolbar {
-  background: #1d1e1f;
+  background: transparent;
+}
+
+html.dark .demo-toolbar__cluster + .demo-toolbar__cluster {
   border-color: #363637;
 }
 
 .control {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   color: #606266;
 }
 
@@ -887,7 +930,7 @@ html.dark .toggle {
 /* 原生 select:去默认箭头画一个,跟整体风格统一 */
 .native-select {
   width: 136px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-size: 14px;
   color: #606266;
   background: #fff
@@ -925,7 +968,7 @@ html.dark .native-select {
 }
 
 .reset-btn {
-  min-height: 32px;
+  min-height: 30px;
   padding: 0 12px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
@@ -957,16 +1000,52 @@ html.dark .reset-btn:hover {
 .workbench {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
+  gap: 14px;
 }
 
 .demo {
   min-width: 0;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .demo--output {
   min-width: 0;
+}
+
+.editor-stage {
+  position: relative;
+  min-width: 0;
+  height: 320px;
+  min-height: 320px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #fff;
+  contain: layout paint;
+  isolation: isolate;
+}
+
+.editor-stage > *,
+.editor-stage :where(.tvp-editor) {
+  height: 100%;
+  min-height: 0;
+}
+
+.editor-stage :where(.tvp-editor) {
+  max-height: 100%;
+  border-radius: 4px;
+}
+
+.editor-stage :where(.tvp-content-shell),
+.editor-stage :where(.tvp-content-wrap) {
+  min-height: 0;
+}
+
+.editor-stage :where(.tvp-content-wrap) {
+  max-height: none;
+}
+
+html.dark .editor-stage {
+  background: #1d1e1f;
 }
 
 .demo h3 {
@@ -984,7 +1063,7 @@ html.dark .demo h3 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .demo__head h3 {
@@ -1010,7 +1089,7 @@ html.dark .state-badge {
 
 .copy-btn {
   min-width: 64px;
-  padding: 4px 12px;
+  padding: 2px 12px;
   font-size: 12px;
   color: #606266;
   background: var(--el-bg-color, #fff);
@@ -1037,11 +1116,12 @@ html.dark .copy-btn:hover {
 }
 
 .output {
-  margin: 10px 0 0;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  margin: 0;
+  background: #24272d;
+  color: #cfd4dc;
   padding: 14px;
-  border-radius: 6px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
   font-size: 12px;
   font-family: 'SFMono-Regular', Consolas, monospace;
   line-height: 1.6;
@@ -1052,9 +1132,13 @@ html.dark .copy-btn:hover {
   word-break: break-word;
 }
 
+html.dark .output {
+  border-color: #414243;
+}
+
 .page__footer {
-  margin-top: 32px;
-  padding-top: 18px;
+  margin-top: 22px;
+  padding-top: 12px;
   border-top: 1px solid var(--el-border-color-light, #ebeef5);
   font-size: 12px;
   color: #909399;
@@ -1068,10 +1152,19 @@ html.dark .page__footer {
 /* —— sm ≥640px:小平板/大手机横屏 —— */
 @media (min-width: 640px) {
   .page {
-    padding: 28px 20px 48px;
+    padding: 16px 16px 40px;
+  }
+  .ui-nav__item:nth-child(1) {
+    width: 136px;
+  }
+  .ui-nav__item:nth-child(2) {
+    width: 112px;
+  }
+  .ui-nav__item:nth-child(3) {
+    width: 156px;
   }
   .page__header h1 {
-    font-size: 24px;
+    font-size: 23px;
   }
   .page__header p {
     font-size: 14px;
@@ -1083,9 +1176,12 @@ html.dark .page__footer {
     justify-content: space-between;
     font-size: 14px;
   }
-  .scenario-panel {
-    grid-template-columns: minmax(220px, 0.95fr) minmax(0, 1.25fr);
-    align-items: center;
+  .demo-toolbar__cluster + .demo-toolbar__cluster {
+    padding-left: 12px;
+    border-left: 1px solid #ebeef5;
+  }
+  html.dark .demo-toolbar__cluster + .demo-toolbar__cluster {
+    border-color: #363637;
   }
   .demo-toolbar__group--right {
     justify-content: flex-end;
@@ -1101,23 +1197,54 @@ html.dark .page__footer {
     /* 开始居中限宽 */
     max-width: 720px;
     margin: 0 auto;
-    padding: 36px 24px 56px;
+    padding: 20px 18px 48px;
   }
   .page__header {
     flex-direction: row;
     align-items: flex-end;
     justify-content: space-between;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
   }
   .page__meta {
     justify-content: flex-end;
+    transform: translateY(-2px);
   }
   .page__header h1 {
-    font-size: 26px;
+    font-size: 24px;
   }
   .output {
     padding: 16px;
     max-height: 320px;
+  }
+  .editor-stage {
+    height: 360px;
+    min-height: 360px;
+  }
+
+  .workbench {
+    grid-template-columns: 184px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .scenario-sidebar {
+    position: sticky;
+    top: 18px;
+  }
+
+  .scenario-sidebar__list {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
+  .scenario-sidebar__item {
+    width: 100%;
+    white-space: normal;
+  }
+
+  .demo--output {
+    grid-column: 2;
   }
 }
 
@@ -1125,16 +1252,31 @@ html.dark .page__footer {
 @media (min-width: 1024px) {
   .page {
     max-width: 860px;
-    padding: 44px 32px 64px;
+    padding: 24px 24px 56px;
   }
   .page__header h1 {
-    font-size: 28px;
+    font-size: 26px;
   }
   .page__header {
-    margin-bottom: 28px;
+    margin-bottom: 14px;
   }
   .demo {
-    margin-bottom: 28px;
+    margin-bottom: 20px;
+  }
+
+  .workbench {
+    grid-template-columns: 198px minmax(0, 1fr);
+  }
+
+  .scenario-sidebar__detail {
+    display: block;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #ebeef5;
+  }
+
+  html.dark .scenario-sidebar__detail {
+    border-color: #363637;
   }
 }
 
@@ -1144,11 +1286,12 @@ html.dark .page__footer {
   }
 
   .workbench {
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 460px);
+    grid-template-columns: 204px minmax(0, 1fr) minmax(300px, 380px);
     align-items: start;
   }
 
   .demo--output {
+    grid-column: auto;
     position: sticky;
     top: 24px;
   }
@@ -1156,13 +1299,17 @@ html.dark .page__footer {
   .output {
     max-height: calc(100vh - 180px);
   }
+  .editor-stage {
+    height: min(560px, calc(100vh - 180px));
+    min-height: min(560px, calc(100vh - 180px));
+  }
 }
 
 /* —— xl ≥1280px:大屏,上限封顶避免过宽 —— */
 @media (min-width: 1280px) {
   .page {
     max-width: 1440px;
-    padding: 56px 32px 72px;
+    padding: 28px 24px 64px;
   }
 }
 
@@ -1173,7 +1320,7 @@ html.dark .page__footer {
   }
 
   .workbench {
-    grid-template-columns: minmax(0, 1fr) minmax(380px, 520px);
+    grid-template-columns: 212px minmax(0, 1fr) minmax(320px, 420px);
   }
 }
 </style>
