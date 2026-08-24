@@ -1,0 +1,101 @@
+name: Bug 反馈
+description: 报告 Tiptap Vue Pro 的可复现问题
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请尽量提供可复现示例,这样问题会更快被确认和修复。
+
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: 使用的 adapter
+      options:
+        - Element Plus
+        - Naive UI
+        - Ant Design Vue
+        - Headless Core
+        - 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: package-version
+    attributes:
+      label: Tiptap Vue Pro 版本
+      description: 例如 0.2.3
+      placeholder: "0.2.3"
+    validations:
+      required: true
+
+  - type: input
+    id: vue-version
+    attributes:
+      label: Vue 版本
+      placeholder: "3.5.x"
+    validations:
+      required: true
+
+  - type: input
+    id: tiptap-version
+    attributes:
+      label: Tiptap 版本
+      description: 请确认 @tiptap/core、@tiptap/pm、@tiptap/vue-3 是否同版本。
+      placeholder: "3.x.x"
+    validations:
+      required: true
+
+  - type: input
+    id: ui-library-version
+    attributes:
+      label: UI 库版本
+      description: Element Plus / Naive UI / Ant Design Vue 的版本。Headless Core 可填 N/A。
+      placeholder: "element-plus 2.x / naive-ui 2.x / ant-design-vue 4.x"
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 最小复现
+      description: 请提供 StackBlitz、GitHub 仓库、最小代码片段或可运行步骤。
+      placeholder: |
+        1. 安装 ...
+        2. 打开 ...
+        3. 点击 ...
+        4. 出现 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      placeholder: "应该发生什么?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      placeholder: "实际发生了什么?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 错误日志或截图
+      description: 可以粘贴控制台错误、终端输出或截图。
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已经确认 @tiptap/* 相关包版本保持一致。
+        - label: 我已经尝试使用最新版本复现。
+        - label: 我提供的信息足够他人复现问题。

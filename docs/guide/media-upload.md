@@ -93,6 +93,35 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
 </template>
 ```
 
+## 本地 Mock 上传
+
+还没有后端接口时,可以用本地 `blob:` URL 先验证视频、音频和附件节点:
+
+```ts
+const uploadAsset: UploadAsset = async (file, kind) => {
+  await new Promise((resolve) => window.setTimeout(resolve, 300))
+
+  return {
+    url: URL.createObjectURL(file),
+    name: file.name,
+    size: file.size,
+    mimeType: file.type,
+    fileTypeText: kind === 'file' ? '附件' : undefined,
+    uploadedAt: Date.now(),
+  }
+}
+```
+
+`blob:` URL 只适合本地预览。生产环境应返回业务可长期访问的 URL,并尽量补齐 `name`、`size`、`mimeType`、`uploadedAt`、`poster`、`duration` 等元数据。
+
+## 常见排查
+
+- 没有附件入口:确认传入了 `uploadAsset`,并且工具栏里保留 `attachment` 按钮。
+- 音频入口没显示:内置工具栏当前只暴露视频和文件上传入口;音频能力适合通过自定义工具栏或 core 命令调用。
+- 选择文件后没插入:确认 `uploadAsset` 返回字符串 URL、`UploadedAsset` 或 `null`,不要返回 `undefined`。
+- 文件被跳过:检查对应 `media.video`、`media.audio` 或 `media.file` 的 `accept` 和 `maxSize`。
+- 线上刷新后打不开:确认上传结果不是本地 `blob:` URL,而是持久化 URL。
+
 ## 播放器或文件卡片
 
 视频和音频都可以选择两种插入方式:

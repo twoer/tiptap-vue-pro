@@ -206,7 +206,7 @@ function pageHref(path: string) {
   --landing-green: #16875d;
   --landing-amber: #9a6a00;
   --landing-ink: var(--vp-c-text-1);
-  padding: 72px 32px 112px;
+  padding: 0 32px 112px;
 }
 
 .hero,
@@ -221,7 +221,7 @@ function pageHref(path: string) {
   grid-template-columns: minmax(0, 0.9fr) minmax(420px, 0.68fr);
   gap: 56px;
   align-items: end;
-  padding: 56px 0 44px;
+  padding: 48px 0 44px;
   border-bottom: 1px solid var(--vp-c-divider);
 }
 
@@ -574,12 +574,12 @@ function pageHref(path: string) {
 
 @media (max-width: 760px) {
   .landing {
-    padding: 38px 18px 76px;
+    padding: 0 18px 76px;
   }
 
   .hero {
     gap: 32px;
-    padding: 30px 0;
+    padding: 28px 0 30px;
   }
 
   .hero h1 {

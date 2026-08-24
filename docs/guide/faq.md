@@ -40,6 +40,14 @@ Markdown 表达的是语义结构,不是完整 HTML 样式。字体、字号、�
 
 公共编辑器行为都在 Core,三套 Adapter 只负责各自 UI 库渲染。项目也为 Element Plus、Naive UI、Ant Design Vue 分别保留组件测试,覆盖链接、图片、表格、Slash Command、查找替换、工具栏配置等高风险交互;表格列宽拖动、抓手、合并气泡和菜单密度通过 `pnpm test:table:e2e` 做三套 UI 浏览器回归,Slash Command 通过 `pnpm test:slash:e2e` 覆盖键盘、点击、Escape 和 adapter 切换,查找替换通过 `pnpm test:find-replace:e2e` 覆盖面板、匹配、替换和 adapter 切换。
 
+## 有交流群吗
+
+有。接入 Tiptap Vue Pro 时遇到问题,或者想交流使用场景和功能建议,可以加入 QQ 群: `1108178997`。
+
+<img src="/images/qq-group.jpg" alt="QQ 群二维码" width="220" />
+
+如果是 Bug 反馈,仍建议优先提交 GitHub Issue,方便补充复现代码、运行环境和处理进度。
+
 ## GitHub Pages 下为什么要配置 base
 
 仓库 Pages 路径是 `/tiptap-vue-pro/`。文档站使用 VitePress 的 `base: '/tiptap-vue-pro/'`;Playground 被合并到 `/playground/` 子路径,因此 Playground 的 Vite base 是 `/tiptap-vue-pro/playground/`。

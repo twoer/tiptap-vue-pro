@@ -53,4 +53,25 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
 
 `uploadImage` 返回 `null` 时会跳过插入;抛错时会触发 Adapter 注入的消息提示。Core 不关心文件上传到 OSS、COS、S3 还是业务后端,只关心最后拿到可访问的 URL。
 
+## 本地 Mock 上传
+
+还没有后端接口时,可以用 `URL.createObjectURL(file)` 先验证工具栏上传、粘贴和拖拽流程:
+
+```ts
+const uploadImage: UploadImage = async (file) => {
+  await new Promise((resolve) => window.setTimeout(resolve, 300))
+  return URL.createObjectURL(file)
+}
+```
+
+`blob:` URL 只在当前浏览器会话内有效,刷新后可能失效。生产环境必须返回持久化 URL。
+
+## 常见排查
+
+- 没有上传入口:确认传入了 `uploadImage`,并且自定义 `toolbar` 没有移除 `image` 按钮。
+- 选择文件后没插入:确认 `uploadImage` 返回的是可访问 URL,不是 `undefined`。
+- 文件选不了:检查 `editorBehaviorOptions.image.accept` 是否包含当前 MIME 类型。
+- 大图被跳过:检查 `editorBehaviorOptions.image.maxSize`。
+- 只想上传不想输入 URL:设置 `editorBehaviorOptions.image.allowUrl=false`。
+
 视频、音频和通用文件上传见 [视频、音频和文件上传](/guide/media-upload)。

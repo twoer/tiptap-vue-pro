@@ -14,7 +14,7 @@ English: [README.en-US.md](./README.en-US.md)
 [![Naive UI 月下载量](https://img.shields.io/npm/dm/tiptap-vue-pro-naive?label=Naive%20UI%20%E6%9C%88%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/tiptap-vue-pro-naive)
 [![Ant Design Vue 月下载量](https://img.shields.io/npm/dm/tiptap-vue-pro-ant-design-vue?label=Ant%20Design%20Vue%20%E6%9C%88%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/tiptap-vue-pro-ant-design-vue)
 
-> 现代化 Vue 3 富文本编辑器组件,基于 Tiptap v3 的社区封装。
+> Vue 3 + Tiptap v3 的开箱即用富文本编辑器组件,支持 Element Plus、Naive UI 和 Ant Design Vue,也提供 Headless Core 方便自绘 UI。
 
 ⚠️ 本项目与 [Tiptap](https://tiptap.dev) 官方无关。底层编辑器能力来自 Tiptap v3 和 ProseMirror。
 
@@ -24,6 +24,7 @@ English: [README.en-US.md](./README.en-US.md)
 - 在线 Demo: <https://twoer.github.io/tiptap-vue-pro/playground/>
 - 快速开始: <https://twoer.github.io/tiptap-vue-pro/guide/quick-start>
 - API 文档: <https://twoer.github.io/tiptap-vue-pro/api/props>
+- 交流反馈: QQ 群 `1108178997`（[扫码加入](https://twoer.github.io/tiptap-vue-pro/guide/faq#有交流群吗)）
 - 更新日志: [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)
 
 ## 为什么做这个
@@ -38,6 +39,13 @@ Tiptap Vue Pro 把这些能力封装成一套 UI 无关 core,再提供三套对�
 | `tiptap-vue-pro-naive` | `ProEditorNaive` | Naive UI |
 | `tiptap-vue-pro-ant-design-vue` | `ProEditorAntDesignVue` | Ant Design Vue |
 | `tiptap-vue-pro-core` | `useProEditor` | Headless / 自绘 UI |
+
+## 适合谁
+
+- 后台系统需要快速接入富文本编辑器。
+- 项目正在使用 Element Plus、Naive UI 或 Ant Design Vue。
+- 需要图片、媒体、表格、Markdown、自动保存等常见业务能力。
+- 想基于 Tiptap v3 自绘 UI,但不想从零整理编辑器行为。
 
 ## 特性
 
@@ -58,6 +66,15 @@ Tiptap Vue Pro 把这些能力封装成一套 UI 无关 core,再提供三套对�
 - 组件级暗色模式、只读模式、字数统计
 - Nuxt / SSR 友好
 - Element Plus / Naive UI / Ant Design Vue adapter 行为对等
+
+## 选哪个包
+
+| 你的项目 | 安装 |
+| --- | --- |
+| Element Plus | `tiptap-vue-pro-element-plus` |
+| Naive UI | `tiptap-vue-pro-naive` |
+| Ant Design Vue | `tiptap-vue-pro-ant-design-vue` |
+| 自绘 UI / Headless | `tiptap-vue-pro-core` |
 
 ## 安装
 

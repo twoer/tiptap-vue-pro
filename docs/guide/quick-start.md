@@ -2,6 +2,34 @@
 
 Tiptap Vue Pro 是基于 Tiptap v3 + Vue 3 的富文本编辑器组件。日常业务项目建议直接安装与你的 UI 库匹配的 Adapter;需要自绘 UI 时再使用 Core。
 
+## 3 分钟跑起来
+
+如果你的项目使用 Element Plus,先安装 adapter、Element Plus 和 Tiptap v3 运行时依赖:
+
+```bash
+pnpm add tiptap-vue-pro-element-plus element-plus
+pnpm add @tiptap/core @tiptap/pm @tiptap/vue-3
+```
+
+然后在页面里导入组件和样式:
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
+import 'tiptap-vue-pro-element-plus/style.css'
+import 'element-plus/dist/index.css'
+
+const content = ref('<p>hello world</p>')
+</script>
+
+<template>
+  <ProEditorElementPlus v-model="content" />
+</template>
+```
+
+Naive UI 和 Ant Design Vue 的 API 保持对等,只需要换成对应 adapter、组件名和样式入口。
+
 ## 安装
 
 ::: code-group
@@ -58,6 +86,26 @@ const content = ref('<p>hello world</p>')
 
 Naive UI 和 Ant Design Vue 的写法只需要替换组件名、样式文件和包名。完整示例见 [完整示例](/guide/examples)。
 
+## 样式入口
+
+不同 adapter 的组件样式需要显式导入:
+
+```ts
+import 'tiptap-vue-pro-element-plus/style.css'
+import 'element-plus/dist/index.css'
+```
+
+```ts
+import 'tiptap-vue-pro-naive/style.css'
+```
+
+```ts
+import 'tiptap-vue-pro-ant-design-vue/style.css'
+import 'ant-design-vue/dist/reset.css'
+```
+
+如果项目已经在全局导入了对应 UI 库样式,页面里只需要保留 Tiptap Vue Pro adapter 的 `style.css`。
+
 ## Slash Command
 
 开箱组件默认启用 Slash Command。把光标放在可编辑段落中,输入 `/` 会打开快捷插入菜单;可以继续输入中文、英文或拼音别名筛选命令,例如 `/表`、`/table`、`/todo`、`/img`、`/code`。
@@ -89,6 +137,14 @@ async function uploadImage(file: File): Promise<string | null> {
   <ProEditorElementPlus v-model="content" :upload-image="uploadImage" />
 </template>
 ```
+
+## 跑不起来先看这里
+
+- 样式没生效:确认已经导入 adapter 的 `style.css` 和对应 UI 库样式。
+- 依赖冲突:确认 `@tiptap/*` 版本保持一致,不要只单独锁其中一个包。
+- Nuxt / SSR:用 `<ClientOnly>` 包裹编辑器组件,详见 [Nuxt / SSR](/guide/ssr)。
+- 上传没反应:确认传入了 `uploadImage` 或 `uploadAsset`,并且上传函数返回可访问 URL。
+- 工具栏按钮缺失:检查是否传入了自定义 `toolbar`,自定义配置会决定实际显示哪些按钮。
 
 ## 本地开发
 

@@ -12,6 +12,8 @@ Local drafts are an optional loss-prevention layer beside remote Autosave. They 
 />
 ```
 
+Knowledge-base docs, help-center entries, and long articles usually enable both remote autosave and local drafts. See the full [Knowledge Base Editor](/en/guide/examples#knowledge-base-editor) example.
+
 Drafts are disabled by default and require a stable, non-empty `key`. The default implementation writes a versioned JSON envelope under:
 
 ```text

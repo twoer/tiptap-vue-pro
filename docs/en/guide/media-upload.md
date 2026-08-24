@@ -93,6 +93,35 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
 </template>
 ```
 
+## Local Mock Upload
+
+Before a backend endpoint exists, use local `blob:` URLs to verify video, audio, and attachment nodes:
+
+```ts
+const uploadAsset: UploadAsset = async (file, kind) => {
+  await new Promise((resolve) => window.setTimeout(resolve, 300))
+
+  return {
+    url: URL.createObjectURL(file),
+    name: file.name,
+    size: file.size,
+    mimeType: file.type,
+    fileTypeText: kind === 'file' ? 'Attachment' : undefined,
+    uploadedAt: Date.now(),
+  }
+}
+```
+
+`blob:` URLs are only suitable for local preview. Production uploads should return persistent URLs and include metadata such as `name`, `size`, `mimeType`, `uploadedAt`, `poster`, and `duration` when available.
+
+## Troubleshooting
+
+- No attachment entry: make sure `uploadAsset` is passed and the toolbar keeps the `attachment` button.
+- Audio entry is missing: the built-in toolbar currently exposes video and generic file upload entries only; use a custom toolbar or core command for audio.
+- File is selected but not inserted: make sure `uploadAsset` returns a URL string, an `UploadedAsset`, or `null`, not `undefined`.
+- File is skipped: check the matching `media.video`, `media.audio`, or `media.file` `accept` and `maxSize`.
+- Uploaded files break after refresh: make sure the upload result is a persistent URL, not a local `blob:` URL.
+
 ## Player or File Card
 
 Video and audio can be inserted in two modes:

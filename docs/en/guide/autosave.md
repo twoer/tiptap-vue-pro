@@ -36,6 +36,8 @@ function reportSaveError(error: unknown) {
 </template>
 ```
 
+Long-form or knowledge-base editors usually also need a local loss-prevention layer. See the full [Knowledge Base Editor](/en/guide/examples#knowledge-base-editor) example.
+
 ## Options
 
 ```ts

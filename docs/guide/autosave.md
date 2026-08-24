@@ -36,6 +36,8 @@ function reportSaveError(error: unknown) {
 </template>
 ```
 
+长文档或知识库场景通常还需要本地防丢兜底。完整接入示例见 [知识库编辑器](/guide/examples#知识库编辑器)。
+
 ## 配置
 
 ```ts

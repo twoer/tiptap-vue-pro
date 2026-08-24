@@ -53,4 +53,25 @@ const editorBehaviorOptions: EditorBehaviorOptions = {
 
 When `uploadImage` returns `null`, insertion is skipped. When it throws, the adapter-injected message UI is notified. Core does not care whether files go to OSS, COS, S3, or your own backend; it only needs a final accessible URL.
 
+## Local Mock Upload
+
+Before a backend endpoint exists, you can use `URL.createObjectURL(file)` to verify toolbar upload, paste, and drag/drop flows:
+
+```ts
+const uploadImage: UploadImage = async (file) => {
+  await new Promise((resolve) => window.setTimeout(resolve, 300))
+  return URL.createObjectURL(file)
+}
+```
+
+`blob:` URLs only work in the current browser session and may break after refresh. Production uploads must return persistent URLs.
+
+## Troubleshooting
+
+- No upload entry: make sure `uploadImage` is passed and your custom `toolbar` still includes the `image` button.
+- File is selected but not inserted: make sure `uploadImage` returns an accessible URL, not `undefined`.
+- File cannot be selected: check whether `editorBehaviorOptions.image.accept` includes the MIME type.
+- Large images are skipped: check `editorBehaviorOptions.image.maxSize`.
+- Upload-only image workflow: set `editorBehaviorOptions.image.allowUrl=false`.
+
 For video, audio, and generic file upload, see [Video, Audio, and File Upload](/en/guide/media-upload).

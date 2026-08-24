@@ -14,7 +14,7 @@
 [![Naive UI monthly downloads](https://img.shields.io/npm/dm/tiptap-vue-pro-naive?label=Naive%20UI%20monthly%20downloads)](https://www.npmjs.com/package/tiptap-vue-pro-naive)
 [![Ant Design Vue monthly downloads](https://img.shields.io/npm/dm/tiptap-vue-pro-ant-design-vue?label=Ant%20Design%20Vue%20monthly%20downloads)](https://www.npmjs.com/package/tiptap-vue-pro-ant-design-vue)
 
-> A modern Vue 3 rich text editor component package built on Tiptap v3.
+> A ready-made Vue 3 + Tiptap v3 rich text editor component package for Element Plus, Naive UI, and Ant Design Vue, with a Headless Core for custom UI.
 
 This project is not affiliated with [Tiptap](https://tiptap.dev). The editor engine is powered by Tiptap v3 and ProseMirror.
 
@@ -39,6 +39,13 @@ Tiptap Vue Pro packages those pieces as a UI-independent core plus three equival
 | `tiptap-vue-pro-ant-design-vue` | `ProEditorAntDesignVue` | Ant Design Vue |
 | `tiptap-vue-pro-core` | `useProEditor` | Headless / custom UI |
 
+## Who It's For
+
+- Admin systems that need to integrate a rich text editor quickly.
+- Projects already using Element Plus, Naive UI, or Ant Design Vue.
+- Apps that need common business features such as images, media, tables, Markdown, and autosave.
+- Teams that want to build custom Tiptap v3 UI without rebuilding editor behavior from scratch.
+
 ## Features
 
 - Tiptap v3 + Vue 3 + TypeScript
@@ -58,6 +65,15 @@ Tiptap Vue Pro packages those pieces as a UI-independent core plus three equival
 - Component-level dark mode, readonly mode, and word count
 - Nuxt / SSR friendly
 - Equivalent behavior across Element Plus, Naive UI, and Ant Design Vue adapters
+
+## Which Package To Install
+
+| Your project | Install |
+| --- | --- |
+| Element Plus | `tiptap-vue-pro-element-plus` |
+| Naive UI | `tiptap-vue-pro-naive` |
+| Ant Design Vue | `tiptap-vue-pro-ant-design-vue` |
+| Custom UI / Headless | `tiptap-vue-pro-core` |
 
 ## Install
 

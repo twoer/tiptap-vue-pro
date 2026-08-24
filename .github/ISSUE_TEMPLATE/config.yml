@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 文档站点
+    url: https://twoer.github.io/tiptap-vue-pro/
+    about: 先查看快速开始、示例、FAQ 和 API 文档。
+  - name: QQ 交流群
+    url: https://twoer.github.io/tiptap-vue-pro/guide/faq#有交流群吗
+    about: 接入问题和使用场景也可以加入 QQ 群交流。

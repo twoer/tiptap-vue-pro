@@ -1,0 +1,66 @@
+name: 使用场景 / 功能建议
+description: 描述你的接入场景、功能需求或采用阻塞点
+title: "[Usage]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这里适合讨论接入场景、API 设计、功能建议和是否阻塞采用。Bug 请优先使用 Bug 反馈模板。
+
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: 使用或计划使用的 adapter
+      options:
+        - Element Plus
+        - Naive UI
+        - Ant Design Vue
+        - Headless Core
+        - 暂未确定
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 例如后台文章编辑、商品详情、知识库、客服话术、表单内嵌编辑器等。
+      placeholder: "我想在 ... 场景里使用编辑器。"
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired
+    attributes:
+      label: 期望支持
+      description: 描述你希望文档、示例、API 或组件行为如何支持这个场景。
+      placeholder: "我希望可以 ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 当前方案或绕路方式
+      description: 如果你已经有临时方案,请说明它哪里不够好。
+      placeholder: "目前我通过 ... 解决,但 ..."
+
+  - type: dropdown
+    id: blocking
+    attributes:
+      label: 是否阻塞采用
+      options:
+        - 是,没有它暂时无法接入
+        - 部分阻塞,可以先绕过
+        - 不阻塞,只是希望更好用
+        - 不确定
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 额外上下文
+      description: 可以补充截图、竞品参考、业务约束或相关链接。
