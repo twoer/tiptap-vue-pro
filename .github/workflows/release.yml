@@ -1,0 +1,59 @@
+name: Release
+
+# npm 受信发布(OIDC):零 token、零 2FA,由 GitHub Actions 的运行身份直接向
+# npm 证明来源。首次启用前必须在 npmjs.com 为四个包各配置一条 trusted
+# publisher,字段逐字一致:
+#   Organization or user : twoer
+#   Repository          : tiptap-vue-pro
+#   Workflow filename   : release.yml
+#   Environment name    : (留空)
+# 详见 AGENTS.md「npm 发布与撤回认证规则」。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC 必需
+  contents: read
+
+# 发布不可中途取消,避免半发状态
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm via trusted publishing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      # Node 22 自带的 npm 低于受信发布所需的 11.5.1
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Install Playwright browser for post-publish smoke
+        run: npx playwright install chromium --with-deps
+
+      - name: Publish packages (OIDC, no tokens)
+        run: node scripts/publish-oidc.mjs
+
+      - name: Verify published packages as a consumer
+        run: node scripts/verify-publish.mjs
