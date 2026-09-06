@@ -1,10 +1,10 @@
 # 数学公式（KaTeX）技术设计
 
-> 归属：[iteration-plan-2026-09.md](./iteration-plan-2026-09.md) 阶段一第 1 项。
+> 归属：iteration-plan-2026-09.md（仓库内部迭代计划，未随文档站发布）阶段一第 1 项。
 >
 > 定稿时间：2026-09-06；当前状态：待技术评审。本文是数学公式功能的唯一正式设计来源。
 >
-> 审查记录：[math-katex-design-revised.md](./math-katex-design-revised.md) 已合并到本文，不再单独作为实现依据。
+> 审查记录：math-katex-design-revised.md（评审版工作稿，未入库）已合并到本文，不再单独作为实现依据。
 
 ---
 
