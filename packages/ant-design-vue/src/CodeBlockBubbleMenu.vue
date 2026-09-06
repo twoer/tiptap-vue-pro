@@ -258,16 +258,16 @@ useEditorPluginRegistration({
 }
 
 :global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark) {
-  background: #1d1e1f;
+  background: #1f1f1f;
   border: 1px solid #414243;
 }
 
 :global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark .tvp-ant-dropdown-menu__item) {
-  color: #cfd3dc;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 :global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark .tvp-ant-dropdown-menu__item:hover) {
-  color: #e5eaf3;
+  color: rgba(255, 255, 255, 0.85);
   background: #303030;
 }
 

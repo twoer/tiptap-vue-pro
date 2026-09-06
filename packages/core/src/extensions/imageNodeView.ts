@@ -1,5 +1,6 @@
 import { mergeAttributes, ResizableNodeView, type Editor, type NodeViewProps } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { getNodeViewT } from '../nodeViewLocale'
 
 /**
  * 图片的 NodeView(原生 DOM 实现,core 无 UI 依赖)。
@@ -135,7 +136,7 @@ export function createImageNodeView(
   const captionInput = document.createElement('input')
   captionInput.className = 'tvp-img-caption'
   captionInput.type = 'text'
-  captionInput.placeholder = '添加题注'
+  captionInput.placeholder = getNodeViewT()('image.captionPlaceholder')
   const initialCaption = (node.attrs as { caption?: string }).caption || ''
   captionInput.value = initialCaption
   if (!initialCaption) captionInput.classList.add('tvp-img-caption-empty')

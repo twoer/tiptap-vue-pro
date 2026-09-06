@@ -40,6 +40,8 @@ import {
   TOOLBAR_ALIGN_OPTIONS,
   TOOLBAR_HEADING_OPTIONS,
   TOOLBAR_MARKDOWN_OPTIONS,
+  buildSimpleToolbarButtons,
+  type ToolbarSimpleButtonId,
 } from 'tiptap-vue-pro-core'
 import type {
   CodeBlockLanguage,
@@ -170,6 +172,49 @@ function commandActive(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
 function runCommand(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
   props.debugLog?.('adapter', 'toolbar-click', { command: id })
   runToolbarCommand(ctx.value, id, payload)
+}
+
+// 同构的简单工具栏按钮(Tooltip + 图标按钮 + active 态 + 命令转发):
+// 配置表驱动模板循环,新增此类按钮只需加一行;复杂控件(下拉/取色/上传)
+// 仍走模板中的具名分支。
+const SIMPLE_BUTTON_ICONS: Record<ToolbarSimpleButtonId, Component> = {
+  undo: markRaw(Undo2),
+  redo: markRaw(Redo2),
+  bold: markRaw(Bold),
+  italic: markRaw(Italic),
+  strike: markRaw(Strikethrough),
+  underline: markRaw(Underline),
+  code: markRaw(Code),
+  superscript: markRaw(Superscript),
+  subscript: markRaw(Subscript),
+  bulletList: markRaw(List),
+  orderedList: markRaw(ListOrdered),
+  taskList: markRaw(ListChecks),
+  blockquote: markRaw(Quote),
+  decreaseIndent: markRaw(IndentDecrease),
+  increaseIndent: markRaw(IndentIncrease),
+  clearFormat: markRaw(Eraser),
+  findReplace: markRaw(Search),
+  print: markRaw(Printer),
+}
+const SIMPLE_TOOLBAR_BUTTONS = buildSimpleToolbarButtons(SIMPLE_BUTTON_ICONS, {
+  print: () => printContent(),
+})
+function isSimpleToolbarButton(item: string): boolean {
+  return item in SIMPLE_TOOLBAR_BUTTONS
+}
+function simpleButtonLabel(item: string) {
+  return commandLabel(item as ToolbarBuiltinKey)
+}
+function simpleButtonActive(item: string) {
+  const cfg = SIMPLE_TOOLBAR_BUTTONS[item]
+  return !!cfg?.active && commandActive(item as ToolbarBuiltinKey)
+}
+function onSimpleButtonClick(item: string) {
+  const cfg = SIMPLE_TOOLBAR_BUTTONS[item]
+  if (!cfg) return
+  if (cfg.onClick) cfg.onClick()
+  else runCommand(item as ToolbarBuiltinKey)
 }
 const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['undo', 'redo'],
@@ -578,14 +623,17 @@ const {
       <span v-if="groupIndex > 0" class="tvp-divider" />
       <span class="tvp-toolbar-group">
         <template v-for="item in group" :key="item">
-        <ElTooltip v-if="item === 'undo'" :content="commandLabel('undo')" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="16" /></ElButton>
+        <ElTooltip v-if="isSimpleToolbarButton(item)" :content="simpleButtonLabel(item)" placement="top" :show-after="300">
+          <ElButton
+            text
+            class="tvp-icon-btn"
+            :aria-label="simpleButtonLabel(item)"
+            :type="simpleButtonActive(item) ? 'primary' : 'default'"
+            @click="onSimpleButtonClick(item)"
+          ><component :is="SIMPLE_TOOLBAR_BUTTONS[item].icon" :size="16" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'redo'" :content="commandLabel('redo')" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="16" /></ElButton>
-        </ElTooltip>
-
+        
         <ElDropdown v-else-if="item === 'heading'" trigger="click" @command="onHeading">
           <ElButton text class="tvp-select-btn tvp-select-btn--heading" :aria-label="commandLabel('heading')">
             {{ headingLabel }}
@@ -661,76 +709,13 @@ const {
           </template>
         </ElDropdown>
 
-        <ElTooltip v-else-if="item === 'bold'" :content="commandLabel('bold')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('bold')"
-            :type="commandActive('bold') ? 'primary' : 'default'"
-            @click="runCommand('bold')"
-          ><Bold :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'italic'" :content="commandLabel('italic')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('italic')"
-            :type="commandActive('italic') ? 'primary' : 'default'"
-            @click="runCommand('italic')"
-          ><Italic :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'strike'" :content="commandLabel('strike')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('strike')"
-            :type="commandActive('strike') ? 'primary' : 'default'"
-            @click="runCommand('strike')"
-          ><Strikethrough :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'underline'" :content="commandLabel('underline')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('underline')"
-            :type="commandActive('underline') ? 'primary' : 'default'"
-            @click="runCommand('underline')"
-          ><Underline :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'code'" :content="commandLabel('code')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('code')"
-            :type="commandActive('code') ? 'primary' : 'default'"
-            @click="runCommand('code')"
-          ><Code :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'superscript'" :content="commandLabel('superscript')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('superscript')"
-            :type="commandActive('superscript') ? 'primary' : 'default'"
-            @click="runCommand('superscript')"
-          ><Superscript :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'subscript'" :content="commandLabel('subscript')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('subscript')"
-            :type="commandActive('subscript') ? 'primary' : 'default'"
-            @click="runCommand('subscript')"
-          ><Subscript :size="16" /></ElButton>
-        </ElTooltip>
-
+        
+        
+        
+        
+        
+        
+        
         <ElDropdown v-else-if="item === 'color'" trigger="click">
           <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('color')">
             <Type :size="16" :style="{ color: currentColor || 'inherit' }" />
@@ -812,64 +797,12 @@ const {
           </template>
         </ElDropdown>
 
-        <ElTooltip v-else-if="item === 'decreaseIndent'" :content="commandLabel('decreaseIndent')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('decreaseIndent')"
-            @click="runCommand('decreaseIndent')"
-          ><IndentDecrease :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'increaseIndent'" :content="commandLabel('increaseIndent')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('increaseIndent')"
-            @click="runCommand('increaseIndent')"
-          ><IndentIncrease :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'bulletList'" :content="commandLabel('bulletList')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('bulletList')"
-            :type="commandActive('bulletList') ? 'primary' : 'default'"
-            @click="runCommand('bulletList')"
-          ><List :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'orderedList'" :content="commandLabel('orderedList')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('orderedList')"
-            :type="commandActive('orderedList') ? 'primary' : 'default'"
-            @click="runCommand('orderedList')"
-          ><ListOrdered :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'taskList'" :content="commandLabel('taskList')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('taskList')"
-            :type="commandActive('taskList') ? 'primary' : 'default'"
-            @click="runCommand('taskList')"
-          ><ListChecks :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'blockquote'" :content="commandLabel('blockquote')" placement="top" :show-after="300">
-          <ElButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('blockquote')"
-            :type="commandActive('blockquote') ? 'primary' : 'default'"
-            @click="runCommand('blockquote')"
-          ><Quote :size="16" /></ElButton>
-        </ElTooltip>
-
+        
+        
+        
+        
+        
+        
         <ElTooltip v-else-if="item === 'codeBlock'" :content="`${commandLabel('codeBlock')}:${currentCodeBlockLabel}`" placement="top" :show-after="300">
           <ElDropdown trigger="click" popper-class="tvp-el-action-dropdown tvp-el-code-language-dropdown" @command="onCodeBlockLanguage">
             <ElButton
@@ -1012,14 +945,8 @@ const {
           <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="16" /></ElButton>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'clearFormat'" :content="commandLabel('clearFormat')" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="16" /></ElButton>
-        </ElTooltip>
-
-        <ElTooltip v-else-if="item === 'findReplace'" :content="commandLabel('findReplace')" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="16" /></ElButton>
-        </ElTooltip>
-
+        
+        
         <ElTooltip v-else-if="item === 'markdown'" :content="commandLabel('markdown')" placement="top" :show-after="300">
           <ElDropdown trigger="click" @command="onMarkdownCommand">
             <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="16" /></ElButton>
@@ -1039,10 +966,7 @@ const {
           </ElDropdown>
         </ElTooltip>
 
-        <ElTooltip v-else-if="item === 'print'" :content="commandLabel('print')" placement="top" :show-after="300">
-          <ElButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="16" /></ElButton>
-        </ElTooltip>
-
+        
         <ElTooltip v-else-if="item === 'fullscreen'" :content="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" placement="top" :show-after="300">
           <ElButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">
             <component :is="isFullscreen ? Minimize2 : Maximize2" :size="16" />

@@ -1,34 +1,24 @@
 import { ref, watch, onBeforeUnmount, computed } from 'vue'
 import { useEditor, type Editor } from '@tiptap/vue-3'
 import { isNodeSelection, type Editor as CoreEditor } from '@tiptap/core'
-// 飞书式表格移动/选区命令所需的 prosemirror-tables API。
-// 走 @tiptap/pm/tables(core 已依赖 @tiptap/pm),不引入新包;
-// 这些都是纯逻辑函数(不操作 DOM、不依赖 UI),符合 core 无 UI 边界。
-import {
-  CellSelection,
-  TableMap,
-  moveTableRow,
-  moveTableColumn,
-} from '@tiptap/pm/tables'
+// 表格几何/选区/移动的纯计算与命令执行在 ./tableController
+// (走 @tiptap/pm/tables,core 已依赖 @tiptap/pm,不引入新包)。
 import { TextSelection } from '@tiptap/pm/state'
 import { createDefaultExtensions } from './extensions'
+import { createTableController } from './tableController'
+import { createMediaInserter } from './mediaInsertion'
 import { insertHorizontalRule } from './extensions/horizontalRule'
-import { detectFileAttachmentIcon } from './extensions/media'
 import { EMPTY_FIND_REPLACE_STATE } from './findReplace'
+import { createFindReplaceCommandEntries } from './findReplaceCommands'
 import { getSelectedMediaNode } from './mediaSelection'
 import { getMarkdown, importMarkdown } from './markdown'
-import { resolveEditorBehaviorOptions, type EditorFileRenderOptions } from './editorBehaviorOptions'
+import { resolveEditorBehaviorOptions } from './editorBehaviorOptions'
 import {
   notifyImageFileValidationFailure,
   validateImageFile,
 } from './handleImageUpload'
-import {
-  normalizeUploadedAsset,
-  notifyAssetFileValidationFailure,
-  notifyAssetUploadFailure,
-  validateAssetFile,
-} from './handleAssetUpload'
 import { resolveLocale } from './locale'
+import { setNodeViewLocale } from './nodeViewLocale'
 import { createDebugLogger } from './debug'
 import type {
   ProEditorOptions,
@@ -36,8 +26,6 @@ import type {
   ProEditorCommands,
   NotifyFn,
   TableState,
-  TableCellCoordinate,
-  UploadedAsset,
 } from './types'
 import type { ProEditorDebugLogFn } from './debug'
 import { getDefaultMermaidSource } from './mermaid'
@@ -110,19 +98,41 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     immediatelyRender = false,
   } = options
 
-  const debugLog: ProEditorDebugLogFn = (...args) => {
-    createDebugLogger({
-      debug: options.debug,
-      debugLogger: options.debugLogger,
-      source: 'core',
-    })(...args)
-  }
+  // 只创建一次:debugLog 挂在每个 transaction/selectionUpdate 上,
+  // 每次调用重建闭包是不可接受的热路径开销。getter 保持调用时动态读取。
+  const debugLog: ProEditorDebugLogFn = createDebugLogger({
+    get debug() {
+      return options.debug
+    },
+    get debugLogger() {
+      return options.debugLogger
+    },
+    source: 'core',
+  })
   const getOutput = () => options.output ?? 'html'
   const getBehaviorOptions = () => resolveEditorBehaviorOptions(options.editorBehaviorOptions)
   const resolvedLocale = computed(() => resolveLocale(options.locale))
   const findReplaceState = ref(EMPTY_FIND_REPLACE_STATE)
   const t = ((key, paramsOrFallback, fallback) =>
     resolvedLocale.value.t(key, paramsOrFallback, fallback)) as ReturnType<typeof resolveLocale>['t']
+  // NodeView 层 UI 文案(题注 placeholder 等)跟随当前 locale
+  watch(resolvedLocale, (loc) => setNodeViewLocale(loc.t), { immediate: true })
+
+  // ---- 消息提示 ----
+  // adapter 注入的 UI 库实现;未注入时静默(no-op),保证 headless 场景不崩。
+  // 放在 commands 之前,因为 uploadAndInsertImage 等命令内部会调用它。
+  const notifyFn: NotifyFn = notify ?? (() => {})
+
+  // 媒体插入器:文件/视频/音频资产的节点构造与上传编排。
+  // 扩展配置的 fileTypeLabel 与 commands 均在运行时调用其方法。
+  const mediaInserter = createMediaInserter({
+    getEditor: () => editor.value,
+    getBehaviorOptions,
+    t,
+    notify: notifyFn,
+    debugLog,
+    uploadAsset,
+  })
   const autosaveController = createAutosaveController(
     () => options.autosave,
     options.content,
@@ -135,7 +145,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     placeholder ?? t('placeholder.default'),
     {},
     {
-      fileAttachment: { fileTypeLabel: localizedFileTypeText },
+      fileAttachment: { fileTypeLabel: mediaInserter.localizedFileTypeText },
       slashCommand: options.slashCommand === false ? undefined : options.slashCommand,
       findReplace: {
         onUpdate: (state) => {
@@ -173,35 +183,42 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
             clientX: event.clientX,
             clientY: event.clientY,
           })
-          return selectCellRangeFromMouseDown(view, event)
+          return table.selectCellRangeFromMouseDown(view, event)
         }
-        if (event instanceof MouseEvent) rememberPointerTableCell(view, event)
+        if (event instanceof MouseEvent) table.rememberPointerTableCell(view, event)
         return false
       },
     },
     handleKeyDown: (view: unknown, event: KeyboardEvent) => {
       if (userHandleKeyDown?.(view, event)) return true
-      if (isSelectAllShortcut(event)) return selectCurrentTable()
+      if (table.isSelectAllShortcut(event)) return table.selectCurrentTable()
       return false
     },
     handleClick: (view: unknown, pos: number, event: MouseEvent) => {
       if (userHandleClick?.(view, pos, event)) return true
-      if (event.shiftKey) return selectCellRangeFromClick(pos, event)
+      if (event.shiftKey) return table.selectCellRangeFromClick(pos, event)
       return false
     },
   }
   const editorOptions = {
     extensions: exts,
-    content: content as never,
+    content: content as NonNullable<Parameters<typeof useEditor>[0]>['content'],
     editable,
     immediatelyRender,
     editorProps: resolvedEditorProps,
     onUpdate: ({ editor: ed }: { editor: CoreEditor }) => {
+      // flag 必须在 emit 链后立即复位:若新值与旧值相同,Vue 的 watch 不会触发,
+      // flag 会永久卡在 true,吞掉下一次真正的外部内容同步。
+      // 回环防护由 watch 侧的值比较兜底(与编辑器当前内容一致则跳过)。
       isUpdatingFromEditor = true
-      const value = emitValue(ed)
-      autosaveController.schedule(value)
-      localDraftController.schedule(value)
-      syncWordCount(ed)
+      try {
+        const value = emitValue(ed)
+        autosaveController.schedule(value)
+        localDraftController.schedule(value)
+        syncWordCount(ed)
+      } finally {
+        isUpdatingFromEditor = false
+      }
     },
     onSelectionUpdate: ({ editor: ed }: { editor: CoreEditor }) => {
       debugLog('selection', 'update', selectionDebugPayload(ed))
@@ -220,6 +237,13 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   }
   const editor = useEditor(editorOptions as Parameters<typeof useEditor>[0])
 
+  // 表格控制器:几何解析 + 移动/选区/删除命令。
+  // editorProps 的事件闭包在运行时(事件触发)才访问,晚于这里初始化。
+  const table = createTableController({
+    getEditor: () => editor.value,
+    debugLog,
+  })
+
   const loaded = computed(() => !!editor.value)
   const wordCount = ref({ characters: 0, words: 0 })
   let draftDiscoveryStarted = false
@@ -229,8 +253,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
 
   // ---- 字数统计 ----
   function syncWordCount(ed: CoreEditor) {
-    const storage = ed.storage as any
-    const cc = storage.characterCount
+    const cc = (ed.storage as unknown as Record<
+      string,
+      { characters?: () => number; words?: () => number } | undefined
+    >).characterCount
     if (cc) {
       wordCount.value = {
         characters: cc.characters?.() ?? 0,
@@ -375,461 +401,6 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     return ed.isActive('bulletList') || ed.isActive('orderedList') || ed.isActive('taskList')
   }
 
-  // ---- 表格几何解析(飞书式抓手/移动/选区命令共用)----
-  // 解析当前选区所在表格的几何信息:table 节点、tableStart(doc 绝对 pos)、
-  // TableMap、当前 cell 的行列索引 + doc 绝对 pos。
-  // 全部基于 ProseMirror state 纯计算,不读 DOM。
-  // 返回 null 表示选区不在表格内(命令静默失效,与 Tiptap 原生命令行为一致)。
-  let lastKnownTablePos: number | null = null
-  let lastPointerTableCell: { tableStart: number; row: number; col: number } | null = null
-
-  const isTableCellNode = (n: { type: { name: string } }) =>
-    n.type.name === 'tableCell' || n.type.name === 'tableHeader'
-
-  function tableGeometryFromTablePos(tablePos: number | null, rowIndex = 0, colIndex = 0) {
-    const ed = editor.value
-    if (!ed || tablePos == null) return null
-    const tableNode = ed.state.doc.nodeAt(tablePos)
-    if (!tableNode || tableNode.type.name !== 'table') return null
-    const map = TableMap.get(tableNode)
-    const row = Math.max(0, Math.min(rowIndex, map.height - 1))
-    const col = Math.max(0, Math.min(colIndex, map.width - 1))
-    const tableStart = tablePos + 1
-    const cellRelPos = map.positionAt(row, col, tableNode)
-    return {
-      map,
-      tableStart,
-      rowCount: map.height,
-      colCount: map.width,
-      row,
-      col,
-      cellDocPos: tableStart + cellRelPos,
-    }
-  }
-
-  function tableGeometryFromPos(pos: number) {
-    const ed = editor.value
-    if (!ed) return null
-    const doc = ed.state.doc
-    const candidates = [pos, pos - 1, pos + 1]
-
-    function geometryFromResolvedPos($pos: ReturnType<typeof doc.resolve>) {
-      let cellDepth = -1
-      let tableDepth = -1
-      for (let d = $pos.depth; d > 0; d--) {
-        const name = $pos.node(d).type.name
-        if (cellDepth < 0 && isTableCellNode($pos.node(d))) cellDepth = d
-        if (tableDepth < 0 && name === 'table') tableDepth = d
-      }
-      if (cellDepth >= 0 && tableDepth >= 0) {
-        const tableNode = $pos.node(tableDepth)
-        const tableStart = $pos.start(tableDepth)
-        const map = TableMap.get(tableNode)
-        const cellRelPos = $pos.before(cellDepth) - tableStart
-        const rect = map.findCell(cellRelPos)
-        lastKnownTablePos = tableStart - 1
-        return {
-          map,
-          tableStart,
-          rowCount: map.height,
-          colCount: map.width,
-          row: rect.top,
-          col: rect.left,
-          cellDocPos: tableStart + cellRelPos,
-        }
-      }
-
-      // CellSelection stores $anchorCell/$headCell at the position before a cell.
-      // That boundary is not "inside" the cell, so read nodeAfter before trying
-      // adjacent fallback positions; otherwise a selected column can be mistaken
-      // for the cell on its left.
-      if ($pos.nodeAfter && isTableCellNode($pos.nodeAfter)) {
-        const rowDepth = $pos.depth
-        if (rowDepth > 0 && $pos.node(rowDepth).type.name === 'tableRow') {
-          const boundaryTableDepth = rowDepth - 1
-          if (boundaryTableDepth > 0 && $pos.node(boundaryTableDepth).type.name === 'table') {
-            const tableNode = $pos.node(boundaryTableDepth)
-            const tableStart = $pos.start(boundaryTableDepth)
-            const map = TableMap.get(tableNode)
-            const cellRelPos = $pos.pos - tableStart
-            const rect = map.findCell(cellRelPos)
-            lastKnownTablePos = tableStart - 1
-            return {
-              map,
-              tableStart,
-              rowCount: map.height,
-              colCount: map.width,
-              row: rect.top,
-              col: rect.left,
-              cellDocPos: tableStart + cellRelPos,
-            }
-          }
-        }
-      }
-
-      return null
-    }
-
-    for (const rawPos of candidates) {
-      if (rawPos < 0 || rawPos > doc.content.size) continue
-      const geometry = geometryFromResolvedPos(doc.resolve(rawPos))
-      if (geometry) return geometry
-    }
-
-    return null
-  }
-
-  function tableGeometry(axis?: 'row' | 'col', targetIndex?: number) {
-    const ed = editor.value
-    if (!ed) return null
-    const sel = ed.state.selection
-    // 选区可能是 CellSelection(多选,$anchorCell/$headCell)或普通选区($from)。
-    // 统一用 $anchorCell 或 $from 反查所在 cell。
-    const anySel = sel as unknown as {
-      $anchorCell?: { pos: number }
-      $headCell?: { pos: number }
-    }
-    const anchorPos = anySel.$anchorCell?.pos ?? sel.$from.pos
-    // 解析 $pos,沿节点链找 cell + table,记录各自 depth。
-    // tryResolve:若传入 pos 恰好落在节点边界(不在 cell 内容内),退一格再解析。
-    function resolveInfo(pos: number) {
-      const $pos = ed!.state.doc.resolve(pos)
-      let cellDepth = -1
-      let tableDepth = -1
-      for (let d = $pos.depth; d > 0; d--) {
-        const name = $pos.node(d).type.name
-        if (cellDepth < 0 && isTableCellNode($pos.node(d))) cellDepth = d
-        if (tableDepth < 0 && name === 'table') tableDepth = d
-      }
-      return { $pos, cellDepth, tableDepth }
-    }
-    let { $pos: $cell, cellDepth, tableDepth } = resolveInfo(anchorPos)
-    if (cellDepth < 0 && $cell.nodeAfter && isTableCellNode($cell.nodeAfter)) {
-      const rowDepth = $cell.depth
-      if (rowDepth > 0 && $cell.node(rowDepth).type.name === 'tableRow') {
-        tableDepth = rowDepth - 1
-        if (tableDepth > 0 && $cell.node(tableDepth).type.name === 'table') {
-          const tableNode = $cell.node(tableDepth)
-          const tableStart = $cell.start(tableDepth)
-          lastKnownTablePos = tableStart - 1
-          const map = TableMap.get(tableNode)
-          const cellRelPos = $cell.pos - tableStart
-          const rect = map.findCell(cellRelPos)
-          return {
-            map,
-            tableStart,
-            rowCount: map.height,
-            colCount: map.width,
-            row: rect.top,
-            col: rect.left,
-            cellDocPos: tableStart + cellRelPos,
-          }
-        }
-      }
-    }
-    // 边界情况:pos 落在 cell 外,退一格重试
-    if (cellDepth < 0 && anchorPos > 0) {
-      ({ $pos: $cell, cellDepth, tableDepth } = resolveInfo(anchorPos - 1))
-    }
-    if (cellDepth < 0 || tableDepth < 0) {
-      if (!axis || typeof targetIndex !== 'number') return null
-      const fallbackRow = axis === 'row' && typeof targetIndex === 'number' ? targetIndex : 0
-      const fallbackCol = axis === 'col' && typeof targetIndex === 'number' ? targetIndex : 0
-      return tableGeometryFromTablePos(lastKnownTablePos, fallbackRow, fallbackCol)
-    }
-
-    const tableNode = $cell.node(tableDepth)
-    const tableStart = $cell.start(tableDepth) // table 内容区起始 pos(table pos + 1)
-    lastKnownTablePos = tableStart - 1
-    const map = TableMap.get(tableNode)
-    // cell 节点在文档中的起始 pos,减 tableStart = 相对 table 内容区的 offset。
-    const cellRelPos = $cell.before(cellDepth) - tableStart
-    const rect = map.findCell(cellRelPos)
-    return {
-      map,
-      tableStart,
-      rowCount: map.height,
-      colCount: map.width,
-      row: rect.top,
-      col: rect.left,
-      // cell 节点的 doc 绝对 pos(moveTableRow 的 pos 参数需要)
-      cellDocPos: tableStart + cellRelPos,
-    }
-  }
-
-  // 移动当前行/列。dir: -1 上/左,+1 下/右。越界时 moveTableRow/Column 内部静默返回。
-  function moveRow(dir: -1 | 1) {
-    const g = tableGeometry()
-    if (!g) {
-      debugLog('table', 'move-line:no-geometry', { axis: 'row', dir })
-      return
-    }
-    const ed = editor.value!
-    const to = g.row + dir
-    if (to < 0 || to >= g.rowCount) {
-      debugLog('table', 'move-line:out-of-range', { axis: 'row', from: g.row, to, rowCount: g.rowCount })
-      return
-    }
-    moveTableRow({ from: g.row, to, pos: g.cellDocPos })(
-      ed.state,
-      (tr) => ed.view.dispatch(tr),
-    )
-    debugLog('table', 'move-line', { axis: 'row', from: g.row, to })
-  }
-  function moveColumn(dir: -1 | 1) {
-    const g = tableGeometry()
-    if (!g) {
-      debugLog('table', 'move-line:no-geometry', { axis: 'col', dir })
-      return
-    }
-    const ed = editor.value!
-    const to = g.col + dir
-    if (to < 0 || to >= g.colCount) {
-      debugLog('table', 'move-line:out-of-range', { axis: 'col', from: g.col, to, colCount: g.colCount })
-      return
-    }
-    moveTableColumn({ from: g.col, to, pos: g.cellDocPos })(
-      ed.state,
-      (tr) => ed.view.dispatch(tr),
-    )
-    debugLog('table', 'move-line', { axis: 'col', from: g.col, to })
-  }
-
-  // 选中整行/整列(飞书式抓手点击)。用 CellSelection.rowSelection/colSelection,
-  // 传入该行/列首尾 cell 的 ResolvedPos,自动扩展为整行/整列选区。
-  function selectLine(axis: 'row' | 'col', targetIndex?: number) {
-    const g = tableGeometry(axis, targetIndex)
-    if (!g) {
-      debugLog('table', 'select-line:no-geometry', { axis, targetIndex, ok: false })
-      return false
-    }
-    const ed = editor.value!
-    const { map, tableStart, row, col } = g
-    const targetRow = axis === 'row' && typeof targetIndex === 'number' ? targetIndex : row
-    const targetCol = axis === 'col' && typeof targetIndex === 'number' ? targetIndex : col
-    if (targetRow < 0 || targetRow >= map.height || targetCol < 0 || targetCol >= map.width) {
-      debugLog('table', 'select-line:out-of-range', {
-        axis,
-        targetIndex,
-        targetRow,
-        targetCol,
-        rowCount: map.height,
-        colCount: map.width,
-        ok: false,
-      })
-      return false
-    }
-    // 算出该行/列首尾 cell 的相对 pos,转 doc 绝对 pos 后 resolve。
-    const firstRel = axis === 'row'
-      ? map.positionAt(targetRow, 0, ed.state.doc.nodeAt(tableStart - 1)!)
-      : map.positionAt(0, targetCol, ed.state.doc.nodeAt(tableStart - 1)!)
-    const lastRel = axis === 'row'
-      ? map.positionAt(targetRow, map.width - 1, ed.state.doc.nodeAt(tableStart - 1)!)
-      : map.positionAt(map.height - 1, targetCol, ed.state.doc.nodeAt(tableStart - 1)!)
-    const $first = ed.state.doc.resolve(tableStart + firstRel)
-    const $last = ed.state.doc.resolve(tableStart + lastRel)
-    const cellSel = axis === 'row'
-      ? CellSelection.rowSelection($first, $last)
-      : CellSelection.colSelection($first, $last)
-    ed.view.dispatch(ed.state.tr.setSelection(cellSel))
-    debugLog('table', 'select-line', {
-      axis,
-      row,
-      col,
-      targetIndex,
-      targetRow,
-      targetCol,
-      rowCount: g.rowCount,
-      colCount: g.colCount,
-      selection: ed.state.selection.constructor.name,
-      ok: true,
-    })
-    return true
-  }
-
-  function selectCurrentTable() {
-    const g = tableGeometry()
-    const ed = editor.value
-    if (!g || !ed) {
-      debugLog('table', 'select-table:no-geometry', { ok: false })
-      return false
-    }
-    const tableNode = ed.state.doc.nodeAt(g.tableStart - 1)
-    if (!tableNode || tableNode.type.name !== 'table') {
-      debugLog('table', 'select-table:no-table-node', { ok: false })
-      return false
-    }
-    const firstRel = g.map.positionAt(0, 0, tableNode)
-    const lastRel = g.map.positionAt(g.map.height - 1, g.map.width - 1, tableNode)
-    const cellSel = CellSelection.create(
-      ed.state.doc,
-      g.tableStart + firstRel,
-      g.tableStart + lastRel,
-    )
-    ed.view.dispatch(ed.state.tr.setSelection(cellSel).scrollIntoView())
-    debugLog('table', 'select-table', {
-      rowCount: g.rowCount,
-      colCount: g.colCount,
-      ok: true,
-    })
-    return true
-  }
-
-  function selectCellRange(anchor: TableCellCoordinate, head: TableCellCoordinate, tablePos?: number | null) {
-    const current = tableGeometry()
-    const g = tableGeometryFromTablePos(
-      tablePos ?? (current ? current.tableStart - 1 : lastKnownTablePos),
-      anchor.row,
-      anchor.col,
-    )
-    const ed = editor.value
-    if (!g || !ed) {
-      debugLog('table', 'select-cell-range:no-geometry', { anchor, head, ok: false })
-      return false
-    }
-    const tableNode = ed.state.doc.nodeAt(g.tableStart - 1)
-    if (!tableNode || tableNode.type.name !== 'table') {
-      debugLog('table', 'select-cell-range:no-table-node', { anchor, head, ok: false })
-      return false
-    }
-    const anchorRow = Math.max(0, Math.min(anchor.row, g.map.height - 1))
-    const anchorCol = Math.max(0, Math.min(anchor.col, g.map.width - 1))
-    const headRow = Math.max(0, Math.min(head.row, g.map.height - 1))
-    const headCol = Math.max(0, Math.min(head.col, g.map.width - 1))
-    const anchorRel = g.map.positionAt(anchorRow, anchorCol, tableNode)
-    const headRel = g.map.positionAt(headRow, headCol, tableNode)
-    const cellSel = CellSelection.create(
-      ed.state.doc,
-      g.tableStart + anchorRel,
-      g.tableStart + headRel,
-    )
-    ed.view.dispatch(ed.state.tr.setSelection(cellSel).scrollIntoView())
-    debugLog('table', 'select-cell-range', {
-      anchor: { row: anchorRow, col: anchorCol },
-      head: { row: headRow, col: headCol },
-      selectedRows: Math.abs(headRow - anchorRow) + 1,
-      selectedCols: Math.abs(headCol - anchorCol) + 1,
-      ok: true,
-    })
-    return true
-  }
-
-  function selectCellRangeFromClick(pos: number, event: MouseEvent) {
-    const anchor = tableGeometry() ?? lastPointerTableCell
-    const head = tableGeometryFromPos(pos)
-    if (!anchor || !head || anchor.tableStart !== head.tableStart) {
-      debugLog('table', 'select-cell-range:click-skip', {
-        pos,
-        hasAnchor: !!anchor,
-        hasHead: !!head,
-        sameTable: !!anchor && !!head && anchor.tableStart === head.tableStart,
-      })
-      return false
-    }
-    const selected = selectCellRange(
-      { row: anchor.row, col: anchor.col },
-      { row: head.row, col: head.col },
-      anchor.tableStart - 1,
-    )
-    if (selected) event.preventDefault()
-    return selected
-  }
-
-  function selectCellRangeFromMouseDown(view: unknown, event: MouseEvent) {
-    const anchor = tableGeometry() ?? lastPointerTableCell
-    const head = pointerTableGeometry(view, event)
-    if (!anchor || !head || anchor.tableStart !== head.tableStart) {
-      debugLog('table', 'select-cell-range:mousedown-skip', {
-        hasAnchor: !!anchor,
-        hasHead: !!head,
-        sameTable: !!anchor && !!head && anchor.tableStart === head.tableStart,
-      })
-      return false
-    }
-    const selected = selectCellRange(
-      { row: anchor.row, col: anchor.col },
-      { row: head.row, col: head.col },
-      anchor.tableStart - 1,
-    )
-    if (selected) event.preventDefault()
-    return selected
-  }
-
-  function pointerTableGeometry(view: unknown, event: MouseEvent) {
-    const posAtCoords = (view as {
-      posAtCoords?: (coords: { left: number; top: number }) => { pos: number } | null
-    }).posAtCoords
-    let target: { pos: number } | null | undefined
-    try {
-      target = posAtCoords?.call(view, { left: event.clientX, top: event.clientY })
-    } catch (error) {
-      debugLog('table', 'select-cell-range:pos-at-coords-error', {
-        clientX: event.clientX,
-        clientY: event.clientY,
-      }, 'warn', error)
-      return null
-    }
-    if (!target) {
-      debugLog('table', 'select-cell-range:no-pos-at-coords', {
-        clientX: event.clientX,
-        clientY: event.clientY,
-      })
-      return null
-    }
-    return tableGeometryFromPos(target.pos)
-  }
-
-  function rememberPointerTableCell(view: unknown, event: MouseEvent) {
-    const g = pointerTableGeometry(view, event)
-    if (!g) return
-    lastPointerTableCell = { tableStart: g.tableStart, row: g.row, col: g.col }
-    debugLog('table', 'remember-pointer-cell', {
-      row: g.row,
-      col: g.col,
-    })
-  }
-
-  function isSelectAllShortcut(event: KeyboardEvent) {
-    return event.key.toLowerCase() === 'a' &&
-      (event.metaKey || event.ctrlKey) &&
-      !event.altKey &&
-      !event.shiftKey
-  }
-
-  function deleteLine(axis: 'row' | 'col', targetIndex?: number) {
-    const ed = editor.value
-    if (!ed) {
-      debugLog('table', 'delete-line:no-editor', { axis, targetIndex, ok: false })
-      return
-    }
-    const before = tableGeometry(axis, targetIndex)
-    debugLog('table', 'delete-line:start', {
-      axis,
-      targetIndex,
-      before,
-      selection: ed.state.selection.constructor.name,
-    })
-    const selected = before ? selectLine(axis, targetIndex) : false
-    const shouldDeleteTable = selected && (
-      (axis === 'row' && before!.rowCount <= 1) ||
-      (axis === 'col' && before!.colCount <= 1)
-    )
-    const ok = shouldDeleteTable
-      ? ed.chain().focus().deleteTable().run()
-      : axis === 'row'
-        ? ed.chain().focus().deleteRow().run()
-        : ed.chain().focus().deleteColumn().run()
-    const after = tableGeometry()
-    debugLog('table', 'delete-line', {
-      axis,
-      targetIndex,
-      deletedTable: shouldDeleteTable,
-      ok,
-      after,
-      selection: ed.state.selection.constructor.name,
-    })
-  }
-
   /**
    * 判断当前选区是否「选中了一个图片节点」。
    *
@@ -845,209 +416,6 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   function selectedMediaType(ed: Editor | CoreEditor): 'video' | 'audio' | null {
     const media = getSelectedMediaNode(ed as CoreEditor)
     return media?.type ?? null
-  }
-
-  // ---- 消息提示 ----
-  // adapter 注入的 UI 库实现;未注入时静默(no-op),保证 headless 场景不崩。
-  // 放在 commands 之前,因为 uploadAndInsertImage 等命令内部会调用它。
-  const notifyFn: NotifyFn = notify ?? (() => {})
-
-  function normalizeAssetForNode(asset: UploadedAsset | string): UploadedAsset {
-    if (typeof asset === 'string') return { url: asset }
-    return {
-      ...asset,
-      uploadedAt: asset.uploadedAt instanceof Date
-        ? asset.uploadedAt.toISOString()
-        : asset.uploadedAt,
-    }
-  }
-
-  function formatFileUploadedAt(
-    value: UploadedAsset['uploadedAt'],
-    format: EditorFileRenderOptions['uploadedAtFormat'],
-  ) {
-    if (value == null || value === '') return ''
-    if (typeof format === 'function') return format(value)
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return String(value)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-    if (format === 'date') return datePart
-    return `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-  }
-
-  function formatFileDuration(
-    value: UploadedAsset['duration'],
-    format: EditorFileRenderOptions['durationFormat'],
-  ) {
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return ''
-    if (typeof format === 'function') return format(value)
-    return ''
-  }
-
-  function localizedFileTypeText(attrs: Record<string, unknown>) {
-    const fileTypeText = String(attrs.fileTypeText ?? '')
-    if (fileTypeText) return fileTypeText
-    const icon = detectFileAttachmentIcon({
-      name: attrs.name,
-      href: attrs.href,
-      mimeType: attrs.mimeType ?? '',
-      mediaKind: attrs.mediaKind,
-    })
-    const name = String(attrs.name ?? attrs.href ?? '').toLowerCase()
-    if (icon === 'pdf') return 'PDF'
-    if (icon === 'doc') return 'Word'
-    if (icon === 'sheet') return name.endsWith('.csv') ? 'CSV' : 'Excel'
-    if (icon === 'slide') return 'PPT'
-    if (icon === 'archive') return t('file.type.archive')
-    if (icon === 'image') return t('file.type.image')
-    if (icon === 'video') return t('file.type.video')
-    if (icon === 'audio') return t('file.type.audio')
-    if (icon === 'text') return t('file.type.text')
-    if (icon === 'code') return t('file.type.code')
-    const subtype = String(attrs.mimeType ?? '').split('/')[1]?.split(';')[0]
-    return subtype ? subtype.toUpperCase() : t('file.type.file')
-  }
-
-  function insertFileAsset(
-    asset: UploadedAsset | string,
-    mediaKind: 'video' | 'audio' | 'file' = 'file',
-  ) {
-    const ed = cmd()
-    if (!ed) return
-    const normalized = normalizeAssetForNode(asset)
-    const render = getBehaviorOptions().media.file.render
-    ed.chain().focus().insertContent({
-      type: 'fileAttachment',
-      attrs: {
-        href: normalized.url,
-        name: normalized.name ?? normalized.url,
-        size: normalized.size ?? null,
-        mimeType: normalized.mimeType ?? '',
-        mediaKind,
-        uploadedAt: normalized.uploadedAt ?? '',
-        uploadedAtText: formatFileUploadedAt(normalized.uploadedAt, render.uploadedAtFormat),
-        duration: normalized.duration ?? null,
-        durationText: formatFileDuration(normalized.duration, render.durationFormat),
-        fileTypeText: localizedFileTypeText({
-          name: normalized.name ?? normalized.url,
-          href: normalized.url,
-          mimeType: normalized.mimeType ?? '',
-          mediaKind,
-          fileTypeText: normalized.fileTypeText,
-        }),
-        showIcon: render.showIcon,
-        iconMode: render.iconMode,
-        showName: render.showName,
-        showSize: render.showSize,
-        showMimeType: render.showMimeType,
-        showUploadedAt: render.showUploadedAt,
-        showDuration: render.showDuration,
-        openInNewTab: render.openInNewTab,
-        download: render.download,
-      },
-    }).scrollIntoView().run()
-  }
-
-  function insertVideoAsset(asset: UploadedAsset | string) {
-    const ed = cmd()
-    if (!ed) return
-    const normalized = normalizeAssetForNode(asset)
-    const render = getBehaviorOptions().media.video.render
-    if (render.displayMode === 'file') {
-      insertFileAsset(normalized, 'video')
-      return
-    }
-    const poster = typeof render.poster === 'function'
-      ? render.poster(normalized)
-      : render.poster ?? normalized.poster ?? ''
-    ed.chain().focus().insertContent({
-      type: 'video',
-      attrs: {
-        src: normalized.url,
-        name: normalized.name ?? '',
-        mimeType: normalized.mimeType ?? '',
-        poster,
-        duration: normalized.duration ?? null,
-        controls: render.controls,
-        muted: render.muted,
-        loop: render.loop,
-        autoplay: render.autoplay,
-        playsInline: render.playsInline,
-        preload: render.preload,
-        allowFullscreen: render.allowFullscreen,
-        allowDownload: render.allowDownload,
-        allowPictureInPicture: render.allowPictureInPicture,
-        width: render.width ?? null,
-      },
-    }).scrollIntoView().run()
-  }
-
-  function insertAudioAsset(asset: UploadedAsset | string) {
-    const ed = cmd()
-    if (!ed) return
-    const normalized = normalizeAssetForNode(asset)
-    const render = getBehaviorOptions().media.audio.render
-    if (render.displayMode === 'file') {
-      insertFileAsset(normalized, 'audio')
-      return
-    }
-    ed.chain().focus().insertContent({
-      type: 'audio',
-      attrs: {
-        src: normalized.url,
-        name: normalized.name ?? '',
-        mimeType: normalized.mimeType ?? '',
-        duration: normalized.duration ?? null,
-        controls: render.controls,
-        muted: render.muted,
-        loop: render.loop,
-        autoplay: render.autoplay,
-        preload: render.preload,
-        allowDownload: render.allowDownload,
-        width: render.width ?? null,
-      },
-    }).scrollIntoView().run()
-  }
-
-  async function uploadAndInsertAsset(
-    file: File,
-    kind: 'video' | 'audio' | 'file',
-    insert: (asset: UploadedAsset) => void,
-  ) {
-    if (!uploadAsset) return
-    const ed = cmd()
-    if (!ed) return
-    const mediaOptions = getBehaviorOptions().media[kind]
-    const validationFailure = validateAssetFile(file, kind, mediaOptions)
-    if (validationFailure) {
-      notifyAssetFileValidationFailure({ notify: notifyFn, t }, validationFailure)
-      return
-    }
-    debugLog('upload', 'asset:start', {
-      kind,
-      fileName: file.name,
-      fileSize: file.size,
-      mimeType: file.type,
-    }, 'info')
-    try {
-      const result = await uploadAsset(file, kind)
-      if (result) {
-        const normalized = normalizeUploadedAsset(result, file)
-        debugLog('upload', 'asset:success', {
-          kind,
-          fileName: file.name,
-          url: normalized.url,
-        }, 'info')
-        insert(normalized)
-        return
-      }
-      debugLog('upload', 'asset:error', { kind, fileName: file.name }, 'error')
-      notifyAssetUploadFailure(notifyFn, t, kind)
-    } catch (error) {
-      debugLog('upload', 'asset:error', { kind, fileName: file.name }, 'error', error)
-      notifyAssetUploadFailure(notifyFn, t, kind)
-    }
   }
 
   const rawCommands: ProEditorCommands = {
@@ -1074,23 +442,23 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
       const ed = cmd()
       if (!ed) return
       if (inList(ed)) {
-        const chain = ed.chain().focus() as any
+        const chain = ed.chain().focus()
         if (ed.isActive('taskList')) chain.sinkListItem('taskItem').run()
         else chain.sinkListItem('listItem').run()
         return
       }
-      ;(ed.chain().focus() as any).increaseBlockIndent().run()
+      ;ed.chain().focus().increaseBlockIndent().run()
     },
     decreaseIndent: () => {
       const ed = cmd()
       if (!ed) return
       if (inList(ed)) {
-        const chain = ed.chain().focus() as any
+        const chain = ed.chain().focus()
         if (ed.isActive('taskList')) chain.liftListItem('taskItem').run()
         else chain.liftListItem('listItem').run()
         return
       }
-      ;(ed.chain().focus() as any).decreaseBlockIndent().run()
+      ;ed.chain().focus().decreaseBlockIndent().run()
     },
     blockquote: () => cmd()?.chain().focus().toggleBlockquote().run(),
     codeBlock: (language) => {
@@ -1209,12 +577,12 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
         notifyFn(t('notify.imageUploadFailed'), 'error')
       }
     },
-    insertVideo: insertVideoAsset,
-    uploadAndInsertVideo: (file) => uploadAndInsertAsset(file, 'video', insertVideoAsset),
-    insertAudio: insertAudioAsset,
-    uploadAndInsertAudio: (file) => uploadAndInsertAsset(file, 'audio', insertAudioAsset),
-    insertFile: (asset) => insertFileAsset(asset, 'file'),
-    uploadAndInsertFile: (file) => uploadAndInsertAsset(file, 'file', (asset) => insertFileAsset(asset, 'file')),
+    insertVideo: mediaInserter.insertVideoAsset,
+    uploadAndInsertVideo: (file) => mediaInserter.uploadAndInsertAsset(file, 'video', mediaInserter.insertVideoAsset),
+    insertAudio: mediaInserter.insertAudioAsset,
+    uploadAndInsertAudio: (file) => mediaInserter.uploadAndInsertAsset(file, 'audio', mediaInserter.insertAudioAsset),
+    insertFile: (asset) => mediaInserter.insertFileAsset(asset, 'file'),
+    uploadAndInsertFile: (file) => mediaInserter.uploadAndInsertAsset(file, 'file', (asset) => mediaInserter.insertFileAsset(asset, 'file')),
     /**
      * 图片对齐/尺寸/题注/删除 —— 仅在当前是图片 NodeSelection 时生效。
      *
@@ -1277,10 +645,10 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     // adapter 的工具栏用 isActive('table') 判定后才显示对应按钮,所以无需在 core 判断场景。
     addRowBefore: () => cmd()?.chain().focus().addRowBefore().run(),
     addRowAfter: () => cmd()?.chain().focus().addRowAfter().run(),
-    deleteRow: (rowIndex?: number) => deleteLine('row', rowIndex),
+    deleteRow: (rowIndex?: number) => table.deleteLine('row', rowIndex),
     addColumnBefore: () => cmd()?.chain().focus().addColumnBefore().run(),
     addColumnAfter: () => cmd()?.chain().focus().addColumnAfter().run(),
-    deleteColumn: (columnIndex?: number) => deleteLine('col', columnIndex),
+    deleteColumn: (columnIndex?: number) => table.deleteLine('col', columnIndex),
     mergeCells: () => cmd()?.chain().focus().mergeCells().run(),
     splitCell: () => cmd()?.chain().focus().splitCell().run(),
     toggleHeaderRow: () => cmd()?.chain().focus().toggleHeaderRow().run(),
@@ -1290,15 +658,15 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     // prosemirror-tables 的 moveTableRow/moveTableColumn 接收 {from, to, pos}:
     //   from/to 是行/列索引,pos 是任意 cell 的 doc 绝对 pos(用于定位表格)。
     // 这里从当前选区解析行/列号,默认 moveTableRow 会自动选中移动后的行(select:true 默认)。
-    moveRowUp: () => moveRow(-1),
-    moveRowDown: () => moveRow(1),
-    moveColumnLeft: () => moveColumn(-1),
-    moveColumnRight: () => moveColumn(1),
+    moveRowUp: () => table.moveRow(-1),
+    moveRowDown: () => table.moveRow(1),
+    moveColumnLeft: () => table.moveColumn(-1),
+    moveColumnRight: () => table.moveColumn(1),
     // ---- 选中整行/整列(飞书式抓手点击)----
-    selectRow: (rowIndex?: number) => selectLine('row', rowIndex),
-    selectColumn: (columnIndex?: number) => selectLine('col', columnIndex),
-    selectTable: () => { selectCurrentTable() },
-    selectCellRange: (anchor, head) => { selectCellRange(anchor, head) },
+    selectRow: (rowIndex?: number) => table.selectLine('row', rowIndex),
+    selectColumn: (columnIndex?: number) => table.selectLine('col', columnIndex),
+    selectTable: () => { table.selectCurrentTable() },
+    selectCellRange: (anchor, head) => { table.selectCellRange(anchor, head) },
     hr: (variant) => {
       const ed = cmd()
       if (!ed) return
@@ -1336,51 +704,8 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     clearFormat: () =>
       cmd()?.chain().focus().clearNodes().unsetAllMarks().run(),
     taskList: () => cmd()?.chain().focus().toggleTaskList().run(),
-    openFindReplace: () => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).openFindReplace?.()
-    },
-    closeFindReplace: () => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).closeFindReplace?.()
-    },
-    setFindReplaceQuery: (query) => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).setFindReplaceQuery?.(query)
-    },
-    setFindReplaceReplacement: (replacement) => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).setFindReplaceReplacement?.(replacement)
-    },
-    setFindReplaceCaseSensitive: (caseSensitive) => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).setFindReplaceCaseSensitive?.(caseSensitive)
-    },
-    findReplaceNext: () => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).findReplaceNext?.()
-    },
-    findReplacePrevious: () => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).findReplacePrevious?.()
-    },
-    replaceFindReplaceCurrent: (replacement) => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).replaceFindReplaceCurrent?.(replacement)
-    },
-    replaceFindReplaceAll: (replacement) => {
-      const ed = cmd()
-      if (!ed) return
-      ;(ed.commands as any).replaceFindReplaceAll?.(replacement)
-    },
+    // 查找替换命令桥(面板联动)见 ./findReplaceCommands
+    ...createFindReplaceCommandEntries(cmd),
   }
 
   function withDebugCommands(commandMap: ProEditorCommands): ProEditorCommands {
@@ -1412,6 +737,8 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
           debugLog('command', 'result', { command: key, ok: false }, 'error', error)
           throw error
         }
+        // 泛型索引写入(给具体成员签名赋泛型包装函数)是 TS 的已知限制,
+        // never 是唯一无需构造交集类型的逃生通道;运行时签名由调用方约束。
       }) as never
     }
     return wrapped as ProEditorCommands
@@ -1498,7 +825,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     const canSplit = (attrs.colspan ?? 1) > 1 || (attrs.rowspan ?? 1) > 1
 
     // 几何信息:复用 tableGeometry(tablePos/rowCount/colCount),供 adapter 定位覆盖层。
-    const g = tableGeometry()
+    const g = table.tableGeometry()
     return {
       inTable,
       canMerge,
@@ -1520,7 +847,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
   }
   const importMarkdownFn = (md: string) => {
     debugLog('markdown', 'import', { length: md.length }, 'info')
-    editor.value && importMarkdown(editor.value, md)
+    if (editor.value) importMarkdown(editor.value, md)
   }
 
   // ---- 只读 ----

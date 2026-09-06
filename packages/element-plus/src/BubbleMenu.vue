@@ -4,7 +4,7 @@ import { ElButton } from 'element-plus'
 import { BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
 import { Bold, Italic, Underline, Strikethrough, Link, Eraser } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
-import { getActiveCodeBlock, getActiveLinkRange, getSelectedFileAttachment, getSelectedHorizontalRule, getSelectedMediaNode, resolveLocale, useEditorPluginRegistration, type LocaleKey, type ProEditorContext } from 'tiptap-vue-pro-core'
+import { isSupportedLinkUrl, resolveLocale, shouldShowTextBubbleMenu, useEditorPluginRegistration, type LocaleKey, type ProEditorContext } from 'tiptap-vue-pro-core'
 
 /**
  * 气泡菜单:选中文字时浮现的小工具条。
@@ -54,7 +54,7 @@ function confirmQuickLink() {
     ctx.value.notify(t('notify.linkEmpty'), 'warning')
     return
   }
-  if (!/^(https?:|mailto:|tel:)/i.test(href) && !/\.[a-z]{2,}/i.test(href)) {
+  if (!isSupportedLinkUrl(href)) {
     ctx.value.notify(t('notify.linkInvalid'), 'warning')
     return
   }
@@ -73,24 +73,8 @@ useEditorPluginRegistration({
     editor: ed,
     element,
     updateDelay: 100,
-    shouldShow: ({ editor, state }) => {
-      // 仅在有非空选区时显示(纯光标点击不弹)
-      if (state.selection.empty) return false
-      // 链接范围由 LinkBubbleMenu 独占,避免与普通文字 bubble 同时出现。
-      if (getActiveLinkRange(editor)) return false
-      if (getSelectedFileAttachment(editor)) return false
-      if (getSelectedMediaNode(editor)) return false
-      if (getSelectedHorizontalRule(editor)) return false
-      if (getActiveCodeBlock(editor)) return false
-      // 在表格内选文字时不弹文字气泡——表格气泡(proTableBubble)独占,
-      // 避免两个气泡同时浮现在同一位置打架。表格内的文字格式化用顶部工具栏。
-      const { $from } = state.selection
-      for (let d = $from.depth; d > 0; d--) {
-        const name = $from.node(d).type.name
-        if (name === 'tableCell' || name === 'tableHeader') return false
-      }
-      return true
-    },
+    // 显隐互斥规则(链接/文件/媒体/HR/代码块/表格独占)统一收口在 core。
+    shouldShow: ({ editor, state }) => shouldShowTextBubbleMenu(editor, state),
   }),
 })
 </script>

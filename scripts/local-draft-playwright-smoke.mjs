@@ -1,14 +1,9 @@
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
+import { chromium } from 'playwright'
+import { ensurePlaygroundServer } from './lib/playground-server.mjs'
 import { join, resolve } from 'node:path'
 
-const repoRoot = process.cwd()
-const visualCompareDir = resolve(process.env.VISUAL_COMPARE_DIR ?? join(repoRoot, '..', 'visual-compare'))
-const visualComparePackage = join(visualCompareDir, 'package.json')
-if (!existsSync(visualComparePackage)) throw new Error(`visual-compare not found at ${visualCompareDir}`)
-
-const { chromium } = createRequire(visualComparePackage)('playwright')
-const baseUrl = process.env.PLAYGROUND_URL ?? 'http://localhost:5173/tiptap-vue-pro/playground/'
+// 自包含 e2e:playwright 是本仓依赖;dev server 缺失时自动拉起,脚本退出自动回收
+const baseUrl = await ensurePlaygroundServer()
 const screenshotDir = resolve(process.env.SCREENSHOT_DIR ?? '/tmp')
 const adapters = [
   { name: 'element-plus', hash: '#/element-plus', root: '.tvp-editor--element-plus' },
@@ -26,7 +21,8 @@ function url(adapter) {
 }
 
 function storageKey(adapter) {
-  return `tiptap-vue-pro:draft:${encodeURIComponent(`playground-${adapter.name}`)}`
+  // playground 的草稿键带路由与场景后缀:playground-<adapter>-<scenario>(默认 basic)
+  return `tiptap-vue-pro:draft:${encodeURIComponent(`playground-${adapter.name}-basic`)}`
 }
 
 async function insertText(page, adapter, text) {
@@ -51,6 +47,7 @@ async function inspectAdapter(page, adapter) {
   await failureToggle.check()
   await draftToggle.uncheck()
   await insertText(page, adapter, ' draft-disabled')
+  // 固定等待:负向断言(禁用时不写 storage),需覆盖防抖窗口后确认"没发生"
   await page.waitForTimeout(350)
   assert(await page.evaluate(key => localStorage.getItem(key), storageKey(adapter)) === null, `${adapter.name}: disabled drafts should not write storage`)
 
@@ -59,7 +56,7 @@ async function inspectAdapter(page, adapter) {
   await insertText(page, adapter, token)
   await page.waitForFunction(key => localStorage.getItem(key) !== null, storageKey(adapter), { timeout: 10000 })
   const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey(adapter))
-  assert(stored.version === 1 && stored.key === `playground-${adapter.name}`, `${adapter.name}: should write a versioned keyed envelope`, stored)
+  assert(stored.version === 1 && stored.key === `playground-${adapter.name}-basic`, `${adapter.name}: should write a versioned keyed envelope`, stored)
   assert(String(stored.content).includes(token), `${adapter.name}: envelope should contain latest full content`)
 
   await page.reload({ waitUntil: 'networkidle' })
@@ -81,7 +78,18 @@ async function inspectAdapter(page, adapter) {
   assert(mobile.scrollWidth <= mobile.width && mobile.actionsInside && mobile.actionGap === '6px', `${adapter.name}: mobile recovery layout should fit`, mobile)
   await page.screenshot({ path: join(screenshotDir, `tvp-local-draft-${adapter.name}-mobile.png`), fullPage: true })
   await page.getByTestId('dark-toggle').check()
-  await page.waitForTimeout(350)
+  // 条件等待:轮询到恢复条样式连续两次采样一致(过渡完成),替代固定 350ms
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector('.tvp-draft-recovery')
+      if (!el) return false
+      const value = getComputedStyle(el).backgroundColor
+      const settled = el.__tvpPrevBg === value
+      el.__tvpPrevBg = value
+      return settled
+    },
+    { timeout: 2000, polling: 100 },
+  )
   const darkRecovery = await page.locator(`${adapter.root} .tvp-draft-recovery`).evaluate((element) => {
     const style = getComputedStyle(element)
     const action = element.querySelector('.tvp-draft-restore')

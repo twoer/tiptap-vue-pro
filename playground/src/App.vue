@@ -296,17 +296,6 @@ const outputPreview = computed(() => {
   return formatHTML(v as string)
 })
 
-// 复制按钮
-const copied = ref(false)
-async function copyOutput() {
-  try {
-    await navigator.clipboard.writeText(outputPreview.value)
-    copied.value = true
-    setTimeout(() => (copied.value = false), 1500)
-  } catch {
-    // 剪贴板权限被拒时静默失败
-  }
-}
 </script>
 
 <template>
@@ -380,7 +369,7 @@ async function copyOutput() {
             <span>{{ playgroundText.wordCount }}</span>
           </label>
           <label class="control control--switch">
-            <input v-model="compactToolbar" type="checkbox" class="toggle" />
+            <input v-model="compactToolbar" type="checkbox" class="toggle" data-testid="compact-toolbar-toggle" />
             <span>{{ playgroundText.compactToolbar }}</span>
           </label>
         </div>

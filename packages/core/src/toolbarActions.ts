@@ -22,6 +22,8 @@ export interface ExportMarkdownOptions {
 }
 
 const DEFAULT_PRINT_CLEANUP_DELAY = 500
+// onload 因浏览器策略不触发时的兜底回收时限,需大于正常路径(加载 + 打印对话框 + cleanupDelay)
+const PRINT_FALLBACK_CLEANUP_MS = 10_000
 const PRINT_STYLES = 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;padding:24px;line-height:1.6}img{max-width:100%}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px 10px}pre{background:#f5f7fa;padding:12px;border-radius:4px;overflow-x:auto}code{background:#f5f7fa;padding:1px 4px;border-radius:3px}blockquote{border-left:3px solid #ddd;padding-left:1em;color:#666}'
 
 function resolveExportMarkdownFilename(filename: ExportMarkdownOptions['filename']): string {
@@ -82,24 +84,26 @@ export function printEditorContent(
   iframe.style.border = '0'
   document.body.appendChild(iframe)
 
-  const doc = iframe.contentWindow?.document
-  if (!doc) {
+  // srcdoc 异步加载,替代已废弃的 document.write;清理幂等:
+  // 正常路径在打印后按 cleanupDelay 回收,onload 不触发时由兜底超时回收。
+  let cleaned = false
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
     iframe.remove()
-    throw new Error('Unable to access print iframe document')
   }
-
-  doc.open()
-  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${options.title ?? t('print.defaultTitle')}</title>
-<style>${PRINT_STYLES}</style>
-</head><body>${html}</body></html>`)
-  doc.close()
-
-  const cleanup = () => iframe.remove()
   iframe.onload = () => {
-    iframe.contentWindow?.focus()
-    iframe.contentWindow?.print()
-    setTimeout(cleanup, options.cleanupDelay ?? DEFAULT_PRINT_CLEANUP_DELAY)
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } finally {
+      setTimeout(cleanup, options.cleanupDelay ?? DEFAULT_PRINT_CLEANUP_DELAY)
+    }
   }
+  iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${options.title ?? t('print.defaultTitle')}</title>
+<style>${PRINT_STYLES}</style>
+</head><body>${html}</body></html>`
+  setTimeout(cleanup, PRINT_FALLBACK_CLEANUP_MS)
 
   return iframe
 }

@@ -443,7 +443,14 @@ describe('ProEditorNaive', () => {
     })
 
     const calls = vi.mocked(useProEditor).mock.calls
-    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as unknown as {
+      slashCommand: {
+        onOpen: (state: unknown) => void
+        onExecute: (payload: { item: Record<string, unknown> }) => void
+        items: Array<{ id: string; label: string }>
+      }
+      mermaid: { nodeViewRenderer: unknown }
+    }
     useProEditorOptions.slashCommand.onOpen(createSlashState())
     await nextTick()
 
@@ -462,7 +469,14 @@ describe('ProEditorNaive', () => {
     })
 
     const calls = vi.mocked(useProEditor).mock.calls
-    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as unknown as {
+      slashCommand: {
+        onOpen: (state: unknown) => void
+        onExecute: (payload: { item: Record<string, unknown> }) => void
+        items: Array<{ id: string; label: string }>
+      }
+      mermaid: { nodeViewRenderer: unknown }
+    }
     useProEditorOptions.slashCommand.onOpen(createSlashState(command))
     await nextTick()
     await wrapper.find('[data-testid="slash-menu"]').trigger('click')
@@ -472,7 +486,7 @@ describe('ProEditorNaive', () => {
 
   it('Slash 执行回调会复用 core 命令执行表格插入', () => {
     const ctx = createCtx()
-    ;(ctx.commands as any).insertTable = vi.fn()
+    ;ctx.commands.insertTable = vi.fn()
     mockState.ctx = ctx
     wrapper = mount(ProEditorNaive, {
       attachTo: document.body,
@@ -480,7 +494,14 @@ describe('ProEditorNaive', () => {
     })
 
     const calls = vi.mocked(useProEditor).mock.calls
-    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as unknown as {
+      slashCommand: {
+        onOpen: (state: unknown) => void
+        onExecute: (payload: { item: Record<string, unknown> }) => void
+        items: Array<{ id: string; label: string }>
+      }
+      mermaid: { nodeViewRenderer: unknown }
+    }
     useProEditorOptions.slashCommand.onExecute({
       item: {
         id: 'table',
@@ -491,7 +512,7 @@ describe('ProEditorNaive', () => {
       },
     })
 
-    expect((ctx.commands as any).insertTable).toHaveBeenCalledWith(3, 3)
+    expect(ctx.commands.insertTable).toHaveBeenCalledWith(3, 3)
   })
 
   it('contextual bubble 根节点默认不可见,避免插件接管前裸露在文档流中', () => {

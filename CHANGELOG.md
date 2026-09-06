@@ -2,6 +2,24 @@
 
 中文: [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)
 
+## 0.2.5 - 2026-09-06
+
+### Fixed
+
+- **ant-design-vue**: the adapter previously shipped Element Plus colors; it now uses the real antd palette (primary `#1677ff` everywhere, antd grays and dark-mode tokens). Dropdown items with `divided` now render a real menu divider instead of turning red, and an undefined `--tvp-ant-primary-color` variable (typo of `--tvp-ant-color-primary`) is fixed.
+- **i18n**: the slash command menu and the element-plus/ant toolbar dropdowns now render through the editor locale for `en-US` (Chinese text unchanged); the image caption placeholder follows the editor locale. The serialized attachment `Download` title intentionally stays locale-independent (it is part of the document HTML).
+- **core**: an internal v-model sync flag could get stuck after an unchanged content emit and silently swallow the next external content update; printing now uses `iframe.srcdoc` instead of the deprecated `document.write`, with idempotent cleanup that can no longer leak iframes.
+
+### Changed
+
+- Performance: debug instrumentation no longer allocates per keystroke — shared frozen option shapes, a 1s TTL cache for the localStorage table-grip debug toggle (new `refreshDebugOptionsCache()`), and a single logger instance.
+- Internal: `useProEditor.ts` reorganized into `tableController` / `mediaInsertion` / `findReplaceCommands` (public API unchanged) and ~1,700 lines of cross-adapter duplication moved into core headless modules; uniform toolbar buttons are driven from a core registry.
+
+### Added
+
+- New headless exports: `useTableGripOverlay`, `isSupportedLinkUrl`, `shouldShowTextBubbleMenu`, `clampFloatingMenuLeft`/`getViewportWidth`, `refreshDebugOptionsCache`, and `TOOLBAR_SIMPLE_BUTTON_DEFS`/`buildSimpleToolbarButtons`.
+- Tooling: eslint with a CI error gate, adapter-boundary checks in CI, changesets (fixed-group versioning), and self-contained Playwright e2e with a table smoke job in CI (8/8 scripts green across all three adapters).
+
 ## 0.2.2 - 2026-08-20
 
 ### Fixed

@@ -270,10 +270,10 @@ async function remove() {
   width: max-content;
   padding: 4px;
   background: var(--tvp-ant-bg-color-overlay, var(--tvp-ant-bg-color, #fff));
-  border: 1px solid var(--tvp-ant-border-color-light, var(--tvp-ant-border-color, #dcdfe6));
+  border: 1px solid var(--tvp-ant-border-color-light, var(--tvp-ant-border-color, #d9d9d9));
   border-radius: 6px;
   box-shadow: var(--tvp-ant-box-shadow-light, 0 2px 12px rgba(0, 0, 0, 0.12));
-  color: var(--tvp-ant-text-color-regular, #606266);
+  color: var(--tvp-ant-text-color-regular, #595959);
 }
 
 .tvp-img-bubble :deep(.tvp-ant-button) {
@@ -284,7 +284,7 @@ async function remove() {
   min-width: 28px;
   padding: 0 6px;
   line-height: 1;
-  color: var(--tvp-ant-text-color-regular, #606266);
+  color: var(--tvp-ant-text-color-regular, #595959);
 }
 
 .tvp-img-bubble :deep(.tvp-ant-button svg) {
@@ -294,15 +294,15 @@ async function remove() {
 
 .tvp-img-bubble :deep(.tvp-ant-button.is-text:not(.is-disabled):hover),
 .tvp-img-bubble :deep(.tvp-ant-button.is-text:not(.is-disabled):focus) {
-  color: var(--tvp-ant-color-primary, #409eff);
-  background: var(--tvp-ant-color-primary-light-9, #ecf5ff);
+  color: var(--tvp-ant-color-primary, #1677ff);
+  background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
 }
 
 .tvp-img-bubble :deep(.tvp-ant-button--primary.is-text),
 .tvp-img-bubble :deep(.tvp-ant-button--primary.is-text:not(.is-disabled):hover),
 .tvp-img-bubble :deep(.tvp-ant-button--primary.is-text:not(.is-disabled):focus) {
-  color: var(--tvp-ant-color-primary, #409eff);
-  background: var(--tvp-ant-color-primary-light-9, #ecf5ff);
+  color: var(--tvp-ant-color-primary, #1677ff);
+  background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
 }
 
 /* 尺寸预设用文字按钮,稍紧凑 */
@@ -314,7 +314,7 @@ async function remove() {
 /* 分隔符留出间距 */
 .tvp-img-bubble :deep(.tvp-ant-divider--vertical) {
   margin: 0 4px;
-  border-left-color: var(--tvp-ant-border-color-light, #e4e7ed);
+  border-left-color: var(--tvp-ant-border-color-light, #d9d9d9);
 }
 
 /* 隐藏的文件选择 input */

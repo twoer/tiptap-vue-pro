@@ -2,6 +2,7 @@ export { useProEditor } from './useProEditor'
 export {
   createDebugLogger,
   isDebugEnabledFor,
+  refreshDebugOptionsCache,
   resolveDebugOptions,
   sanitizeDebugPayload,
 } from './debug'
@@ -134,6 +135,16 @@ export { useImageCropController } from './imageCropController'
 export type { ImageCropControllerOptions } from './imageCropController'
 export { getActiveLinkRange } from './linkRange'
 export type { ActiveLinkRange } from './linkRange'
+export { hasSupportedLinkProtocol, isSupportedLinkUrl, looksLikeLinkAddress } from './linkValidation'
+export { shouldShowTextBubbleMenu } from './bubbleMenuVisibility'
+export { clampFloatingMenuLeft, getViewportWidth } from './floatingMenuPosition'
+export { useTableGripOverlay } from './tableGripOverlay'
+export type {
+  TableGripColPos,
+  TableGripOverlay,
+  TableGripOverlayOptions,
+  TableGripRowPos,
+} from './tableGripOverlay'
 export { getSelectedFileAttachment } from './fileAttachmentSelection'
 export type { ActiveFileAttachment } from './fileAttachmentSelection'
 export {
@@ -211,8 +222,14 @@ export {
   TOOLBAR_MARKDOWN_OPTIONS,
   TOOLBAR_PRESET_COLORS,
   TOOLBAR_PRESET_HIGHLIGHTS,
+  TOOLBAR_SIMPLE_BUTTON_DEFS,
   TOOLBAR_TABLE_GRID,
+  buildSimpleToolbarButtons,
   resolveToolbarOptions,
+} from './toolbarConfigData'
+export type {
+  ToolbarSimpleButtonDef,
+  ToolbarSimpleButtonId,
 } from './toolbarConfigData'
 export type {
   ResolvedToolbarOptions,

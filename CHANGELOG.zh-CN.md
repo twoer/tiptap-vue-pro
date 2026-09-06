@@ -2,6 +2,24 @@
 
 English: [CHANGELOG.md](./CHANGELOG.md)
 
+## 0.2.5 - 2026-09-06
+
+### 修复
+
+- **ant-design-vue**:适配器此前误用了 Element Plus 调色板,现改用真正的 antd 主题(主色统一为 `#1677ff`,灰阶与暗色 token 同步替换);`divided` 菜单项改为渲染真正的分隔线而非红色警示;修复从未定义的 `--tvp-ant-primary-color` 变量名(系 `--tvp-ant-color-primary` 的拼写错误)。
+- **国际化**:斜杠命令菜单与 element-plus/ant 的工具栏下拉在 `en-US` 下走 locale 渲染(中文文案不变);图片题注占位符跟随编辑器语言。附件的 `Download` 标题刻意保持与语言无关(它是文档 HTML 的一部分)。
+- **core**:修复 v-model 同步标志在内容未变化回写后可能卡死、从而吞掉下一次外部内容更新的问题;打印改用 `iframe.srcdoc` 替代已废弃的 `document.write`,清理幂等化且不再可能泄漏 iframe。
+
+### 变更
+
+- 性能:调试埋点不再按每次按键分配对象——共享冻结的解析结果、localStorage 表格调试开关 1 秒 TTL 缓存(新增 `refreshDebugOptionsCache()`)、logger 只创建一次。
+- 内部:`useProEditor.ts` 拆分为 `tableController` / `mediaInsertion` / `findReplaceCommands`(公共 API 不变),约 1700 行跨适配器重复逻辑下沉 core;同构工具栏按钮由 core 的注册表驱动。
+
+### 新增
+
+- 新的 headless 导出:`useTableGripOverlay`、`isSupportedLinkUrl`、`shouldShowTextBubbleMenu`、`clampFloatingMenuLeft`/`getViewportWidth`、`refreshDebugOptionsCache`、`TOOLBAR_SIMPLE_BUTTON_DEFS`/`buildSimpleToolbarButtons`。
+- 工程链:eslint(CI error 门槛)、适配器边界检查进 CI、changesets(fixed 组联动发版)、自包含 Playwright e2e 并在 CI 增加 table 冒烟(8/8 脚本三适配器全绿)。
+
 ## 0.2.2 - 2026-08-20
 
 ### 修复

@@ -35,3 +35,6 @@ docs/plans/
 
 # Git worktrees (isolated workspaces)
 .worktrees
+
+# Assistant working memory (local only)
+.workbuddy/

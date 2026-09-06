@@ -44,9 +44,10 @@ describe('extension registry', () => {
 
   it('passes placeholder text through the registry', () => {
     const extensions = createEditorExtensions({ placeholderText: 'Write here' })
-    const placeholder: any = extensions.find(
+    const placeholder = extensions.find(
       (extension) => extension.name === 'placeholder',
-    )
+    )!
+    // 测试断言扩展注册存在,非空断言(上方 find 落空即下方断言失败)
 
     expect(placeholder.options.placeholder).toBe('Write here')
   })

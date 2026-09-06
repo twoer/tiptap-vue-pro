@@ -174,7 +174,7 @@ function onPanelKeydown(event: KeyboardEvent) {
   width: min(520px, calc(100% - 16px));
   gap: 6px;
   padding: 8px;
-  border: 1px solid var(--tvp-ant-border-color-light, #e4e7ed);
+  border: 1px solid var(--tvp-ant-border-color-light, #d9d9d9);
   border-radius: 6px;
   background: var(--tvp-ant-bg-color-overlay, #fff);
   box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
@@ -195,7 +195,7 @@ function onPanelKeydown(event: KeyboardEvent) {
 .tvp-find-panel__count {
   flex: 0 0 auto;
   min-width: 48px;
-  color: var(--tvp-ant-text-color-secondary, #909399);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
   font-size: 12px;
   text-align: center;
   white-space: nowrap;
@@ -222,7 +222,7 @@ function onPanelKeydown(event: KeyboardEvent) {
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--tvp-ant-text-color-regular, #606266);
+  color: var(--tvp-ant-text-color-regular, #595959);
   line-height: 0;
 }
 
@@ -231,14 +231,14 @@ function onPanelKeydown(event: KeyboardEvent) {
 }
 
 .tvp-find-panel__case-btn {
-  border: 1px solid var(--tvp-ant-border-color-lighter, #ebeef5);
+  border: 1px solid var(--tvp-ant-border-color-lighter, #f0f0f0);
   background: var(--tvp-ant-fill-color-lighter, #fafafa);
 }
 
 .tvp-find-panel__case-btn[aria-pressed="true"] {
-  border-color: var(--tvp-ant-color-primary-light-5, #a0cfff);
-  background: var(--tvp-ant-color-primary-light-9, #ecf5ff);
-  color: var(--tvp-ant-color-primary, #409eff);
+  border-color: var(--tvp-ant-color-primary-light-5, #4096ff);
+  background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
+  color: var(--tvp-ant-color-primary, #1677ff);
 }
 
 .tvp-find-panel__text-btn :deep(span) {

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { AudioExtended, FileAttachment, VideoExtended } from './media'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 断言 tiptap 扩展内部 addAttributes 签名
 function attrs(extension: any) {
   return extension.config.addAttributes.call({ parent: () => ({}) })
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 断言 tiptap 扩展内部 renderHTML 签名
 function render(extension: any, HTMLAttributes: Record<string, unknown>) {
   return extension.config.renderHTML({ HTMLAttributes })
 }

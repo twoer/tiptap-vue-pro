@@ -7,6 +7,7 @@ import type { Editor as CoreEditor } from '@tiptap/core'
 import type { Editor } from '@tiptap/vue-3'
 import {
   getActiveLinkRange,
+  isSupportedLinkUrl,
   resolveEditorBehaviorOptions,
   resolveLocale,
   useEditorPluginRegistration,
@@ -67,10 +68,6 @@ function openEditDialog() {
     ? link.target === '_blank'
     : resolvedEditorBehaviorOptions.value.link.defaultTarget === '_blank'
   editDialogVisible.value = true
-}
-
-function isSupportedLinkUrl(href: string) {
-  return /^(https?:|mailto:|tel:)/i.test(href) || /\.[a-z]{2,}/i.test(href)
 }
 
 function confirmEdit() {

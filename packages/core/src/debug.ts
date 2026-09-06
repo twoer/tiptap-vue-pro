@@ -65,16 +65,58 @@ const SENSITIVE_PAYLOAD_KEYS = new Set([
   'token',
 ])
 
+// 共享的静态解析结果:debug 解析在热路径上(每次 transaction/按键都会走一遍),
+// 静态形态返回冻结常量,避免每按键分配新对象。调用方只读不写(isDebugEnabledFor)。
+const FROZEN = <T extends object>(value: T) => Object.freeze(value) as unknown as T
+const DISABLED_DEBUG_OPTIONS = FROZEN<Required<ProEditorDebugOptions>>({
+  enabled: false,
+  level: 'debug',
+  channels: [],
+  includeContent: false,
+})
+const BOOLEAN_ENABLED_DEBUG_OPTIONS = FROZEN<Required<ProEditorDebugOptions>>({
+  enabled: true,
+  level: 'debug',
+  channels: [],
+  includeContent: false,
+})
+const TABLE_GRIP_DEBUG_OPTIONS = FROZEN<Required<ProEditorDebugOptions>>({
+  enabled: true,
+  level: 'debug',
+  channels: ['table'],
+  includeContent: false,
+})
+
+// localStorage 表格抓手调试开关带 TTL 缓存:保持"运行时可切"的调试体验,
+// 但避免每次日志调用都同步读 storage。显式调用 refreshDebugOptionsCache 立即失效。
+const TABLE_GRIP_DEBUG_CACHE_TTL_MS = 1_000
+let tableGripStorageCache: { enabled: boolean; at: number } | null = null
+
+/** 使 localStorage 调试开关缓存立即失效(测试/调试面板切换后调用)。 */
+export function refreshDebugOptionsCache() {
+  tableGripStorageCache = null
+}
+
+function isTableGripStorageDebugEnabled() {
+  const now = Date.now()
+  if (tableGripStorageCache && now - tableGripStorageCache.at < TABLE_GRIP_DEBUG_CACHE_TTL_MS) {
+    return tableGripStorageCache.enabled
+  }
+  let enabled = false
+  try {
+    enabled = globalThis.localStorage?.getItem(TABLE_GRIP_DEBUG_STORAGE_KEY) === '1'
+  } catch {
+    enabled = false
+  }
+  tableGripStorageCache = { enabled, at: now }
+  return enabled
+}
+
 export function resolveDebugOptions(
   debug?: boolean | ProEditorDebugOptions,
 ): Required<ProEditorDebugOptions> {
   if (typeof debug === 'boolean') {
-    return {
-      enabled: debug,
-      level: 'debug',
-      channels: [],
-      includeContent: false,
-    }
+    return debug ? BOOLEAN_ENABLED_DEBUG_OPTIONS : DISABLED_DEBUG_OPTIONS
   }
 
   if (debug) {
@@ -87,20 +129,10 @@ export function resolveDebugOptions(
   }
 
   if (isTableGripStorageDebugEnabled()) {
-    return {
-      enabled: true,
-      level: 'debug',
-      channels: ['table'],
-      includeContent: false,
-    }
+    return TABLE_GRIP_DEBUG_OPTIONS
   }
 
-  return {
-    enabled: false,
-    level: 'debug',
-    channels: [],
-    includeContent: false,
-  }
+  return DISABLED_DEBUG_OPTIONS
 }
 
 export function isDebugEnabledFor(
@@ -175,14 +207,6 @@ export function createDebugLogger(options: {
     } catch {
       // Diagnostics must never affect editor behavior.
     }
-  }
-}
-
-function isTableGripStorageDebugEnabled() {
-  try {
-    return globalThis.localStorage?.getItem(TABLE_GRIP_DEBUG_STORAGE_KEY) === '1'
-  } catch {
-    return false
   }
 }
 

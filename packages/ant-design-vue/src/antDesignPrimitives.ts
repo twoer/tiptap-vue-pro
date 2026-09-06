@@ -5,6 +5,7 @@ import {
   Dropdown,
   Input,
   Menu,
+  MenuDivider,
   MenuItem,
   Modal,
   Slider,
@@ -174,18 +175,18 @@ export const AntDropdownItem = defineComponent({
   },
   setup(props, { attrs, slots }) {
     const command = inject<CommandHandler | null>(dropdownCommandKey, null)
-    return () =>
-      h(
+    return () => {
+      const item = h(
         MenuItem,
         {
           ...attrs,
           class: [attrs.class, 'tvp-ant-dropdown-menu__item'],
-          key: String(props.command ?? Math.random()),
-          danger: props.divided,
           onClick: () => command?.(props.command),
         },
         slots,
       )
+      return props.divided ? [h(MenuDivider, { key: 'divider' }), item] : item
+    }
   },
 })
 

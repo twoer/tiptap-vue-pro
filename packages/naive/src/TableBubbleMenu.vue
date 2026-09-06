@@ -5,7 +5,7 @@
  * 常用操作(增删行列)交给表格抓手,这里按 selectedCell 自定位显示
  * 合并/拆分/表头/删除整表等选区相关操作。
  */
-import { ref, onBeforeUnmount, computed, h, type CSSProperties, type VNode } from 'vue'
+import { ref, onBeforeUnmount, computed, h, type Component, type CSSProperties, type VNode } from 'vue'
 import { NButton, NDropdown } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import {
@@ -33,7 +33,7 @@ type TableOp =
   | 'deleteTable'
 
 // 更多操作下拉:只剩表头/删除整表(始终可用)。合并/拆分改成按需出现的独立按钮。
-const moreOpIcons: Partial<Record<TableOp, any>> = {
+const moreOpIcons: Partial<Record<TableOp, Component>> = {
   toggleHeaderRow: TableProperties,
   toggleHeaderColumn: TableProperties,
   deleteTable: Trash2,

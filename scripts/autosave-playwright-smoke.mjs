@@ -1,23 +1,9 @@
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
+import { chromium } from 'playwright'
+import { ensurePlaygroundServer } from './lib/playground-server.mjs'
 import { join, resolve } from 'node:path'
 
-const repoRoot = process.cwd()
-const visualCompareDir = resolve(
-  process.env.VISUAL_COMPARE_DIR ?? join(repoRoot, '..', 'visual-compare'),
-)
-const visualComparePackage = join(visualCompareDir, 'package.json')
-
-if (!existsSync(visualComparePackage)) {
-  throw new Error(
-    `visual-compare not found at ${visualCompareDir}. Set VISUAL_COMPARE_DIR to the visual-compare repo.`,
-  )
-}
-
-const requireFromVisualCompare = createRequire(visualComparePackage)
-const { chromium } = requireFromVisualCompare('playwright')
-const basePlaygroundUrl = process.env.PLAYGROUND_URL
-  ?? 'http://localhost:5173/tiptap-vue-pro/playground/'
+// 自包含 e2e:playwright 是本仓依赖;dev server 缺失时自动拉起,脚本退出自动回收
+const basePlaygroundUrl = await ensurePlaygroundServer()
 const screenshotDir = resolve(process.env.SCREENSHOT_DIR ?? '/tmp')
 const adapters = [
   { name: 'element-plus', hash: '#/element-plus', root: '.tvp-editor--element-plus' },
@@ -92,6 +78,8 @@ async function inspectAdapter(page, adapter) {
 
   await page.evaluate(() => window.__TVP_AUTOSAVE__.reset())
   await insertText(page, adapter, ' rapid-a')
+  // 刻意压在防抖窗口内的连续输入:两次 80ms 间隔必须小于防抖阈值,
+  // 才能断言"快速编辑合并为一次保存"——这是时序控制,不是脆弱等待
   await page.waitForTimeout(80)
   await page.keyboard.insertText('-b')
   await page.waitForTimeout(80)

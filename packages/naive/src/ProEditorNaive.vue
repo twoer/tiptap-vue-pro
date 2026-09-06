@@ -250,7 +250,7 @@ const ctx = useProEditor({
     else if (type === 'success') m.success(msg)
     else m.info(msg)
   },
-} as any)
+})
 
 watch(
   () => ctx.autosaveState.value,
@@ -576,6 +576,7 @@ const theme = computed(() => (props.dark ? darkTheme : null))
         <SlashCommandMenu
           v-if="!readonly && !isPreview"
           :state="slashCommandState"
+          :t="ctx.t"
         />
 
         <!-- 表格行/列抓手(飞书式):fixed 浮层,放 content-wrap 外避免 overflow 裁剪 -->

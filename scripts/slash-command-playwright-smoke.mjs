@@ -1,24 +1,8 @@
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { chromium } from 'playwright'
+import { ensurePlaygroundServer } from './lib/playground-server.mjs'
 
-const repoRoot = process.cwd()
-const visualCompareDir = resolve(
-  process.env.VISUAL_COMPARE_DIR ?? join(repoRoot, '..', 'visual-compare'),
-)
-const visualComparePackage = join(visualCompareDir, 'package.json')
-
-if (!existsSync(visualComparePackage)) {
-  throw new Error(
-    `visual-compare not found at ${visualCompareDir}. Set VISUAL_COMPARE_DIR to the visual-compare repo.`,
-  )
-}
-
-const requireFromVisualCompare = createRequire(visualComparePackage)
-const { chromium } = requireFromVisualCompare('playwright')
-
-const basePlaygroundUrl = process.env.PLAYGROUND_URL ??
-  'http://localhost:5173/tiptap-vue-pro/playground/'
+// 自包含 e2e:playwright 是本仓依赖;dev server 缺失时自动拉起,脚本退出自动回收
+const basePlaygroundUrl = await ensurePlaygroundServer()
 const adapters = [
   {
     name: 'element-plus',
@@ -58,6 +42,7 @@ async function clearEditor(page, adapter) {
   await editor.click()
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
   await page.keyboard.press('Backspace')
+  // 固定等待:等清空完全 settle(负向场景,无可轮询条件)
   await page.waitForTimeout(100)
 }
 
@@ -107,7 +92,8 @@ async function assertSlashEscapeKeepsText(page, adapter) {
   await gotoAdapter(page, adapter)
   await typeSlash(page, adapter, '/表')
   await page.keyboard.press('Escape')
-  await page.waitForTimeout(150)
+  // 条件等待:菜单应从 DOM 移除(等待本身即断言,快机器更快、慢机器不误判)
+  await page.waitForSelector(`${adapter.root} .tvp-slash-menu`, { state: 'detached', timeout: 2000 })
 
   const state = await page.evaluate((root) => {
     const menu = document.querySelector(`${root} .tvp-slash-menu`)

@@ -341,6 +341,9 @@ function fileRenderContent(attrs: Record<string, unknown>, options: FileAttachme
       {
         class: 'tvp-file-attachment__download',
         'data-file-download-action': 'true',
+        // 刻意保持 locale 无关:本函数只被 renderHTML 调用,title 会序列化进
+        // 文档 HTML——同一份文档不能随查看者的界面语言导出不同 HTML。
+        // (交互层文案的本地化见 nodeViewLocale,序列化路径禁用。)
         title: 'Download',
         'aria-label': 'Download file',
       },

@@ -1,41 +1,33 @@
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
+import { chromium } from 'playwright'
+import { ensurePlaygroundServer } from './lib/playground-server.mjs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 
-const repoRoot = process.cwd()
-const visualCompareDir = resolve(
-  process.env.VISUAL_COMPARE_DIR ?? join(repoRoot, '..', 'visual-compare'),
-)
-const visualComparePackage = join(visualCompareDir, 'package.json')
-
-if (!existsSync(visualComparePackage)) {
-  throw new Error(
-    `visual-compare not found at ${visualCompareDir}. Set VISUAL_COMPARE_DIR to the visual-compare repo.`,
-  )
-}
-
-const requireFromVisualCompare = createRequire(visualComparePackage)
-const { chromium } = requireFromVisualCompare('playwright')
-
-const basePlaygroundUrl = process.env.PLAYGROUND_URL ??
-  'http://localhost:5173/tiptap-vue-pro/playground/'
+// 自包含 e2e:playwright 是本仓依赖;dev server 缺失时自动拉起,脚本退出自动回收
+const basePlaygroundUrl = await ensurePlaygroundServer()
 const adapters = [
   {
     name: 'element-plus',
     hash: '#/element-plus',
     root: '.tvp-editor--element-plus',
+    // 裁剪弹窗 teleport 到 body,须按适配器标题类名区分(playground 三适配器同挂)
+    cropTitle: '.el-dialog__title',
+    cropDialog: '.el-dialog',
   },
   {
     name: 'naive',
     hash: '#/naive',
     root: '.tvp-editor--naive',
+    cropTitle: '.n-card-header__main',
+    cropDialog: '.n-modal',
   },
   {
     name: 'ant-design-vue',
     hash: '#/ant-design-vue',
     root: '.tvp-editor--ant-design-vue',
+    cropTitle: '.ant-modal-title',
+    cropDialog: '.ant-modal',
   },
 ]
 
@@ -68,8 +60,8 @@ async function selectImageFile(page, adapter, imagePath) {
   await page.locator(`${adapter.root} input[type="file"][accept="image/*"]`).first().setInputFiles(imagePath)
 }
 
-async function waitForCropDialog(page) {
-  await page.getByText('裁剪图片').waitFor({ state: 'visible', timeout: 5000 })
+async function waitForCropDialog(page, adapter) {
+  await page.locator(adapter.cropTitle).filter({ hasText: '裁剪图片' }).waitFor({ state: 'visible', timeout: 5000 })
   await waitForActiveCropPreview(page)
 }
 
@@ -173,13 +165,14 @@ async function assertCropPreview(page, adapter) {
 
 async function assertMaskClickDoesNotCloseCropDialog(page, adapter) {
   await page.mouse.click(12, 12)
+  // 固定等待:负向断言(点击遮罩不应关闭弹窗),给可能的关闭留出时间窗
   await page.waitForTimeout(200)
   const visible = await activeCropPreviewBox(page)
   assert(visible, `${adapter.name}: clicking the blank mask should not close crop dialog`)
 }
 
 async function assertZoomControlChangesPreview(page, adapter) {
-  const slider = page.locator('[role="slider"]').last()
+  const slider = page.locator(`${adapter.cropDialog} [role="slider"]`)
   await slider.focus()
   for (let i = 0; i < 5; i += 1) {
     await page.keyboard.press('ArrowRight')
@@ -241,6 +234,7 @@ async function assertDraggingMovesZoomedPreview(page, adapter) {
   })
 
   await page.mouse.move(box.x + box.width / 2 - 96, box.y + box.height / 2 + 64, { steps: 8 })
+  // 固定等待:负向断言(松手后移动不应再拖动裁剪框)
   await page.waitForTimeout(100)
   const afterReleaseMove = await activeCropImageTransform(page)
   assert(
@@ -257,12 +251,12 @@ async function assertSkipCrop(page, adapter, imagePath) {
   await gotoAdapter(page, adapter)
   const before = await currentEditorImageCount(page, adapter)
   await selectImageFile(page, adapter, imagePath)
-  await waitForCropDialog(page)
+  await waitForCropDialog(page, adapter)
   await assertCropPreview(page, adapter)
   await assertMaskClickDoesNotCloseCropDialog(page, adapter)
   await assertZoomControlChangesPreview(page, adapter)
   await assertDraggingMovesZoomedPreview(page, adapter)
-  await page.getByRole('button', { name: '跳过裁剪' }).click()
+  await page.locator(adapter.cropDialog).getByRole('button', { name: '跳过裁剪' }).click()
   await page.waitForFunction(({ root, beforeCount }) => {
     return document.querySelectorAll(`${root} .ProseMirror img`).length > beforeCount
   }, { root: adapter.root, beforeCount: before })
@@ -273,10 +267,10 @@ async function assertConfirmCrop(page, adapter, imagePath) {
   await gotoAdapter(page, adapter)
   const before = await currentEditorImageCount(page, adapter)
   await selectImageFile(page, adapter, imagePath)
-  await waitForCropDialog(page)
+  await waitForCropDialog(page, adapter)
   await assertCropPreview(page, adapter)
-  await page.getByText('缩放', { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
-  await page.getByRole('button', { name: '裁剪并上传' }).click()
+  await page.locator(adapter.cropDialog).getByText('缩放', { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
+  await page.locator(adapter.cropDialog).getByRole('button', { name: '裁剪并上传' }).click()
   await page.waitForFunction(({ root, beforeCount }) => {
     return document.querySelectorAll(`${root} .ProseMirror img`).length > beforeCount
   }, { root: adapter.root, beforeCount: before })

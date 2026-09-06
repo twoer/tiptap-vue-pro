@@ -193,7 +193,7 @@ const ctx = useProEditor({
     else if (type === 'success') antMessage.success(msg)
     else antMessage.info(msg)
   },
-} as any)
+})
 
 watch(
   () => ctx.autosaveState.value,
@@ -508,6 +508,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
     <SlashCommandMenu
       v-if="!readonly && !isPreview"
       :state="slashCommandState"
+      :t="ctx.t"
     />
 
     <!-- 表格行/列抓手(飞书式):fixed 浮层,放 content-wrap 外避免 overflow 裁剪 -->
@@ -627,15 +628,15 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1px solid var(--tvp-ant-border-color, #d9d9d9);
   border-radius: 4px;
   background: var(--tvp-ant-bg-color, #fff);
-  color: var(--tvp-ant-text-color-regular, #303133);
+  color: var(--tvp-ant-text-color-regular, #262626);
   overflow: hidden;
 }
 
 .tvp-editor--readonly {
-  border-color: var(--tvp-ant-border-color-lighter, #ebeef5);
+  border-color: var(--tvp-ant-border-color-lighter, #f0f0f0);
 }
 
 .tvp-bubble,
@@ -681,7 +682,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
  * 内容仍复用编辑区样式(所见即所得),只在外层做视觉提示。
  */
 .tvp-editor.is-preview {
-  background: var(--tvp-ant-fill-color-light, #f5f7fa);
+  background: var(--tvp-ant-fill-color-light, #fafafa);
 }
 
 /* 预览顶部「返回编辑」条:右对齐一个按钮 + 左侧状态提示 */
@@ -690,13 +691,13 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--tvp-ant-border-color-lighter, #ebeef5);
+  border-bottom: 1px solid var(--tvp-ant-border-color-lighter, #f0f0f0);
   background: var(--tvp-ant-fill-color-blank, #fff);
 }
 
 .tvp-preview-bar__hint {
   font-size: 12px;
-  color: var(--tvp-ant-text-color-secondary, #909399);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
 }
 
 .tvp-preview-bar :deep(.tvp-ant-button.tvp-preview-bar__edit-btn) {
@@ -735,13 +736,13 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
  * 不依赖 html.dark 全局类,实现组件级独立暗色切换。
  */
 .tvp-editor--dark {
-  --tvp-ant-bg-color: #1d1e1f;
+  --tvp-ant-bg-color: #1f1f1f;
   --tvp-ant-bg-color-page: #141414;
-  --tvp-ant-bg-color-overlay: #1d1e1f;
-  --tvp-ant-text-color-primary: #e5eaf3;
-  --tvp-ant-text-color-regular: #cfd3dc;
-  --tvp-ant-text-color-secondary: #a3a6ad;
-  --tvp-ant-text-color-placeholder: #8d9095;
+  --tvp-ant-bg-color-overlay: #1f1f1f;
+  --tvp-ant-text-color-primary: rgba(255, 255, 255, 0.85);
+  --tvp-ant-text-color-regular: rgba(255, 255, 255, 0.65);
+  --tvp-ant-text-color-secondary: rgba(255, 255, 255, 0.45);
+  --tvp-ant-text-color-placeholder: rgba(255, 255, 255, 0.35);
   --tvp-ant-text-color-disabled: rgba(255, 255, 255, 0.25);
   --tvp-ant-border-color: #414243;
   --tvp-ant-border-color-light: #414243;
@@ -749,11 +750,11 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   --tvp-ant-border-color-extra-light: #2e2e2f;
   --tvp-ant-border-color-dark: #4b4b4d;
   --tvp-ant-fill-color: #303030;
-  --tvp-ant-fill-color-blank: #1d1e1f;
+  --tvp-ant-fill-color-blank: #1f1f1f;
   --tvp-ant-fill-color-light: #262727;
-  --tvp-ant-fill-color-lighter: #1d1e1f;
+  --tvp-ant-fill-color-lighter: #1f1f1f;
   --tvp-ant-fill-color-dark: #363637;
-  --tvp-ant-color-primary: #409eff;
+  --tvp-ant-color-primary: #1677ff;
   --tvp-ant-color-primary-light-8: #1d3043;
   --tvp-ant-color-primary-light-9: #18222c;
   --tvp-ant-warning-color: #ffc53d;
@@ -815,7 +816,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   top: 50%;
   left: 0;
   right: 0;
-  border-top: 1.5px solid var(--tvp-ant-border-color, #dcdfe6);
+  border-top: 1.5px solid var(--tvp-ant-border-color, #d9d9d9);
   transform: translateY(-50%);
 }
 
@@ -833,7 +834,7 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
 
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror hr.ProseMirror-selectednode,
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror hr.tvp-range-selected-node {
-  outline: 2px solid var(--tvp-ant-color-primary-light-5, #a0cfff);
+  outline: 2px solid var(--tvp-ant-color-primary-light-5, #4096ff);
   outline-offset: 4px;
 }
 
@@ -916,15 +917,15 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
   display: block;
   width: 16px;
   height: 16px;
-  border: 1.5px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1.5px solid var(--tvp-ant-border-color, #d9d9d9);
   border-radius: 3px;
   background: var(--tvp-ant-bg-color, #fff);
   transition: background-color 0.15s, border-color 0.15s;
 }
 
 .tvp-content .ProseMirror ul[data-type="taskList"] li > label > input[type="checkbox"]:checked + span {
-  background-color: var(--tvp-ant-color-primary, #409eff);
-  border-color: var(--tvp-ant-color-primary, #409eff);
+  background-color: var(--tvp-ant-color-primary, #1677ff);
+  border-color: var(--tvp-ant-color-primary, #1677ff);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
@@ -937,19 +938,19 @@ function t(key: LocaleKey, params?: Record<string, string | number>) {
 }
 
 .tvp-content .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
-  color: var(--tvp-ant-text-color-placeholder, #a8abb2);
+  color: var(--tvp-ant-text-color-placeholder, #bfbfbf);
   text-decoration: line-through;
 }
 
 .tvp-content .ProseMirror blockquote {
   padding-left: 1em;
   margin: 0.5em 0;
-  border-left: 3px solid var(--tvp-ant-border-color, #dcdfe6);
-  color: var(--tvp-ant-text-color-secondary, #909399);
+  border-left: 3px solid var(--tvp-ant-border-color, #d9d9d9);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
 }
 
 .tvp-content .ProseMirror pre {
-  background: var(--tvp-ant-fill-color-dark, #f5f7fa);
+  background: var(--tvp-ant-fill-color-dark, #fafafa);
   border-radius: 4px;
   padding: 12px;
   font-family: 'SFMono-Regular', Consolas, monospace;
@@ -1002,7 +1003,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 }
 
 .tvp-content .ProseMirror code {
-  background: var(--tvp-ant-fill-color-dark, #f5f7fa);
+  background: var(--tvp-ant-fill-color-dark, #fafafa);
   border-radius: 3px;
   padding: 1px 4px;
   font-size: 0.9em;
@@ -1037,7 +1038,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 /* 选中态:蓝色描边(ProseMirror 给选中节点加 ProseMirror-selectednode 类) */
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode,
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror .tvp-img-node.tvp-range-selected-node {
-  outline: 2px solid var(--tvp-ant-color-primary, #409eff);
+  outline: 2px solid var(--tvp-ant-color-primary, #1677ff);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -1053,11 +1054,11 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   background: transparent;
   text-align: center;
   font-size: 13px;
-  color: var(--tvp-ant-text-color-secondary, #909399);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
   outline: none;
 }
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror .tvp-img-caption:focus {
-  border-bottom-color: var(--tvp-ant-color-primary, #409eff);
+  border-bottom-color: var(--tvp-ant-color-primary, #1677ff);
 }
 /*
  * 题注显隐(对标飞书):空题注默认不占位、不显示,避免每张图下方都挂着空输入框。
@@ -1135,7 +1136,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   min-height: 42px;
   margin: 6px 0;
   padding: 7px 11px;
-  border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1px solid var(--tvp-ant-border-color, #d9d9d9);
   border-radius: 6px;
   background: var(--tvp-ant-fill-color-blank, #fff);
   color: var(--tvp-ant-color-primary, #1677ff);
@@ -1178,7 +1179,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   flex: 0 0 28px;
   margin-right: 8px;
   border-radius: 6px;
-  background: #909399;
+  background: #8c8c8c;
   color: #fff;
   font-size: 8px;
   font-weight: 700;
@@ -1349,7 +1350,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 }
 
 .tvp-content .ProseMirror .tvp-file-attachment__meta {
-  color: var(--tvp-ant-text-color-secondary, #909399);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
   font-size: 12px;
   line-height: 1.2;
 }
@@ -1396,7 +1397,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   flex: 0 0 28px;
   margin-left: 2px;
   border-radius: 6px;
-  color: var(--tvp-ant-text-color-secondary, #606266);
+  color: var(--tvp-ant-text-color-secondary, #595959);
   opacity: 0;
   pointer-events: none;
   transition:
@@ -1414,7 +1415,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 }
 
 .tvp-content .ProseMirror .tvp-file-attachment__download:hover {
-  background: var(--tvp-ant-fill-color-light, #f5f7fa);
+  background: var(--tvp-ant-fill-color-light, #fafafa);
   color: var(--tvp-ant-color-primary, #1677ff);
 }
 
@@ -1498,12 +1499,12 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror th,
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror td {
   position: relative;
-  border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1px solid var(--tvp-ant-border-color, #d9d9d9);
   padding: 6px 10px;
 }
 
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror th {
-  background: var(--tvp-ant-fill-color-light, #f5f7fa);
+  background: var(--tvp-ant-fill-color-light, #fafafa);
 }
 
 .tvp-editor--ant-design-vue .tvp-content .ProseMirror .selectedCell {
@@ -1549,7 +1550,7 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
 .tvp-content .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: var(--tvp-ant-text-color-placeholder, #a8abb2);
+  color: var(--tvp-ant-text-color-placeholder, #bfbfbf);
   pointer-events: none;
   height: 0;
 }
@@ -1561,8 +1562,8 @@ html.dark .tvp-content .ProseMirror pre .hljs-literal {
   gap: 12px;
   padding: 4px 12px;
   font-size: 12px;
-  color: var(--tvp-ant-text-color-secondary, #909399);
-  border-top: 1px solid var(--tvp-ant-border-color-lighter, #ebeef5);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
+  border-top: 1px solid var(--tvp-ant-border-color-lighter, #f0f0f0);
 }
 
 .tvp-autosave-status {

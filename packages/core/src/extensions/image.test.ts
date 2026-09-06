@@ -3,6 +3,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, h, ref, nextTick } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { useProEditor } from '../useProEditor'
+import type { ProEditorOptions } from '../types'
 import { ImageExtended } from './image'
 import type { ProEditorContext } from '../types'
 
@@ -23,6 +24,7 @@ describe('ImageExtended', () => {
   })
 
   it('开启了 resize 且锁比例', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 断言扩展内部 resize 配置
     const resize = (ImageExtended as any).options.resize
     expect(resize).toBeTruthy()
     expect(resize.enabled).toBe(true)
@@ -30,6 +32,7 @@ describe('ImageExtended', () => {
   })
 
   it('resize 方向为四角', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 断言扩展内部 resize 配置
     const dirs = (ImageExtended as any).options.resize.directions
     expect(dirs).toEqual(
       expect.arrayContaining(['top-left', 'top-right', 'bottom-left', 'bottom-right']),
@@ -38,6 +41,7 @@ describe('ImageExtended', () => {
 
   describe('align 属性', () => {
     // 属性定义存在 addAttributes 返回值里,通过扩展配置取出
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 断言 addAttributes 返回的属性定义
     const attrs = (ImageExtended as any).config.addAttributes.call({
       parent: () => ({ src: {}, alt: {} }),
     })
@@ -61,6 +65,7 @@ describe('ImageExtended', () => {
   })
 
   describe('caption 属性', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 断言 addAttributes 返回的属性定义
     const attrs = (ImageExtended as any).config.addAttributes.call({
       parent: () => ({ src: {}, alt: {} }),
     })
@@ -114,7 +119,7 @@ describe('ImageExtended — NodeView 渲染(题注/对齐)', () => {
           },
           output: 'html',
           editable: options.editable ?? true,
-        } as any)
+        } as ProEditorOptions)
         return () => h(EditorContent, { editor: ctx!.editor.value })
       },
     })

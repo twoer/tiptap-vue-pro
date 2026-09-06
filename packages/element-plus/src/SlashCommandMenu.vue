@@ -13,14 +13,31 @@ import {
   Workflow,
 } from 'lucide-vue-next'
 import {
+  clampFloatingMenuLeft,
   isSlashCommandItemExecutable,
+  resolveLocale,
+  type LocaleKey,
+  type LocaleTranslate,
   type SlashCommandItem,
   type SlashCommandRenderState,
 } from 'tiptap-vue-pro-core'
 
 const props = defineProps<{
   state: SlashCommandRenderState | null
+  /** 宿主传入的 locale 翻译函数;缺省回落默认语言(zh-CN) */
+  t?: LocaleTranslate
 }>()
+
+const fallbackT = resolveLocale().t
+// slash 菜单项文案 locale 优先,数据表里的文案作为兜底
+function slashLabel(item: SlashCommandItem) {
+  return props.t?.(`slash.${item.id}.label` as LocaleKey, item.label)
+    ?? fallbackT(`slash.${item.id}.label` as LocaleKey, item.label)
+}
+function slashHint(item: SlashCommandItem) {
+  return props.t?.(`slash.${item.id}.hint` as LocaleKey, item.hint)
+    ?? fallbackT(`slash.${item.id}.hint` as LocaleKey, item.hint)
+}
 
 const iconMap = {
   Heading,
@@ -39,8 +56,7 @@ const menuStyle = computed(() => {
   if (!rect) return { display: 'none' }
 
   const width = 300
-  const viewportWidth = typeof window === 'undefined' ? width : window.innerWidth
-  const left = Math.max(8, Math.min(rect.left, viewportWidth - width - 8))
+  const left = clampFloatingMenuLeft(rect.left, width)
   return {
     left: `${left}px`,
     top: `${rect.bottom + 6}px`,
@@ -81,8 +97,8 @@ function execute(item: SlashCommandItem) {
         <component :is="iconFor(item)" :size="16" />
       </span>
       <span class="tvp-slash-menu__body">
-        <span class="tvp-slash-menu__label">{{ item.label }}</span>
-        <span class="tvp-slash-menu__hint">{{ item.disabledReason ?? item.hint }}</span>
+        <span class="tvp-slash-menu__label">{{ slashLabel(item) }}</span>
+        <span class="tvp-slash-menu__hint">{{ item.disabledReason ?? slashHint(item) }}</span>
       </span>
     </ElButton>
   </div>

@@ -161,6 +161,66 @@ export const TOOLBAR_ALIGN_OPTIONS: ToolbarAlignOption[] = [
   { label: '两端对齐', value: 'justify' },
 ]
 
+export interface ToolbarSimpleButtonDef {
+  id: string
+  /** 是否有 active 高亮态(由 isToolbarCommandActive 驱动) */
+  active: boolean
+  /** 需要适配器提供自定义点击(命令转发以外的行为,如 print) */
+  customClick?: boolean
+}
+
+/**
+ * 同构简单工具栏按钮的单一事实源(Tooltip + 图标按钮 + active 态 + 命令转发)。
+ * 适配器只需提供图标映射与可选的 customClick 实现(buildSimpleToolbarButtons),
+ * 新增/调整此类按钮只改这里,三个适配器自动同步。
+ */
+export const TOOLBAR_SIMPLE_BUTTON_DEFS = [
+  { id: 'undo', active: false },
+  { id: 'redo', active: false },
+  { id: 'bold', active: true },
+  { id: 'italic', active: true },
+  { id: 'strike', active: true },
+  { id: 'underline', active: true },
+  { id: 'code', active: true },
+  { id: 'superscript', active: true },
+  { id: 'subscript', active: true },
+  { id: 'bulletList', active: true },
+  { id: 'orderedList', active: true },
+  { id: 'taskList', active: true },
+  { id: 'blockquote', active: true },
+  { id: 'decreaseIndent', active: false },
+  { id: 'increaseIndent', active: false },
+  { id: 'clearFormat', active: false },
+  { id: 'findReplace', active: false },
+  { id: 'print', active: false, customClick: true },
+] as const satisfies readonly ToolbarSimpleButtonDef[]
+
+export type ToolbarSimpleButtonId = (typeof TOOLBAR_SIMPLE_BUTTON_DEFS)[number]['id']
+
+/**
+ * 由单一事实源 + 适配器图标映射构造按钮配置表。
+ * icons 的 Record 键类型强制适配器为每个按钮提供图标(缺一个即编译错误)。
+ */
+export function buildSimpleToolbarButtons<TIcon>(
+  icons: Record<ToolbarSimpleButtonId, TIcon>,
+  customClicks: Partial<Record<ToolbarSimpleButtonId, () => void>> = {},
+): Record<string, { icon: TIcon; active: boolean; onClick?: () => void }> {
+  return Object.fromEntries(
+    TOOLBAR_SIMPLE_BUTTON_DEFS.map((def) => {
+      const onClick =
+        'customClick' in def && def.customClick ? customClicks[def.id] : undefined
+      return [
+        def.id,
+        {
+          icon: icons[def.id],
+          active: def.active,
+          ...(onClick ? { onClick } : {}),
+        },
+      ]
+    }),
+  )
+}
+
 export const TOOLBAR_MARKDOWN_OPTIONS: ToolbarMarkdownOption[] = [
   { label: '导入', value: 'import' },
   { label: '导出', value: 'export' },

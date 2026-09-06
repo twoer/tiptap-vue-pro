@@ -40,6 +40,8 @@ import {
   TOOLBAR_ALIGN_OPTIONS,
   TOOLBAR_HEADING_OPTIONS,
   TOOLBAR_MARKDOWN_OPTIONS,
+  buildSimpleToolbarButtons,
+  type ToolbarSimpleButtonId,
 } from 'tiptap-vue-pro-core'
 import type {
   CodeBlockLanguage,
@@ -172,6 +174,49 @@ function commandActive(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
 function runCommand(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
   props.debugLog?.('adapter', 'toolbar-click', { command: id })
   runToolbarCommand(ctx.value, id, payload)
+}
+
+// 同构的简单工具栏按钮(Tooltip + 图标按钮 + active 态 + 命令转发):
+// 配置表驱动模板循环,新增此类按钮只需加一行;复杂控件(下拉/取色/上传)
+// 仍走模板中的具名分支。
+const SIMPLE_BUTTON_ICONS: Record<ToolbarSimpleButtonId, Component> = {
+  undo: markRaw(Undo2),
+  redo: markRaw(Redo2),
+  bold: markRaw(Bold),
+  italic: markRaw(Italic),
+  strike: markRaw(Strikethrough),
+  underline: markRaw(Underline),
+  code: markRaw(Code),
+  superscript: markRaw(Superscript),
+  subscript: markRaw(Subscript),
+  bulletList: markRaw(List),
+  orderedList: markRaw(ListOrdered),
+  taskList: markRaw(ListChecks),
+  blockquote: markRaw(Quote),
+  decreaseIndent: markRaw(IndentDecrease),
+  increaseIndent: markRaw(IndentIncrease),
+  clearFormat: markRaw(Eraser),
+  findReplace: markRaw(Search),
+  print: markRaw(Printer),
+}
+const SIMPLE_TOOLBAR_BUTTONS = buildSimpleToolbarButtons(SIMPLE_BUTTON_ICONS, {
+  print: () => printContent(),
+})
+function isSimpleToolbarButton(item: string): boolean {
+  return item in SIMPLE_TOOLBAR_BUTTONS
+}
+function simpleButtonLabel(item: string) {
+  return commandLabel(item as ToolbarBuiltinKey)
+}
+function simpleButtonActive(item: string) {
+  const cfg = SIMPLE_TOOLBAR_BUTTONS[item]
+  return !!cfg?.active && commandActive(item as ToolbarBuiltinKey)
+}
+function onSimpleButtonClick(item: string) {
+  const cfg = SIMPLE_TOOLBAR_BUTTONS[item]
+  if (!cfg) return
+  if (cfg.onClick) cfg.onClick()
+  else runCommand(item as ToolbarBuiltinKey)
 }
 const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['undo', 'redo'],
@@ -311,6 +356,17 @@ function onCodeBlockLanguage(language: string) {
 
 function horizontalRuleLabel(option: ToolbarHorizontalRuleOption) {
   return t(`toolbar.hr.${option.value}` as LocaleKey, option.label)
+}
+function headingOptionLabel(heading: { label: string; level: number }) {
+  return heading.level === 0
+    ? t('toolbar.heading.body')
+    : t('toolbar.heading.level', { level: heading.level })
+}
+function alignOptionLabel(align: { label: string; value: string }) {
+  return t(`toolbar.align.${align.value}` as LocaleKey, align.label)
+}
+function markdownOptionLabel(option: { label: string; value: string }) {
+  return t(`toolbar.markdown.${option.value}` as LocaleKey, option.label)
 }
 
 function onHorizontalRule(variant: string) {
@@ -581,14 +637,17 @@ const {
       <span v-if="groupIndex > 0" class="tvp-divider" />
       <span class="tvp-toolbar-group">
         <template v-for="item in group" :key="item">
-        <AntTooltip v-if="item === 'undo'" :content="commandLabel('undo')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="16" /></AntButton>
+        <AntTooltip v-if="isSimpleToolbarButton(item)" :content="simpleButtonLabel(item)" placement="top" :show-after="300">
+          <AntButton
+            text
+            class="tvp-icon-btn"
+            :aria-label="simpleButtonLabel(item)"
+            :type="simpleButtonActive(item) ? 'primary' : 'default'"
+            @click="onSimpleButtonClick(item)"
+          ><component :is="SIMPLE_TOOLBAR_BUTTONS[item].icon" :size="16" /></AntButton>
         </AntTooltip>
 
-        <AntTooltip v-else-if="item === 'redo'" :content="commandLabel('redo')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="16" /></AntButton>
-        </AntTooltip>
-
+        
         <AntDropdown v-else-if="item === 'heading'" trigger="click" @command="onHeading">
           <AntButton text class="tvp-select-btn tvp-select-btn--heading" :aria-label="commandLabel('heading')">
             {{ headingLabel }}
@@ -601,7 +660,7 @@ const {
                 :key="heading.level"
                 :command="heading.level"
               >
-                <span :class="headingPreviewClass(heading.level)">{{ heading.label }}</span>
+                <span :class="headingPreviewClass(heading.level)">{{ headingOptionLabel(heading) }}</span>
               </AntDropdownItem>
             </AntDropdownMenu>
           </template>
@@ -664,76 +723,13 @@ const {
           </template>
         </AntDropdown>
 
-        <AntTooltip v-else-if="item === 'bold'" :content="commandLabel('bold')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('bold')"
-            :type="commandActive('bold') ? 'primary' : 'default'"
-            @click="runCommand('bold')"
-          ><Bold :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'italic'" :content="commandLabel('italic')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('italic')"
-            :type="commandActive('italic') ? 'primary' : 'default'"
-            @click="runCommand('italic')"
-          ><Italic :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'strike'" :content="commandLabel('strike')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('strike')"
-            :type="commandActive('strike') ? 'primary' : 'default'"
-            @click="runCommand('strike')"
-          ><Strikethrough :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'underline'" :content="commandLabel('underline')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('underline')"
-            :type="commandActive('underline') ? 'primary' : 'default'"
-            @click="runCommand('underline')"
-          ><Underline :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'code'" :content="commandLabel('code')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('code')"
-            :type="commandActive('code') ? 'primary' : 'default'"
-            @click="runCommand('code')"
-          ><Code :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'superscript'" :content="commandLabel('superscript')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('superscript')"
-            :type="commandActive('superscript') ? 'primary' : 'default'"
-            @click="runCommand('superscript')"
-          ><Superscript :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'subscript'" :content="commandLabel('subscript')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('subscript')"
-            :type="commandActive('subscript') ? 'primary' : 'default'"
-            @click="runCommand('subscript')"
-          ><Subscript :size="16" /></AntButton>
-        </AntTooltip>
-
+        
+        
+        
+        
+        
+        
+        
         <AntDropdown v-else-if="item === 'color'" trigger="click">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('color')">
             <Type :size="16" :style="{ color: currentColor || 'inherit' }" />
@@ -808,71 +804,19 @@ const {
                 :command="align.value"
               >
                 <span class="tvp-menu-item">
-                  <component :is="alignOptionIcon(align.value)" :size="16" />{{ align.label }}
+                  <component :is="alignOptionIcon(align.value)" :size="16" />{{ alignOptionLabel(align) }}
                 </span>
               </AntDropdownItem>
             </AntDropdownMenu>
           </template>
         </AntDropdown>
 
-        <AntTooltip v-else-if="item === 'decreaseIndent'" :content="commandLabel('decreaseIndent')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('decreaseIndent')"
-            @click="runCommand('decreaseIndent')"
-          ><IndentDecrease :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'increaseIndent'" :content="commandLabel('increaseIndent')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('increaseIndent')"
-            @click="runCommand('increaseIndent')"
-          ><IndentIncrease :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'bulletList'" :content="commandLabel('bulletList')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('bulletList')"
-            :type="commandActive('bulletList') ? 'primary' : 'default'"
-            @click="runCommand('bulletList')"
-          ><List :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'orderedList'" :content="commandLabel('orderedList')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('orderedList')"
-            :type="commandActive('orderedList') ? 'primary' : 'default'"
-            @click="runCommand('orderedList')"
-          ><ListOrdered :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'taskList'" :content="commandLabel('taskList')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('taskList')"
-            :type="commandActive('taskList') ? 'primary' : 'default'"
-            @click="runCommand('taskList')"
-          ><ListChecks :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'blockquote'" :content="commandLabel('blockquote')" placement="top" :show-after="300">
-          <AntButton
-            text
-            class="tvp-icon-btn"
-            :aria-label="commandLabel('blockquote')"
-            :type="commandActive('blockquote') ? 'primary' : 'default'"
-            @click="runCommand('blockquote')"
-          ><Quote :size="16" /></AntButton>
-        </AntTooltip>
-
+        
+        
+        
+        
+        
+        
         <AntTooltip v-else-if="item === 'codeBlock'" :content="`${commandLabel('codeBlock')}:${currentCodeBlockLabel}`" placement="top" :show-after="300">
           <AntDropdown trigger="click" overlayClassName="tvp-ant-code-language-dropdown" @command="onCodeBlockLanguage">
             <AntButton
@@ -1015,14 +959,8 @@ const {
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="16" /></AntButton>
         </AntTooltip>
 
-        <AntTooltip v-else-if="item === 'clearFormat'" :content="commandLabel('clearFormat')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="16" /></AntButton>
-        </AntTooltip>
-
-        <AntTooltip v-else-if="item === 'findReplace'" :content="commandLabel('findReplace')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="16" /></AntButton>
-        </AntTooltip>
-
+        
+        
         <AntTooltip v-else-if="item === 'markdown'" :content="commandLabel('markdown')" placement="top" :show-after="300">
           <AntDropdown trigger="click" @command="onMarkdownCommand">
             <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('markdown')"><MarkdownIcon :size="16" /></AntButton>
@@ -1034,7 +972,7 @@ const {
                   :command="option.value"
                 >
                   <span class="tvp-menu-item">
-                    <component :is="markdownOptionIcon(option.value)" :size="15" />{{ option.label }}
+                    <component :is="markdownOptionIcon(option.value)" :size="15" />{{ markdownOptionLabel(option) }}
                   </span>
                 </AntDropdownItem>
               </AntDropdownMenu>
@@ -1042,10 +980,7 @@ const {
           </AntDropdown>
         </AntTooltip>
 
-        <AntTooltip v-else-if="item === 'print'" :content="commandLabel('print')" placement="top" :show-after="300">
-          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="16" /></AntButton>
-        </AntTooltip>
-
+        
         <AntTooltip v-else-if="item === 'fullscreen'" :content="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" placement="top" :show-after="300">
           <AntButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">
             <component :is="isFullscreen ? Minimize2 : Maximize2" :size="16" />
@@ -1388,7 +1323,7 @@ const {
   align-items: center;
   gap: 2px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--tvp-ant-border-color-light, #e4e7ed);
+  border-bottom: 1px solid var(--tvp-ant-border-color-light, #d9d9d9);
   background: var(--tvp-ant-fill-color-blank, #fff);
   /* 隐藏滚动条但保留滚动 */
   scrollbar-width: thin;
@@ -1452,9 +1387,9 @@ const {
   aspect-ratio: 16 / 9;
   overflow: hidden;
   touch-action: none;
-  border: 1px solid var(--tvp-ant-border-color-light, #e4e7ed);
+  border: 1px solid var(--tvp-ant-border-color-light, #d9d9d9);
   border-radius: 6px;
-  background: var(--tvp-ant-fill-color-light, #f5f7fa);
+  background: var(--tvp-ant-fill-color-light, #fafafa);
 }
 
 .tvp-image-crop__preview img {
@@ -1468,7 +1403,7 @@ const {
 
 .tvp-image-crop__hint {
   margin: 0;
-  color: var(--tvp-ant-text-color-secondary, #606266);
+  color: var(--tvp-ant-text-color-secondary, #595959);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -1498,7 +1433,7 @@ const {
 .tvp-menu-check {
   display: inline-block;
   width: 14px;
-  color: var(--tvp-ant-color-primary, #409eff);
+  color: var(--tvp-ant-color-primary, #1677ff);
 }
 
 .tvp-menu-item {
@@ -1528,16 +1463,16 @@ const {
 }
 
 :global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark) {
-  background: #1d1e1f;
+  background: #1f1f1f;
   border: 1px solid #414243;
 }
 
 :global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark .tvp-ant-dropdown-menu__item) {
-  color: #cfd3dc;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 :global(.tvp-ant-code-language-dropdown .ant-dropdown-menu-dark .tvp-ant-dropdown-menu__item:hover) {
-  color: #e5eaf3;
+  color: rgba(255, 255, 255, 0.85);
   background: #303030;
 }
 
@@ -1550,7 +1485,7 @@ const {
   padding: 8px;
   user-select: none;
   background: var(--tvp-ant-bg-color-overlay, var(--tvp-ant-bg-color, #fff));
-  border: 1px solid var(--tvp-ant-border-color-light, var(--tvp-ant-border-color, #dcdfe6));
+  border: 1px solid var(--tvp-ant-border-color-light, var(--tvp-ant-border-color, #d9d9d9));
   border-radius: 6px;
   box-shadow: var(--tvp-ant-box-shadow-light, 0 2px 12px rgba(0, 0, 0, 0.12));
 }
@@ -1563,7 +1498,7 @@ const {
   width: 18px;
   height: 18px;
   margin: 1px;
-  border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1px solid var(--tvp-ant-border-color, #d9d9d9);
   border-radius: 2px;
   cursor: pointer;
   background: var(--tvp-ant-fill-color-blank, #fff);
@@ -1571,15 +1506,15 @@ const {
 }
 
 .tvp-table-grid__cell.is-active {
-  background: var(--tvp-ant-color-primary, #409eff);
-  border-color: var(--tvp-ant-color-primary, #409eff);
+  background: var(--tvp-ant-color-primary, #1677ff);
+  border-color: var(--tvp-ant-color-primary, #1677ff);
 }
 
 .tvp-table-grid__label {
   text-align: center;
   margin-top: 6px;
   font-size: 12px;
-  color: var(--tvp-ant-text-color-secondary, #909399);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
 }
 
 /* 颜色选择器 */
@@ -1601,11 +1536,11 @@ const {
   height: 22px;
   border-radius: 4px;
   cursor: pointer;
-  border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1px solid var(--tvp-ant-border-color, #d9d9d9);
   font-size: 12px;
   line-height: 22px;
   text-align: center;
-  color: var(--tvp-ant-text-color-secondary, #909399);
+  color: var(--tvp-ant-text-color-secondary, #8c8c8c);
   transition: transform 0.1s;
 }
 
@@ -1614,7 +1549,7 @@ const {
 }
 
 .tvp-color-swatch.is-active {
-  outline: 2px solid var(--tvp-ant-color-primary, #409eff);
+  outline: 2px solid var(--tvp-ant-color-primary, #1677ff);
   outline-offset: 1px;
 }
 
@@ -1626,17 +1561,17 @@ const {
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--tvp-ant-text-color-regular, #606266);
+  color: var(--tvp-ant-text-color-regular, #595959);
   text-align: center;
 }
 
 .tvp-color-clear:hover {
-  background: var(--tvp-ant-fill-color-light, #f5f7fa);
+  background: var(--tvp-ant-fill-color-light, #fafafa);
 }
 
 .tvp-color-clear.is-active {
-  color: var(--tvp-ant-color-primary, #409eff);
-  background: var(--tvp-ant-color-primary-light-9, #ecf5ff);
+  color: var(--tvp-ant-color-primary, #1677ff);
+  background: var(--tvp-ant-color-primary-light-9, #e6f4ff);
 }
 
 /* 自定义 hex 输入区:在色板下方占满宽度 */
@@ -1649,16 +1584,16 @@ const {
   width: 100%;
   box-sizing: border-box;
   padding: 4px 8px;
-  border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1px solid var(--tvp-ant-border-color, #d9d9d9);
   border-radius: 4px;
   font-size: 12px;
   font-family: 'SFMono-Regular', Consolas, monospace;
   outline: none;
-  color: var(--tvp-ant-text-color-regular, #606266);
+  color: var(--tvp-ant-text-color-regular, #595959);
 }
 
 .tvp-hex-input:focus {
-  border-color: var(--tvp-ant-color-primary, #409eff);
+  border-color: var(--tvp-ant-color-primary, #1677ff);
 }
 
 .tvp-divider {
@@ -1666,7 +1601,7 @@ const {
   width: 1px;
   height: 18px;
   margin: 0 4px;
-  background: var(--tvp-ant-border-color, #dcdfe6);
+  background: var(--tvp-ant-border-color, #d9d9d9);
 }
 
 .tvp-caret {
@@ -1687,7 +1622,7 @@ const {
   display: inline-block;
   flex: 0 0 auto;
   width: 42px;
-  border-top: 1.5px solid var(--tvp-ant-text-color-secondary, #606266);
+  border-top: 1.5px solid var(--tvp-ant-text-color-secondary, #595959);
 }
 
 .tvp-hr-menu-item__preview[data-variant='thick'] {
@@ -1719,7 +1654,7 @@ const {
   flex-shrink: 0;
   width: 36px;
   font-size: 14px;
-  color: var(--tvp-ant-text-color-regular, #606266);
+  color: var(--tvp-ant-text-color-regular, #595959);
 }
 
 .tvp-link-form__row--check {

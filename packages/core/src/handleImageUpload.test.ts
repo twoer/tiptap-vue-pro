@@ -27,7 +27,8 @@ function makeEditorMock() {
       return chain
     },
     run() {
-      inserted.push /* 占位,真正 push 在 setImage 捕获 */
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- 占位,真正 push 在 setImage 捕获
+      inserted.push
       return true
     },
   }

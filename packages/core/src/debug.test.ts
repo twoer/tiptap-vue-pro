@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createDebugLogger,
+  refreshDebugOptionsCache,
   resolveDebugOptions,
   sanitizeDebugPayload,
 } from './debug'
@@ -8,6 +9,7 @@ import type { ProEditorDebugEntry } from './debug'
 
 afterEach(() => {
   localStorage.clear()
+  refreshDebugOptionsCache()
   vi.restoreAllMocks()
 })
 
@@ -113,6 +115,7 @@ describe('debug diagnostics', () => {
 
   it('localStorage table-grip fallback enables only table events', () => {
     localStorage.setItem('tvp:table-grip-debug', '1')
+    refreshDebugOptionsCache()
     const resolved = resolveDebugOptions(undefined)
 
     expect(resolved).toMatchObject({
@@ -121,6 +124,20 @@ describe('debug diagnostics', () => {
       level: 'debug',
       includeContent: false,
     })
+  })
+
+  it('localStorage table-grip flag is cached within TTL and refreshed explicitly', () => {
+    localStorage.setItem('tvp:table-grip-debug', '1')
+    refreshDebugOptionsCache()
+    expect(resolveDebugOptions(undefined).enabled).toBe(true)
+
+    // TTL 内:开关已关但缓存仍生效
+    localStorage.removeItem('tvp:table-grip-debug')
+    expect(resolveDebugOptions(undefined).enabled).toBe(true)
+
+    // 显式刷新后立即生效
+    refreshDebugOptionsCache()
+    expect(resolveDebugOptions(undefined).enabled).toBe(false)
   })
 
   it('public debug option wins over localStorage fallback', () => {

@@ -1,23 +1,9 @@
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
+import { chromium } from 'playwright'
+import { ensurePlaygroundServer } from './lib/playground-server.mjs'
 import { join, resolve } from 'node:path'
 
-const repoRoot = process.cwd()
-const visualCompareDir = resolve(
-  process.env.VISUAL_COMPARE_DIR ?? join(repoRoot, '..', 'visual-compare'),
-)
-const visualComparePackage = join(visualCompareDir, 'package.json')
-
-if (!existsSync(visualComparePackage)) {
-  throw new Error(
-    `visual-compare not found at ${visualCompareDir}. Set VISUAL_COMPARE_DIR to the visual-compare repo.`,
-  )
-}
-
-const requireFromVisualCompare = createRequire(visualComparePackage)
-const { chromium } = requireFromVisualCompare('playwright')
-const basePlaygroundUrl = process.env.PLAYGROUND_URL
-  ?? 'http://localhost:5173/tiptap-vue-pro/playground/'
+// 自包含 e2e:playwright 是本仓依赖;dev server 缺失时自动拉起,脚本退出自动回收
+const basePlaygroundUrl = await ensurePlaygroundServer()
 const screenshotDir = resolve(process.env.SCREENSHOT_DIR ?? '/tmp')
 const adapters = [
   { name: 'element-plus', hash: '#/element-plus', root: '.tvp-editor--element-plus' },

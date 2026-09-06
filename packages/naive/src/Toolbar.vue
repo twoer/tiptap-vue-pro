@@ -65,6 +65,8 @@ import {
   TOOLBAR_HEADING_OPTIONS,
   TOOLBAR_HEADING_PREVIEW_STYLES,
   TOOLBAR_MARKDOWN_OPTIONS,
+  buildSimpleToolbarButtons,
+  type ToolbarSimpleButtonId,
 } from 'tiptap-vue-pro-core'
 import type {
   CodeBlockLanguageIcon,
@@ -179,6 +181,49 @@ function commandActive(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
 function runCommand(id: ToolbarBuiltinKey, payload?: ToolbarCommandPayload) {
   props.debugLog?.('adapter', 'toolbar-click', { command: id })
   runToolbarCommand(ctx.value, id, payload)
+}
+
+// 同构的简单工具栏按钮(Tooltip + 图标按钮 + active 态 + 命令转发):
+// 配置表驱动模板循环,新增此类按钮只需加一行;复杂控件(下拉/取色/上传)
+// 仍走模板中的具名分支。
+const SIMPLE_BUTTON_ICONS: Record<ToolbarSimpleButtonId, Component> = {
+  undo: markRaw(Undo2),
+  redo: markRaw(Redo2),
+  bold: markRaw(Bold),
+  italic: markRaw(Italic),
+  strike: markRaw(Strikethrough),
+  underline: markRaw(Underline),
+  code: markRaw(Code),
+  superscript: markRaw(Superscript),
+  subscript: markRaw(Subscript),
+  bulletList: markRaw(List),
+  orderedList: markRaw(ListOrdered),
+  taskList: markRaw(ListChecks),
+  blockquote: markRaw(Quote),
+  decreaseIndent: markRaw(IndentDecrease),
+  increaseIndent: markRaw(IndentIncrease),
+  clearFormat: markRaw(Eraser),
+  findReplace: markRaw(Search),
+  print: markRaw(Printer),
+}
+const SIMPLE_TOOLBAR_BUTTONS = buildSimpleToolbarButtons(SIMPLE_BUTTON_ICONS, {
+  print: () => printContent(),
+})
+function isSimpleToolbarButton(item: string): boolean {
+  return item in SIMPLE_TOOLBAR_BUTTONS
+}
+function simpleButtonLabel(item: string) {
+  return commandLabel(item as ToolbarBuiltinKey)
+}
+function simpleButtonActive(item: string) {
+  const cfg = SIMPLE_TOOLBAR_BUTTONS[item]
+  return !!cfg?.active && commandActive(item as ToolbarBuiltinKey)
+}
+function onSimpleButtonClick(item: string) {
+  const cfg = SIMPLE_TOOLBAR_BUTTONS[item]
+  if (!cfg) return
+  if (cfg.onClick) cfg.onClick()
+  else runCommand(item as ToolbarBuiltinKey)
 }
 const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['undo', 'redo'],
@@ -747,20 +792,20 @@ const {
       <span v-if="groupIndex > 0" class="tvp-divider" />
       <span class="tvp-toolbar-group">
         <template v-for="item in group" :key="item">
-        <NTooltip v-if="item === 'undo'" placement="top" :show-arrow="false">
+        <NTooltip v-if="isSimpleToolbarButton(item)" placement="top" :show-arrow="false">
           <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('undo')" @click="runCommand('undo')"><Undo2 :size="16" /></NButton>
+            <NButton
+              text
+              class="tvp-icon-btn"
+              :aria-label="simpleButtonLabel(item)"
+              :type="simpleButtonActive(item) ? 'primary' : 'default'"
+              @click="onSimpleButtonClick(item)"
+            ><component :is="SIMPLE_TOOLBAR_BUTTONS[item].icon" :size="16" /></NButton>
           </template>
-          {{ commandLabel('undo') }}
+          {{ simpleButtonLabel(item) }}
         </NTooltip>
 
-        <NTooltip v-else-if="item === 'redo'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('redo')" @click="runCommand('redo')"><Redo2 :size="16" /></NButton>
-          </template>
-          {{ commandLabel('redo') }}
-        </NTooltip>
-
+        
         <NTooltip v-else-if="item === 'heading'" placement="top" :show-arrow="false">
           <template #trigger>
             <span class="tvp-tooltip-trigger">
@@ -835,97 +880,13 @@ const {
           {{ commandLabel('lineHeight') }}
         </NTooltip>
 
-        <NTooltip v-else-if="item === 'bold'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('bold')"
-              :type="commandActive('bold') ? 'primary' : 'default'"
-              @click="runCommand('bold')"
-            ><Bold :size="16" /></NButton>
-          </template>
-          {{ commandLabel('bold') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'italic'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('italic')"
-              :type="commandActive('italic') ? 'primary' : 'default'"
-              @click="runCommand('italic')"
-            ><Italic :size="16" /></NButton>
-          </template>
-          {{ commandLabel('italic') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'strike'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('strike')"
-              :type="commandActive('strike') ? 'primary' : 'default'"
-              @click="runCommand('strike')"
-            ><Strikethrough :size="16" /></NButton>
-          </template>
-          {{ commandLabel('strike') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'underline'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('underline')"
-              :type="commandActive('underline') ? 'primary' : 'default'"
-              @click="runCommand('underline')"
-            ><Underline :size="16" /></NButton>
-          </template>
-          {{ commandLabel('underline') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'code'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('code')"
-              :type="commandActive('code') ? 'primary' : 'default'"
-              @click="runCommand('code')"
-            ><Code :size="16" /></NButton>
-          </template>
-          {{ commandLabel('code') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'superscript'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('superscript')"
-              :type="commandActive('superscript') ? 'primary' : 'default'"
-              @click="runCommand('superscript')"
-            ><Superscript :size="16" /></NButton>
-          </template>
-          {{ commandLabel('superscript') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'subscript'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('subscript')"
-              :type="commandActive('subscript') ? 'primary' : 'default'"
-              @click="runCommand('subscript')"
-            ><Subscript :size="16" /></NButton>
-          </template>
-          {{ commandLabel('subscript') }}
-        </NTooltip>
-
+        
+        
+        
+        
+        
+        
+        
         <NTooltip v-else-if="item === 'color'" placement="top" :show-arrow="false">
           <template #trigger>
             <span class="tvp-tooltip-trigger">
@@ -1020,82 +981,12 @@ const {
           {{ commandLabel('align') }}
         </NTooltip>
 
-        <NTooltip v-else-if="item === 'decreaseIndent'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('decreaseIndent')"
-              @click="runCommand('decreaseIndent')"
-            ><IndentDecrease :size="16" /></NButton>
-          </template>
-          {{ commandLabel('decreaseIndent') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'increaseIndent'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('increaseIndent')"
-              @click="runCommand('increaseIndent')"
-            ><IndentIncrease :size="16" /></NButton>
-          </template>
-          {{ commandLabel('increaseIndent') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'bulletList'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('bulletList')"
-              :type="commandActive('bulletList') ? 'primary' : 'default'"
-              @click="runCommand('bulletList')"
-            ><List :size="16" /></NButton>
-          </template>
-          {{ commandLabel('bulletList') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'orderedList'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('orderedList')"
-              :type="commandActive('orderedList') ? 'primary' : 'default'"
-              @click="runCommand('orderedList')"
-            ><ListOrdered :size="16" /></NButton>
-          </template>
-          {{ commandLabel('orderedList') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'taskList'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('taskList')"
-              :type="commandActive('taskList') ? 'primary' : 'default'"
-              @click="runCommand('taskList')"
-            ><ListChecks :size="16" /></NButton>
-          </template>
-          {{ commandLabel('taskList') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'blockquote'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton
-              text
-              class="tvp-icon-btn"
-              :aria-label="commandLabel('blockquote')"
-              :type="commandActive('blockquote') ? 'primary' : 'default'"
-              @click="runCommand('blockquote')"
-            ><Quote :size="16" /></NButton>
-          </template>
-          {{ commandLabel('blockquote') }}
-        </NTooltip>
-
+        
+        
+        
+        
+        
+        
         <NTooltip v-else-if="item === 'codeBlock'" placement="top" :show-arrow="false">
           <template #trigger>
             <span class="tvp-tooltip-trigger">
@@ -1231,20 +1122,8 @@ const {
           {{ commandLabel('mermaid') }}
         </NTooltip>
 
-        <NTooltip v-else-if="item === 'clearFormat'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('clearFormat')" @click="runCommand('clearFormat')"><Eraser :size="16" /></NButton>
-          </template>
-          {{ commandLabel('clearFormat') }}
-        </NTooltip>
-
-        <NTooltip v-else-if="item === 'findReplace'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('findReplace')" @click="runCommand('findReplace')"><Search :size="16" /></NButton>
-          </template>
-          {{ commandLabel('findReplace') }}
-        </NTooltip>
-
+        
+        
         <NTooltip v-else-if="item === 'markdown'" placement="top" :show-arrow="false">
           <template #trigger>
             <span class="tvp-tooltip-trigger">
@@ -1261,13 +1140,7 @@ const {
           {{ commandLabel('markdown') }}
         </NTooltip>
 
-        <NTooltip v-else-if="item === 'print'" placement="top" :show-arrow="false">
-          <template #trigger>
-            <NButton text class="tvp-icon-btn" :aria-label="commandLabel('print')" @click="printContent"><Printer :size="16" /></NButton>
-          </template>
-          {{ commandLabel('print') }}
-        </NTooltip>
-
+        
         <NTooltip v-else-if="item === 'fullscreen'" placement="top" :show-arrow="false">
           <template #trigger>
             <NButton text class="tvp-icon-btn" :aria-label="isFullscreen ? t('toolbar.fullscreen.exit') : commandLabel('fullscreen')" @click="toggleFullscreen">

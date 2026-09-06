@@ -143,7 +143,7 @@ onBeforeUnmount(() => {
   gap: 2px;
   padding: 4px;
   background: var(--tvp-ant-bg-color, #fff);
-  border: 1px solid var(--tvp-ant-border-color, #dcdfe6);
+  border: 1px solid var(--tvp-ant-border-color, #d9d9d9);
   border-radius: 6px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
 }
@@ -166,7 +166,7 @@ onBeforeUnmount(() => {
   height: 16px;
   /* margin 与工具栏 .tvp-divider 对齐(0 4px) */
   margin: 0 4px;
-  background: var(--tvp-ant-border-color, #dcdfe6);
+  background: var(--tvp-ant-border-color, #d9d9d9);
 }
 
 .tvp-table-bubble__more {

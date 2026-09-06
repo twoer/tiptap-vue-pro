@@ -119,7 +119,7 @@ useEditorPluginRegistration({
   width: max-content;
   padding: 4px;
   background: var(--tvp-ant-bg-color, #fff);
-  border: 1px solid var(--tvp-ant-border-color-light, var(--tvp-ant-border-color, #dcdfe6));
+  border: 1px solid var(--tvp-ant-border-color-light, var(--tvp-ant-border-color, #d9d9d9));
   border-radius: 6px;
   box-shadow: var(--tvp-ant-box-shadow-light, 0 2px 12px rgba(0, 0, 0, 0.12));
 }
@@ -160,13 +160,13 @@ useEditorPluginRegistration({
 
 .tvp-hr-bubble :deep(.tvp-ant-button.is-text:hover),
 .tvp-hr-bubble :deep(.tvp-ant-button.is-text:focus) {
-  color: var(--tvp-ant-primary-color, #1677ff);
+  color: var(--tvp-ant-color-primary, #1677ff);
   background: var(--tvp-ant-primary-bg, #e6f4ff);
 }
 
 .tvp-hr-bubble :deep(.tvp-ant-divider--vertical) {
   margin: 0 4px;
   height: 18px;
-  border-inline-start-color: var(--tvp-ant-border-color-light, #e4e7ed);
+  border-inline-start-color: var(--tvp-ant-border-color-light, #d9d9d9);
 }
 </style>

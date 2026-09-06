@@ -449,7 +449,14 @@ describe('ProEditorAntDesignVue', () => {
     })
 
     const calls = vi.mocked(useProEditor).mock.calls
-    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as unknown as {
+      slashCommand: {
+        onOpen: (state: unknown) => void
+        onExecute: (payload: { item: Record<string, unknown> }) => void
+        items: Array<{ id: string; label: string }>
+      }
+      mermaid: { nodeViewRenderer: unknown }
+    }
     useProEditorOptions.slashCommand.onOpen(createSlashState())
     await nextTick()
 
@@ -468,7 +475,14 @@ describe('ProEditorAntDesignVue', () => {
     })
 
     const calls = vi.mocked(useProEditor).mock.calls
-    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as unknown as {
+      slashCommand: {
+        onOpen: (state: unknown) => void
+        onExecute: (payload: { item: Record<string, unknown> }) => void
+        items: Array<{ id: string; label: string }>
+      }
+      mermaid: { nodeViewRenderer: unknown }
+    }
     useProEditorOptions.slashCommand.onOpen(createSlashState(command))
     await nextTick()
     await wrapper.find('[data-testid="slash-menu"]').trigger('click')
@@ -478,7 +492,7 @@ describe('ProEditorAntDesignVue', () => {
 
   it('Slash 执行回调会复用 core 命令执行表格插入', () => {
     const ctx = createCtx()
-    ;(ctx.commands as any).insertTable = vi.fn()
+    ;ctx.commands.insertTable = vi.fn()
     mockState.ctx = ctx
     wrapper = mount(ProEditorAntDesignVue, {
       attachTo: document.body,
@@ -486,7 +500,14 @@ describe('ProEditorAntDesignVue', () => {
     })
 
     const calls = vi.mocked(useProEditor).mock.calls
-    const useProEditorOptions = calls[calls.length - 1]?.[0] as any
+    const useProEditorOptions = calls[calls.length - 1]?.[0] as unknown as {
+      slashCommand: {
+        onOpen: (state: unknown) => void
+        onExecute: (payload: { item: Record<string, unknown> }) => void
+        items: Array<{ id: string; label: string }>
+      }
+      mermaid: { nodeViewRenderer: unknown }
+    }
     useProEditorOptions.slashCommand.onExecute({
       item: {
         id: 'table',
@@ -497,7 +518,7 @@ describe('ProEditorAntDesignVue', () => {
       },
     })
 
-    expect((ctx.commands as any).insertTable).toHaveBeenCalledWith(3, 3)
+    expect(ctx.commands.insertTable).toHaveBeenCalledWith(3, 3)
   })
 
   it('contextual bubble 根节点默认不可见,避免插件接管前裸露在文档流中', () => {
@@ -693,7 +714,7 @@ describe('ProEditorAntDesignVue', () => {
   it('暗色工具栏变量保持图标和激活态对比度', () => {
     const source = readFileSync(`${process.cwd()}/src/ProEditorAntDesignVue.vue`, 'utf8')
 
-    expect(source).toContain('--tvp-ant-text-color-regular: #cfd3dc;')
+    expect(source).toContain('--tvp-ant-text-color-regular: rgba(255, 255, 255, 0.65);')
     expect(source).toContain('--tvp-ant-text-color-disabled: rgba(255, 255, 255, 0.25);')
     expect(source).toContain('--tvp-ant-color-primary-light-8: #1d3043;')
   })

@@ -42,3 +42,20 @@ If the playground is touched, also run:
 ```bash
 pnpm --filter playground build
 ```
+
+### npm 发布与撤回认证规则（2026-08）
+
+- 如果 npm 账号显示 `Security Key`，说明账号使用 WebAuthn/Passkey，而不是 Authenticator App/TOTP；不要要求二维码、6 位 OTP 或让用户反复寻找 OTP。
+- npm CLI（包括 npm 12）仍保留 `--otp` 和 `EOTP` 流程，但它不等于支持 Security Key 的浏览器交互。对 Security Key 账号遇到 `EOTP` 时，应判断为 CLI 认证方式不匹配，优先改走 npm 网页授权/系统安全密钥流程。
+- 不要为了绕过 `EOTP` 反复消耗 recovery code，也不要假设升级 npm CLI 能解决 WebAuthn 交互。
+- 2026 年 8 月起，启用 bypass-2FA 的 granular access token 不能执行部分敏感的账号、包和组织管理操作；不要假设此类 token 可以完成 unpublish。
+- 后续任何 npm 操作涉及网页时，禁止打开或切换到 Codex 内置浏览器；必须优先使用用户本地 Google Chrome。
+- 如果本地 Chrome 不可连接、未安装/启用浏览器扩展或未完成登录，应停止并明确说明阻塞原因，不得自动降级到内置浏览器。
+- 撤回包时必须使用精确的 `package@version`，先核对目标版本和保留版本；除非明确要求，不得撤回整个包或删除 `latest` 指向的稳定版本。
+- AGENTS.md、日志和提交信息中不得记录 npm token、recovery code、OTP 或其他凭据；一旦凭据被粘贴到对话或终端输出，应立即撤销并重新生成。
+
+参考：
+
+- https://docs.npmjs.com/about-two-factor-authentication
+- https://docs.npmjs.com/unpublishing-packages-from-the-registry
+- https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/

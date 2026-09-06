@@ -1,3 +1,4 @@
+import type { Editor } from '@tiptap/vue-3'
 import { describe, expect, it, vi } from 'vitest'
 import { createMarkdownManager } from './markdownManager'
 
@@ -7,7 +8,7 @@ describe('createMarkdownManager', () => {
       storage: {},
       getJSON: vi.fn(),
       commands: { setContent: vi.fn() },
-    } as any
+    } as unknown as Editor
 
     const manager = createMarkdownManager(editor)
 
@@ -20,7 +21,7 @@ describe('createMarkdownManager', () => {
       storage: { markdown: { manager: { serialize } } },
       getJSON: vi.fn(() => ({ type: 'doc', content: [] })),
       commands: { setContent: vi.fn() },
-    } as any
+    } as unknown as Editor
 
     const manager = createMarkdownManager(editor)
 
@@ -36,7 +37,7 @@ describe('createMarkdownManager', () => {
       storage: { markdown: { manager: { parse, serialize: vi.fn() } } },
       getJSON: vi.fn(),
       commands: { setContent },
-    } as any
+    } as unknown as Editor
 
     const manager = createMarkdownManager(editor)
     manager.importMarkdown('hello')
@@ -54,7 +55,7 @@ describe('createMarkdownManager', () => {
       storage: { markdown: { manager: { parse, serialize: vi.fn() } } },
       getJSON: vi.fn(),
       commands: { setContent },
-    } as any
+    } as unknown as Editor
 
     const manager = createMarkdownManager(editor)
     manager.importMarkdown('| broken |')
@@ -69,7 +70,7 @@ describe('createMarkdownManager', () => {
       storage: {},
       getJSON: vi.fn(),
       commands: { setContent },
-    } as any
+    } as unknown as Editor
 
     const manager = createMarkdownManager(editor)
     manager.importMarkdown('plain text')

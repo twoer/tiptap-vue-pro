@@ -138,7 +138,7 @@ function mountEditor(opts: {
         get draft() {
           return draft.value
         },
-      } as any)
+      } as unknown as Parameters<typeof useProEditor>[0])
       return () => h(EditorContent, { editor: ctx!.editor.value })
     },
   })
@@ -868,13 +868,14 @@ function getTableCells(ctx: ProEditorContext) {
 
 function getTableTextRows(ctx: ProEditorContext) {
   const ed = ctx.editor.value!
-  const json = ed.getJSON() as any
-  const table = json.content?.find((node: any) => node.type === 'table')
-  const textOf = (node: any): string => {
+  type JsonNode = { type?: string; text?: string; content?: JsonNode[] }
+  const json = ed.getJSON() as unknown as JsonNode
+  const table = json.content?.find((node: JsonNode) => node.type === 'table')
+  const textOf = (node: JsonNode): string => {
     if (typeof node.text === 'string') return node.text
     return node.content?.map(textOf).join('') ?? ''
   }
-  return table?.content?.map((row: any) => row.content?.map(textOf) ?? []) ?? []
+  return table?.content?.map((row: JsonNode) => row.content?.map(textOf) ?? []) ?? []
 }
 
 function countSelectedCells(ctx: ProEditorContext) {
@@ -1484,7 +1485,8 @@ describe('useProEditor — v-model 双向绑定', () => {
     const sameJson = JSON.parse(JSON.stringify(ed.getJSON()))
     const before = ed.getHTML()
     // 通过 setter 模拟外部写入相同内容
-    ;(ctx as any).editor // 确保 editor 存在
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions, @typescript-eslint/no-explicit-any -- 断言 editor 存在
+    ;(ctx as any).editor
     // 直接驱动 useProEditor 的 options.content setter
     // 这里 modelValue 已经是 sameJson 的等值,设置一个新等值对象触发 watch
     ed.commands.setContent(sameJson, { emitUpdate: false })
