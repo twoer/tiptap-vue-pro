@@ -36,6 +36,7 @@ const packageMatrix = [
       'package/dist/index.umd.cjs',
       'package/dist/index.d.ts',
       'package/dist/style.css',
+      'package/dist/katex.css',
       'package/README.md',
       'package/LICENSE',
     ],
@@ -49,6 +50,7 @@ const packageMatrix = [
       'package/dist/index.umd.cjs',
       'package/dist/index.d.ts',
       'package/dist/style.css',
+      'package/dist/katex.css',
       'package/README.md',
       'package/LICENSE',
     ],
@@ -62,6 +64,7 @@ const packageMatrix = [
       'package/dist/index.umd.cjs',
       'package/dist/index.d.ts',
       'package/dist/style.css',
+      'package/dist/katex.css',
       'package/README.md',
       'package/LICENSE',
     ],
@@ -100,8 +103,9 @@ function run(command, args, cwd = repositoryRoot) {
 }
 
 function assertSourceExports(entry, manifest) {
+  // 适配器随数学公式功能附带 ./katex.css(含 woff2 字体,宿主按需引入)
   const expectedExports = entry.componentExport
-    ? { '.': rootExport, './style.css': './dist/style.css' }
+    ? { '.': rootExport, './style.css': './dist/style.css', './katex.css': './dist/katex.css' }
     : { '.': rootExport }
 
   assert.deepEqual(
@@ -339,10 +343,13 @@ createApp(App).mount('#app')
 import { ref } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import 'tiptap-vue-pro-element-plus/style.css'
+import 'tiptap-vue-pro-element-plus/katex.css'
 import { ProEditorNaive } from 'tiptap-vue-pro-naive'
 import 'tiptap-vue-pro-naive/style.css'
+import 'tiptap-vue-pro-naive/katex.css'
 import { ProEditorAntDesignVue } from 'tiptap-vue-pro-ant-design-vue'
 import 'tiptap-vue-pro-ant-design-vue/style.css'
+import 'tiptap-vue-pro-ant-design-vue/katex.css'
 
 const elementPlusContent = ref('<p>Element Plus package smoke</p>')
 const naiveContent = ref('<p>Naive UI package smoke</p>')
