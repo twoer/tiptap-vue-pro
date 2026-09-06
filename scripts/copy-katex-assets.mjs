@@ -11,7 +11,7 @@
  *   node ../../scripts/copy-katex-assets.mjs
  */
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 
 const adapterDir = process.cwd()
