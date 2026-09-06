@@ -27,7 +27,9 @@
     "lint": "eslint .",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "changeset publish"
+    "changeset:publish": "changeset publish",
+    "publish:webauth": "node scripts/publish-webauth.mjs",
+    "test:publish": "node scripts/verify-publish.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.2",

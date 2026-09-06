@@ -48,6 +48,15 @@ pnpm --filter playground build
 - 如果 npm 账号显示 `Security Key`，说明账号使用 WebAuthn/Passkey，而不是 Authenticator App/TOTP；不要要求二维码、6 位 OTP 或让用户反复寻找 OTP。
 - npm CLI（包括 npm 12）仍保留 `--otp` 和 `EOTP` 流程，但它不等于支持 Security Key 的浏览器交互。对 Security Key 账号遇到 `EOTP` 时，应判断为 CLI 认证方式不匹配，优先改走 npm 网页授权/系统安全密钥流程。
 - 不要为了绕过 `EOTP` 反复消耗 recovery code，也不要假设升级 npm CLI 能解决 WebAuthn 交互。
+- （2026-09 实证，修正上一条）`changeset publish` 搭配 npm 10 的发布链路对 Security Key 账号是死路：npm 10 对发布只支持 TOTP，EOTP 无法绕过。但 **npm 12 原生支持发布的网页认证**——TTY 下打印 `https://www.npmjs.com/auth/cli/...` 链接，浏览器完成安全钥匙验证后发布自动继续。标准发布命令：
+
+  ```bash
+  pnpm build
+  node scripts/publish-webauth.mjs
+  ```
+
+  脚本按 core → 适配器顺序发布，自动完成三件事：临时把包内 `workspace:^` 改写为真实区间（发完 git 还原）、伪 TTY 运行 `npx npm@12 publish`、捕获认证链接并自动打开浏览器。registry 已有同版本会自动跳过，可安全重跑。
+- npm 12 对 node 版本有 `^22.22.2 || >=26` 的 engines 要求，在更低的小版本（如 22.19）上会打 EBADENGINE 警告但可正常工作；以实际发布结果为准。
 - 2026 年 8 月起，启用 bypass-2FA 的 granular access token 不能执行部分敏感的账号、包和组织管理操作；不要假设此类 token 可以完成 unpublish。
 - 后续任何 npm 操作涉及网页时，禁止打开或切换到 Codex 内置浏览器；必须优先使用用户本地 Google Chrome。
 - 如果本地 Chrome 不可连接、未安装/启用浏览器扩展或未完成登录，应停止并明确说明阻塞原因，不得自动降级到内置浏览器。
