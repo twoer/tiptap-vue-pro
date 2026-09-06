@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  inlineMathPrintHtml,
   exportMarkdownFile,
   importMarkdownFile,
+  inlineMermaidSvg,
   printEditorContent,
 } from './toolbarActions'
 
@@ -119,5 +121,103 @@ describe('toolbarActions', () => {
     expect(print).toHaveBeenCalledTimes(1)
     vi.advanceTimersByTime(10)
     expect(document.body.contains(iframe)).toBe(false)
+  })
+
+  it('embeds print page setup and pagination rules in the iframe document', () => {
+    vi.useFakeTimers()
+    const iframe = printEditorContent('<p>hello</p>', { cleanupDelay: 10 })
+
+    const srcdoc = iframe.srcdoc
+    expect(srcdoc).toContain('@page{size:A4;margin:18mm 16mm}')
+    expect(srcdoc).toContain('print-color-adjust:exact')
+    expect(srcdoc).toContain('ul[data-type="taskList"]')
+    expect(srcdoc).toContain('break-inside:avoid')
+
+    vi.useRealTimers()
+  })
+
+  it('escapes html-sensitive characters in the print title', () => {
+    vi.useFakeTimers()
+    const iframe = printEditorContent('<p>hello</p>', {
+      cleanupDelay: 10,
+      title: 'Notes & <b>Docs</b> "v1"',
+    })
+
+    const srcdoc = iframe.srcdoc
+    expect(srcdoc).toContain('<title>Notes &amp; &lt;b&gt;Docs&lt;/b&gt; &quot;v1&quot;</title>')
+    expect(srcdoc).not.toContain('<b>')
+
+    vi.useRealTimers()
+  })
+
+  it('keeps html untouched when no mermaid block exists', async () => {
+    const render = vi.fn(async () => '<svg></svg>')
+
+    await expect(inlineMermaidSvg('<p>plain</p>', { render })).resolves.toBe('<p>plain</p>')
+    expect(render).not.toHaveBeenCalled()
+  })
+
+  it('replaces mermaid blocks with rendered svg figures', async () => {
+    const render = vi.fn(async (source: string) => `<svg data-source="${source}"></svg>`)
+    const html = '<p>before</p><div data-type="mermaid-block"><pre><code class="language-mermaid">graph TD</code></pre></div>'
+
+    const result = await inlineMermaidSvg(html, { render })
+
+    expect(result).toContain('<p>before</p>')
+    expect(result).toContain('figure class="tvp-print-mermaid"')
+    expect(result).toContain('<svg data-source="graph TD"></svg>')
+    expect(result).not.toContain('mermaid-block')
+    expect(render).toHaveBeenCalledWith('graph TD')
+  })
+
+  it('keeps the source pre when a mermaid block fails to render', async () => {
+    const render = vi.fn(async (source: string) => {
+      if (source === 'broken') throw new Error('syntax error')
+      return '<svg></svg>'
+    })
+    const html = '<div data-type="mermaid-block"><pre><code class="language-mermaid">broken</code></pre></div><div data-type="mermaid-block"><pre><code class="language-mermaid">works</code></pre></div>'
+
+    const result = await inlineMermaidSvg(html, { render })
+
+    expect(result).toContain('language-mermaid')
+    expect(result).toContain('broken')
+    expect(result).toContain('tvp-print-mermaid')
+    expect(result).toContain('<svg></svg>')
+  })
+
+  it('keeps html untouched when no math node exists', async () => {
+    const render = vi.fn(async () => '<math></math>')
+
+    await expect(inlineMathPrintHtml('<p>plain</p>', { render })).resolves.toBe('<p>plain</p>')
+    expect(render).not.toHaveBeenCalled()
+  })
+
+  it('replaces math nodes with mathml output, keeping the wrapper for print styles', async () => {
+    const render = vi.fn(async (latex: string, displayMode: boolean) =>
+      `<math data-latex="${latex}" data-display="${displayMode}"></math>`)
+    const html = '<p>a <span data-type="math-inline" data-latex="x^2"></span> b</p>'
+      + '<div data-type="math-block" data-latex="\\frac{1}{2}"></div>'
+
+    const result = await inlineMathPrintHtml(html, { render })
+
+    expect(result).toContain('data-type="math-inline"')
+    expect(result).toContain('data-type="math-block"')
+    expect(result).toContain('<math data-latex="x^2" data-display="false"></math>')
+    expect(result).toContain('<math data-latex="\\frac{1}{2}" data-display="true"></math>')
+    expect(render).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the original node when a formula fails to render', async () => {
+    const render = vi.fn(async (latex: string) => {
+      if (latex === 'broken') throw new Error('KaTeX parse error')
+      return '<math></math>'
+    })
+    const html = '<span data-type="math-inline" data-latex="broken"></span>'
+      + '<span data-type="math-inline" data-latex="ok"></span>'
+
+    const result = await inlineMathPrintHtml(html, { render })
+
+    expect(result).toContain('data-latex="broken"')
+    expect(result).toContain('<math></math>')
   })
 })

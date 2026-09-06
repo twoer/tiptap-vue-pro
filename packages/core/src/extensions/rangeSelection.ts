@@ -8,6 +8,11 @@ const RANGE_SELECTED_NODE_TYPES = new Set([
   'audio',
   'fileAttachment',
   'horizontalRule',
+  // 块级/原子自定义元素:拖选或全选覆盖时同样给出描边反馈
+  'codeBlock',
+  'mathInline',
+  'mathBlock',
+  'mermaidBlock',
 ])
 
 export const RangeSelectionDecorations = Extension.create({

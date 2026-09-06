@@ -32,6 +32,7 @@ yarn-error.log*
 2026-06-27-tiptap-vue3-pro-editor.md
 docs/feature-gap-analysis.md
 docs/plans/
+promo/
 
 # Git worktrees (isolated workspaces)
 .worktrees

@@ -2,6 +2,18 @@
 
 English: [CHANGELOG.md](./CHANGELOG.md)
 
+## 0.2.6 - 2026-09-06
+
+### 新增
+
+- **数学公式(KaTeX)**:新增 `mathInline` / `mathBlock` 节点与 `$...$` / `$$...$$` 输入规则,slash `/公式` 与工具栏 ∑ 入口。选中公式出现气泡菜单和编辑弹层(实时预览、块级/行内类型切换、可折叠常用语法速查);插入走「先弹层、确认才落文档」流程,取消不会留下占位公式。块级公式以 `$$` 块往返 Markdown,行内公式导出为 `$latex$` 源码。打印副本以原生 MathML 内联(自包含,不依赖 KaTeX CSS/字体);适配器新增 `./katex.css` 样式入口(含字体,按需加载)。
+- **打印 / 导出 PDF 管线**:单一「打印」入口显式承担 PDF 导出(浏览器无静默生成 PDF 的公开 API,打印对话框即导出通道),新增引导提示指导选择「另存为 PDF」。打印前通过新增的 `inlineMermaidSvg()` 把 Mermaid 源码块渲染为 SVG(`printEditorContent` 因此变为异步;渲染失败保留源码兜底)。打印样式增强:`@page` A4 纸张与页边距、保留背景色、标题/表格行/代码块/引用整体不跨页断开、任务列表勾选框布局。修复 compact 布局「更多」菜单里打印按钮为空操作的问题。
+
+### 修复
+
+- **表格行/列抓手**:抓手以视口坐标 + `position: fixed` 定位,但按 CSS 规范,带 `transform` / `filter` / `contain: layout paint` / `will-change: transform` 的祖先会成为 fixed 后代的包含块——坐标参照系被悄悄替换,抓手整体偏移该祖先的页面偏移量。覆盖层引擎现在会探测最近的 fixed 包含块祖先(`findFixedContainingBlock`)并把视口坐标换算过去,任何宿主布局下抓手都与表格行/列对齐。新增抓手对齐 e2e 冒烟(`pnpm test:table-grip:e2e`),第二相位重新注入 `contain` 守护换算逻辑。
+- **打印加固**:`print.title` 写入打印 iframe `srcdoc` 前做 HTML 转义(防止文档名等动态内容注入);headless 环境下 iframe `onload` 中的 `print()` 失败不再抛未捕获异常。
+
 ## 0.2.5 - 2026-09-06
 
 ### 修复

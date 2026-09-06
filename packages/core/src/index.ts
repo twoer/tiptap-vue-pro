@@ -51,6 +51,28 @@ export type {
 } from './mermaidRenderer'
 export { MermaidBlock, replaceMermaidBlockSource } from './extensions/mermaidBlock'
 export type { MermaidBlockOptions } from './extensions/mermaidBlock'
+export { MathBlock, MathInline, DEFAULT_MATH_BLOCK_LATEX, DEFAULT_MATH_INLINE_LATEX, INLINE_MATH_INPUT_REGEX, isMathNodeName } from './extensions/math'
+export type { MathNodeOptions } from './extensions/math'
+export {
+  clearMathMemo,
+  createMathRenderController,
+  renderMathToString,
+} from './mathRenderer'
+export type {
+  MathRenderController,
+  MathRenderControllerOptions,
+  MathRenderOptions,
+  MathRenderOutput,
+  MathRenderState,
+  MathRenderer,
+  SafeKatexOptions,
+} from './mathRenderer'
+export { MATH_NODE_VIEW_CONTEXT, useMathNodeView } from './mathNodeView'
+export type { MathNodeViewContext, MathNodeViewProps } from './mathNodeView'
+export { getSelectedMathNode } from './mathSelection'
+export type { ActiveMathNode, SelectedMathKind } from './mathSelection'
+export { insertMathSnippet, MATH_SNIPPET_GROUPS } from './mathSnippets'
+export type { MathSnippet, MathSnippetGroup } from './mathSnippets'
 export { createMermaidCodeEditorController } from './mermaidCodeEditor'
 export type {
   MermaidCodeEditorController,
@@ -138,8 +160,14 @@ export type { ActiveLinkRange } from './linkRange'
 export { hasSupportedLinkProtocol, isSupportedLinkUrl, looksLikeLinkAddress } from './linkValidation'
 export { shouldShowTextBubbleMenu } from './bubbleMenuVisibility'
 export { clampFloatingMenuLeft, getViewportWidth } from './floatingMenuPosition'
-export { useTableGripOverlay } from './tableGripOverlay'
+export {
+  findFixedContainingBlock,
+  resolveFixedOrigin,
+  styleCreatesFixedContainingBlock,
+  useTableGripOverlay,
+} from './tableGripOverlay'
 export type {
+  FixedContainingBlockStyle,
   TableGripColPos,
   TableGripOverlay,
   TableGripOverlayOptions,
@@ -252,9 +280,11 @@ export type {
 export {
   exportMarkdownFile,
   importMarkdownFile,
+  inlineMathPrintHtml,
+  inlineMermaidSvg,
   printEditorContent,
 } from './toolbarActions'
-export type { ExportMarkdownOptions, MarkdownActionContext, PrintActionOptions } from './toolbarActions'
+export type { ExportMarkdownOptions, InlineMathPrintHtmlOptions, InlineMermaidSvgOptions, MarkdownActionContext, PrintActionOptions } from './toolbarActions'
 export {
   COMMAND_GROUPS,
   COMMAND_REGISTRY,

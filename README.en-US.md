@@ -52,13 +52,14 @@ Tiptap Vue Pro packages those pieces as a UI-independent core plus three equival
 - HTML / JSON output with `v-model`
 - Full toolbar with `classic` expanded and `compact` prioritized layouts for formatting, insertion, document, and view actions
 - Code block workflow with syntax highlighting for 17 default languages, language icons, contextual language switching, and one-click copy
-- Slash Command quick insert: type `/` to insert headings, tasks, lists, tables, images, dividers, code blocks, and Mermaid diagrams
+- Slash Command quick insert: type `/` to insert headings, tasks, lists, tables, images, dividers, code blocks, Mermaid diagrams, and math formulas
 - Editor-native find and replace: Ctrl/⌘ + F opens a panel with highlights, previous/next navigation, case-sensitive search, replace current, and replace all
 - Image upload, crop before upload, paste, drag/drop, replacement, alignment, sizing, and captions
 - Video, audio, and file upload with player/file-card display modes, multiple selection, type limits, size limits, and contextual editing after insertion
 - Table insertion, column width dragging, row/column grips, Shift range selection, Ctrl/⌘ + A table selection, cell merge/split, and header toggles
 - Markdown import/export
 - Dedicated Mermaid blocks with persisted code, diagram, and split views, CodeMirror editing, and live preview
+- Math formulas (KaTeX) with `$...$` / `$$...$$` input rules, an inline/block edit dialog with live preview and a syntax cheatsheet, and native MathML output for printing
 - Opt-in autosave with debounce, serialized requests, latest-content-wins, manual flush/retry, and status events
 - Opt-in local draft recovery with versioned storage, expiry validation, and explicit restore/delete
 - Developer diagnostics logs with lifecycle, command, upload, table, and other channels
@@ -134,6 +135,7 @@ Naive UI and Ant Design Vue use the same props. Replace the component name and s
 | Integrate image upload | [Image Upload](https://twoer.github.io/tiptap-vue-pro/en/guide/image-upload) |
 | Integrate video, audio, and file upload | [Video, Audio, and File Upload](https://twoer.github.io/tiptap-vue-pro/en/guide/media-upload) |
 | Edit Mermaid diagrams | [Mermaid Blocks](https://twoer.github.io/tiptap-vue-pro/en/guide/mermaid) |
+| Edit math formulas | [Math Formulas](https://twoer.github.io/tiptap-vue-pro/en/guide/math) |
 | Integrate autosave | [Autosave](https://twoer.github.io/tiptap-vue-pro/en/guide/autosave) |
 | Recover from refresh or crashes | [Local Draft Recovery](https://twoer.github.io/tiptap-vue-pro/en/guide/local-drafts) |
 | Use Nuxt / SSR | [Nuxt / SSR](https://twoer.github.io/tiptap-vue-pro/en/guide/ssr) |

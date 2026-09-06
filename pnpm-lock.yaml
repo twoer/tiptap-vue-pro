@@ -69,6 +69,9 @@ importers:
       happy-dom:
         specifier: ^20.10.6
         version: 20.10.6
+      katex:
+        specifier: ^0.16.11
+        version: 0.16.47
       vite:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@26.0.1)
@@ -102,6 +105,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.8
         version: 6.43.8
+      katex:
+        specifier: ^0.16.11
+        version: 0.16.47
       lowlight:
         specifier: 3.3.0
         version: 3.3.0
@@ -163,6 +169,9 @@ importers:
       '@tiptap/vue-3':
         specifier: 3.27.1
         version: 3.27.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)(vue@3.5.39(typescript@5.9.3))
+      '@types/katex':
+        specifier: ^0.16.7
+        version: 0.16.8
       '@types/node':
         specifier: ^26.0.1
         version: 26.0.1
@@ -227,6 +236,9 @@ importers:
       happy-dom:
         specifier: ^20.10.6
         version: 20.10.6
+      katex:
+        specifier: ^0.16.11
+        version: 0.16.47
       vite:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@26.0.1)
@@ -276,6 +288,9 @@ importers:
       happy-dom:
         specifier: ^20.10.6
         version: 20.10.6
+      katex:
+        specifier: ^0.16.11
+        version: 0.16.47
       naive-ui:
         specifier: ^2.38.0
         version: 2.44.1(vue@3.5.39(typescript@5.9.3))
@@ -334,6 +349,9 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^5.1.0
         version: 5.2.4(vite@5.4.21(@types/node@26.0.1))(vue@3.5.39(typescript@5.9.3))
+      katex:
+        specifier: ^0.16.11
+        version: 0.16.47
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -1439,6 +1457,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/katex@0.16.8':
+    resolution: {integrity: sha512-trgaNyfU+Xh2Tc+ABIb44a5AYUpicB3uwirOioeOkNPPbmgRNtcWyDeeFRzjPZENO9Vq8gvVqfhaaXWLlevVwg==}
 
   '@types/linkify-it@5.0.0':
     resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
@@ -4504,6 +4525,8 @@ snapshots:
       '@types/unist': 3.0.3
 
   '@types/json-schema@7.0.15': {}
+
+  '@types/katex@0.16.8': {}
 
   '@types/linkify-it@5.0.0': {}
 

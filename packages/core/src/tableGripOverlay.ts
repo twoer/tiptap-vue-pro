@@ -22,6 +22,11 @@ export interface TableGripOverlayOptions {
   getEditor: () => Editor | undefined
   getScrollContainer: () => HTMLElement | null
   getContext: () => ProEditorContext
+  /**
+   * 抓手覆盖层的挂载元素(适配器传抓手容器 ref)。用于探测抓手 DOM 链上最近的
+   * fixed 包含块祖先并把视口坐标换算过去;缺省时退回编辑器根元素。
+   */
+  getOverlayHost?: () => HTMLElement | null
   /** adapter 层开发者诊断日志 */
   debugLog?: ProEditorDebugLogFn
   /** 菜单打开时的选中时序:antd 菜单关闭时序需要 rAF 延迟 + 先关另一菜单 */
@@ -64,6 +69,91 @@ export interface TableGripOverlay {
   setup: () => void
   teardown: () => void
   refresh: () => void
+}
+
+export interface FixedContainingBlockStyle {
+  transform?: string | null
+  translate?: string | null
+  rotate?: string | null
+  scale?: string | null
+  perspective?: string | null
+  filter?: string | null
+  backdropFilter?: string | null
+  willChange?: string | null
+  contain?: string | null
+}
+
+const WILL_CHANGE_FIXED_TOKENS = new Set([
+  'transform', 'translate', 'rotate', 'scale', 'perspective', 'filter', 'backdrop-filter',
+])
+const CONTAIN_FIXED_TOKENS = new Set(['layout', 'paint', 'strict', 'content'])
+
+/**
+ * 判断一组 computed style 是否会让该元素成为 fixed 后代的包含块。
+ * CSS 规范:transform/translate/rotate/scale/perspective/filter/backdrop-filter
+ * 非 none、will-change 声明这些属性、或 contain 含 layout/paint/strict/content
+ * 时,fixed 后代改为相对该元素定位(而非视口)。
+ */
+export function styleCreatesFixedContainingBlock(style: FixedContainingBlockStyle): boolean {
+  const notNone = (value?: string | null) => !!value && value !== 'none'
+  if (
+    notNone(style.transform) || notNone(style.translate) || notNone(style.rotate)
+    || notNone(style.scale) || notNone(style.perspective) || notNone(style.filter)
+    || notNone(style.backdropFilter)
+  ) {
+    return true
+  }
+  const willChange = (style.willChange ?? '').toLowerCase()
+  if (willChange && willChange !== 'auto' && willChange !== 'will-change') {
+    for (const token of willChange.split(',')) {
+      if (WILL_CHANGE_FIXED_TOKENS.has(token.trim())) return true
+    }
+  }
+  const contain = (style.contain ?? '').toLowerCase()
+  if (contain && contain !== 'none') {
+    for (const token of contain.split(/[\s,]+/)) {
+      if (CONTAIN_FIXED_TOKENS.has(token)) return true
+    }
+  }
+  return false
+}
+
+/** 从 start 的父级向上找最近的 fixed 包含块祖先(不含 start 自身),直到 body。 */
+export function findFixedContainingBlock(start: Element | null): HTMLElement | null {
+  let el = start?.parentElement ?? null
+  while (el && el !== document.body && el !== document.documentElement) {
+    let style: FixedContainingBlockStyle
+    try {
+      const computed = window.getComputedStyle(el)
+      style = {
+        transform: computed.transform,
+        translate: computed.translate,
+        rotate: computed.rotate,
+        scale: computed.scale,
+        perspective: computed.perspective,
+        filter: computed.filter,
+        backdropFilter: computed.backdropFilter,
+        willChange: computed.willChange,
+        contain: computed.contain,
+      }
+    } catch {
+      return null
+    }
+    if (styleCreatesFixedContainingBlock(style)) return el
+    el = el.parentElement
+  }
+  return null
+}
+
+/**
+ * 解析 fixed 定位坐标的原点:没有包含块祖先时是视口 (0,0),
+ * 否则是该祖先的左上角(getBoundingClientRect 的视口坐标)。
+ */
+export function resolveFixedOrigin(start: Element | null): { left: number; top: number } {
+  const containingBlock = findFixedContainingBlock(start)
+  if (!containingBlock) return { left: 0, top: 0 }
+  const rect = containingBlock.getBoundingClientRect()
+  return { left: rect.left, top: rect.top }
 }
 
 export function useTableGripOverlay(options: TableGripOverlayOptions): TableGripOverlay {
@@ -193,6 +283,8 @@ export function useTableGripOverlay(options: TableGripOverlayOptions): TableGrip
 
   // 计算抓手位置(position:fixed,坐标用视口坐标 getBoundingClientRect 直接用)。
   // fixed 浮层不受 content-wrap 的 overflow 裁剪,抓手能完整伸出表格左/上外侧。
+  // 例外:抓手 DOM 链上若有 transform/contain 等祖先,它会取代视口成为 fixed 的
+  // 包含块(CSS 规范),坐标须换算成相对该祖先——否则抓手整体偏移宿主布局偏移量。
   function updateGripPos() {
     const table = getTableEl()
     const scrollEl = getScrollContainer()
@@ -211,6 +303,8 @@ export function useTableGripOverlay(options: TableGripOverlayOptions): TableGrip
       gripPos.value = { rows: [], cols: [] }
       return
     }
+    const overlayHost = options.getOverlayHost?.() ?? getEditorRoot()
+    const origin = resolveFixedOrigin(overlayHost)
     const pos: typeof gripPos.value = { rows: [], cols: [] }
 
     // 行抓手:fixed 定位,坐标直接用视口坐标(getBoundingClientRect 的返回值)
@@ -219,8 +313,8 @@ export function useTableGripOverlay(options: TableGripOverlayOptions): TableGrip
       const r = tr.getBoundingClientRect()
       pos.rows.push({
         index,
-        left: tableRect.left - GRIP_SIZE - GRIP_GAP,
-        top: r.top,
+        left: tableRect.left - origin.left - GRIP_SIZE - GRIP_GAP,
+        top: r.top - origin.top,
         height: r.height,
       })
     }
@@ -233,8 +327,8 @@ export function useTableGripOverlay(options: TableGripOverlayOptions): TableGrip
         const c = cell.getBoundingClientRect()
         pos.cols.push({
           index,
-          top: tableRect.top - GRIP_SIZE - GRIP_GAP,
-          left: c.left,
+          top: tableRect.top - origin.top - GRIP_SIZE - GRIP_GAP,
+          left: c.left - origin.left,
           width: c.width,
         })
       }

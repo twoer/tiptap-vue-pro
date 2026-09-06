@@ -18,6 +18,8 @@ pnpm add @tiptap/core @tiptap/pm @tiptap/vue-3
 import { ref } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import 'tiptap-vue-pro-element-plus/style.css'
+// 数学公式渲染样式(含 KaTeX 字体,按需加载;不需要公式可省略)
+import 'tiptap-vue-pro-element-plus/katex.css'
 import 'element-plus/dist/index.css'
 
 const content = ref('<p>hello world</p>')
@@ -74,6 +76,8 @@ Tiptap v3 官方包之间互相精确锁定版本(`@tiptap/vue-3` 要求 `@tipta
 import { ref } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import 'tiptap-vue-pro-element-plus/style.css'
+// 数学公式渲染样式(含 KaTeX 字体,按需加载;不需要公式可省略)
+import 'tiptap-vue-pro-element-plus/katex.css'
 import 'element-plus/dist/index.css'
 
 const content = ref('<p>hello world</p>')
@@ -92,6 +96,8 @@ Naive UI 和 Ant Design Vue 的写法只需要替换组件名、样式文件和�
 
 ```ts
 import 'tiptap-vue-pro-element-plus/style.css'
+// 数学公式渲染样式(含 KaTeX 字体,按需加载;不需要公式可省略)
+import 'tiptap-vue-pro-element-plus/katex.css'
 import 'element-plus/dist/index.css'
 ```
 

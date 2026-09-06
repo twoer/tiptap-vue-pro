@@ -17,7 +17,7 @@ function modeLabel(mode: MermaidViewMode) {
 <template>
   <NodeViewWrapper
     class="tvp-mermaid-block"
-    :class="[`is-${view.viewMode.value}`, { 'is-dark': view.theme.value === 'dark' }]"
+    :class="[`is-${view.viewMode.value}`, { 'is-dark': view.theme.value === 'dark', 'is-editable': view.editable.value }]"
     :data-view-mode="view.viewMode.value"
     contenteditable="false"
   >
@@ -83,8 +83,18 @@ function modeLabel(mode: MermaidViewMode) {
   --tvp-mermaid-selection: rgb(24 160 88 / 20%);
   --tvp-mermaid-error-line: rgb(208 48 80 / 10%);
   --tvp-mermaid-error: #d03050;
-  position: relative; margin: 16px 0; overflow: hidden; border: 1px solid var(--tvp-mermaid-border); border-radius: 4px; background: var(--tvp-mermaid-surface); color: var(--tvp-mermaid-text);
+  --tvp-mermaid-primary: var(--n-color-target, #18a058);
+  --tvp-mermaid-primary-soft: var(--n-primary-color-hover, #36ad6a);
+  --tvp-mermaid-primary-wash: rgba(24, 160, 88, 0.16);
+  position: relative; margin: 16px 0; overflow: hidden; border: 1px solid var(--tvp-mermaid-border); border-radius: 4px; background: var(--tvp-mermaid-surface); color: var(--tvp-mermaid-text); transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
+
+/* 选中态(NodeSelection / rangeSelection 装饰):主色边框 + 外圈光晕,与文件附件选中态同款;is-editable 门禁只读/预览 */
+.tvp-mermaid-block.is-editable.ProseMirror-selectednode,
+.tvp-mermaid-block.is-editable.tvp-range-selected-node { border-color: var(--tvp-mermaid-primary); box-shadow: 0 0 0 2px var(--tvp-mermaid-primary-wash); }
+
+/* hover:边框过渡为浅主色,提示块可点选(仅可编辑且未选中时显示) */
+.tvp-mermaid-block.is-editable:not(.ProseMirror-selectednode):not(.tvp-range-selected-node):hover { border-color: var(--tvp-mermaid-primary-soft); }
 .tvp-mermaid-block.is-dark { --tvp-mermaid-border: #3d3d42; --tvp-mermaid-divider: #343438; --tvp-mermaid-surface: #18181c; --tvp-mermaid-subtle: #242428; --tvp-mermaid-muted: #9b9ba1; --tvp-mermaid-text: #e4e4e7; --tvp-mermaid-code-bg: #1d1d21; --tvp-mermaid-code-text: #e4e4e7; --tvp-mermaid-gutter-bg: #242428; --tvp-mermaid-gutter-text: #797980; --tvp-mermaid-active-line: rgb(99 226 183 / 8%); --tvp-mermaid-selection: rgb(99 226 183 / 18%); }
 .tvp-mermaid-toolbar { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--tvp-mermaid-divider); background: var(--tvp-mermaid-subtle); }
 .tvp-mermaid-title, .tvp-mermaid-status, .tvp-mermaid-loading, .tvp-mermaid-error { display: inline-flex; align-items: center; gap: 6px; }

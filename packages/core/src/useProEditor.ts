@@ -157,6 +157,7 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
         defaultSource: options.mermaid?.defaultSource
           ?? getDefaultMermaidSource(resolvedLocale.value.locale),
       },
+      math: options.math,
     },
   )
 
@@ -478,6 +479,21 @@ export function useProEditor(options: ProEditorOptions): ProEditorContext {
     },
     setMermaidViewMode: (viewMode) => {
       cmd()?.chain().focus().setMermaidViewMode(viewMode).run()
+    },
+    insertMathInline: (latex) => {
+      cmd()?.chain().focus().insertMathInline({ latex }).run()
+    },
+    insertMathBlock: (latex) => {
+      cmd()?.chain().focus().insertMathBlock({ latex }).run()
+    },
+    updateMath: (latex, from) => {
+      cmd()?.chain().focus().updateMath({ latex, from }).run()
+    },
+    convertMath: (kind, latex, from) => {
+      cmd()?.chain().focus().convertMath({ kind, latex, from }).run()
+    },
+    deleteMath: (from) => {
+      cmd()?.chain().focus().deleteMath({ from }).run()
     },
     setLink: (href, o) => {
       const ed = cmd()

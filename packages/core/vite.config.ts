@@ -27,6 +27,7 @@ export default defineConfig({
         /^@tiptap\//,
         'lowlight',
         'mermaid',
+        'katex',
         /^@codemirror\//,
       ],
       output: {

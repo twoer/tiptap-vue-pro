@@ -32,6 +32,7 @@ import {
 } from 'naive-ui'
 import { Pencil } from 'lucide-vue-next'
 import {
+  MATH_NODE_VIEW_CONTEXT,
   MERMAID_NODE_VIEW_CONTEXT,
   SLASH_COMMAND_ITEMS,
   createDebugLogger,
@@ -62,6 +63,7 @@ import {
   type ProEditorDebugLogger,
   type ProEditorDebugLogFn,
   type ProEditorDebugOptions,
+  type ActiveMathNode,
 } from 'tiptap-vue-pro-core'
 import Toolbar from './Toolbar.vue'
 import BubbleMenu from './BubbleMenu.vue'
@@ -76,6 +78,9 @@ import MediaBubbleMenu from './MediaBubbleMenu.vue'
 import HorizontalRuleBubbleMenu from './HorizontalRuleBubbleMenu.vue'
 import CodeBlockBubbleMenu from './CodeBlockBubbleMenu.vue'
 import MermaidBlockView from './MermaidBlockView.vue'
+import MathNodeView from './MathNodeView.vue'
+import MathBubbleMenu from './MathBubbleMenu.vue'
+import MathEditDialog from './MathEditDialog.vue'
 import MessageBridge from './MessageBridge.vue'
 
 const props = withDefaults(
@@ -230,6 +235,9 @@ const ctx = useProEditor({
   mermaid: {
     nodeViewRenderer: VueNodeViewRenderer(MermaidBlockView),
   },
+  math: {
+    nodeViewRenderer: VueNodeViewRenderer(MathNodeView),
+  },
   get autosave() {
     return props.autosave
   },
@@ -310,6 +318,39 @@ provide(MERMAID_NODE_VIEW_CONTEXT, {
   editable: computed(() => !props.readonly && !isPreview.value),
   t: ctx.t,
 })
+provide(MATH_NODE_VIEW_CONTEXT, {
+  dark: computed(() => props.dark),
+  editable: computed(() => !props.readonly && !isPreview.value),
+  t: ctx.t,
+})
+
+// ---- 公式编辑弹层 ----
+// 打开弹层即失焦:保存 { from, kind } 按绝对位置回写,不依赖 DOM selection
+const mathEditVisible = ref(false)
+const mathEditTarget = ref<ActiveMathNode | null>(null)
+
+function openMathEdit(math: ActiveMathNode) {
+  mathEditTarget.value = math
+  mathEditVisible.value = true
+}
+
+function confirmMathEdit(latex: string, kind: 'inline' | 'block' = 'block') {
+  const target = mathEditTarget.value
+  if (target) {
+    if (kind === target.kind) {
+      ctx.commands.updateMath(latex, target.from)
+    } else {
+      // 类型变化:同位置转换节点(行内↔块级),单步撤销
+      ctx.commands.convertMath(kind, latex, target.from)
+    }
+  } else if (kind === 'inline') {
+    // 插入模式可切行内:确认时才落文档,取消则什么都不发生(链接插入同款流程)
+    ctx.commands.insertMathInline(latex)
+  } else {
+    ctx.commands.insertMathBlock(latex)
+  }
+  mathEditTarget.value = null
+}
 const tableGripMenuOpen = ref(false)
 // 内容滚动容器(表格抓手覆盖层相对它定位)
 const contentWrap = ref<HTMLElement | null>(null)
@@ -349,6 +390,15 @@ const toolbarCtx = computed<ProEditorContext & { prepareInsert: () => void }>(()
   void selectionTick.value
   return {
     ...ctx,
+    commands: {
+      ...ctx.commands,
+      // 工具栏/slash 插入走「先弹层、确认才落文档」:取消不产生占位公式,
+      // 也不会把示例公式留在文档里(链接插入同款流程)
+      insertMathBlock: () => {
+        mathEditTarget.value = null
+        mathEditVisible.value = true
+      },
+    },
     prepareInsert: () => {
       if (!editorHasBeenFocused.value) {
         ctx.commands.ensureFocusAtEnd()
@@ -609,6 +659,21 @@ const theme = computed(() => (props.dark ? darkTheme : null))
           :editor="ctx.editor.value"
           :ctx="toolbarCtx"
           :suppress="tableGripMenuOpen"
+        />
+
+        <MathBubbleMenu
+          v-if="!readonly && !isPreview && ctx.editor.value"
+          :editor="ctx.editor.value"
+          :ctx="toolbarCtx"
+          @edit="openMathEdit"
+        />
+
+        <MathEditDialog
+          :show="mathEditVisible"
+          :math="mathEditTarget"
+          :t="ctx.t"
+          @update:show="mathEditVisible = $event"
+          @confirm="confirmMathEdit"
         />
 
         <CodeBlockBubbleMenu
@@ -889,9 +954,16 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   border-top-style: dotted;
 }
 
-.tvp-editor--naive .tvp-content .ProseMirror hr.ProseMirror-selectednode,
-.tvp-editor--naive .tvp-content .ProseMirror hr.tvp-range-selected-node {
+/* 选中态描边:只读/预览态不显示,仅保留编辑态的选中反馈 */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror hr.ProseMirror-selectednode,
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror hr.tvp-range-selected-node {
   outline: 2px solid var(--n-primary-color-hover, #36ad6a);
+  outline-offset: 4px;
+}
+
+/* hover 描边:浅主色提示分割线可点选(只读/预览态不显示,已选中时不重复) */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror hr:hover:not(.ProseMirror-selectednode):not(.tvp-range-selected-node) {
+  outline: 1.5px solid var(--n-primary-color-hover, #36ad6a);
   outline-offset: 4px;
 }
 
@@ -1001,6 +1073,12 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   padding: 0;
 }
 
+/* 拖选/全选覆盖代码块时的选中描边(rangeSelection 装饰;光标在块内编辑时不显示;只读/预览态不显示) */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror pre.tvp-range-selected-node {
+  outline: 2px solid var(--n-color-target, #18a058);
+  outline-offset: 2px;
+}
+
 .tvp-content .ProseMirror pre .hljs-keyword,
 .tvp-content .ProseMirror pre .hljs-selector-tag,
 .tvp-content .ProseMirror pre .hljs-built_in {
@@ -1056,6 +1134,9 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 /*
  * 图片节点容器(自定义 NodeView):承载对齐 + 选中态 + 题注。
  * 与其他 adapter 对等,仅 CSS 变量名不同(Naive 用 --n-*)。
+ *
+ * 图片是块级节点:容器横跨整行,hover/选中描边按块级呈现(整行),
+ * 与段落等块元素的选中反馈一致;行内对齐(左/中/右)由 data-align 控制。
  */
 .tvp-content .ProseMirror .tvp-img-node {
   display: flex;
@@ -1070,9 +1151,24 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   align-items: flex-end;
 }
 
-.tvp-editor--naive .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode,
-.tvp-editor--naive .tvp-content .ProseMirror .tvp-img-node.tvp-range-selected-node {
+/*
+ * 选中态:主色描边(ProseMirror 给选中节点加 ProseMirror-selectednode 类,
+ * 范围选中由 rangeSelection 装饰加 tvp-range-selected-node)。
+ * 图片是块级节点:描边按块级呈现——横跨整行;只读/预览态不显示。
+ */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode,
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-img-node.tvp-range-selected-node {
   outline: 2px solid var(--n-color-target, #18a058);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/*
+ * hover 描边:同样按块级横跨整行,提示图片块可点选;
+ * 只读/预览与已选中时不重复显示。
+ */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-img-node:not(.ProseMirror-selectednode):not(.tvp-range-selected-node):hover {
+  outline: 1.5px solid var(--n-primary-color-hover, #36ad6a);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -1095,14 +1191,15 @@ const theme = computed(() => (props.dark ? darkTheme : null))
 }
 /*
  * 题注显隐(对标飞书):空题注默认不占位、不显示。
- * 仅当图片被选中 / hover / 输入框聚焦 / 已有内容时显示。
+ * 仅当图片被选中 / hover / 输入框聚焦 / 已有内容时显示;
+ * hover/选中显隐仅限可编辑态:只读/预览时空题注保持隐藏。
  */
 .tvp-content .ProseMirror .tvp-img-caption-empty {
   display: none;
 }
-.tvp-content .ProseMirror .tvp-img-caption-empty:focus,
-.tvp-content .ProseMirror .tvp-img-node:hover .tvp-img-caption-empty,
-.tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode .tvp-img-caption-empty {
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-img-node:hover .tvp-img-caption-empty,
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-img-node.ProseMirror-selectednode .tvp-img-caption-empty,
+.tvp-content .ProseMirror .tvp-img-caption-empty:focus {
   display: block;
 }
 
@@ -1154,9 +1251,16 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   min-height: 40px;
 }
 
-.tvp-editor--naive .tvp-content .ProseMirror .tvp-media-node.ProseMirror-selectednode,
-.tvp-editor--naive .tvp-content .ProseMirror .tvp-media-node.tvp-range-selected-node {
+/* 选中态描边:只读/预览态不显示,仅保留编辑态的选中反馈 */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-media-node.ProseMirror-selectednode,
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-media-node.tvp-range-selected-node {
   outline: 2px solid var(--n-color-target, #18a058);
+  outline-offset: 2px;
+}
+
+/* hover 描边:浅主色提示媒体节点可点选(只读/预览态不显示,已选中时不重复) */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-media-node:hover:not(.ProseMirror-selectednode):not(.tvp-range-selected-node) {
+  outline: 1.5px solid var(--n-primary-color-hover, #36ad6a);
   outline-offset: 2px;
 }
 
@@ -1194,8 +1298,9 @@ const theme = computed(() => (props.dark ? darkTheme : null))
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
-.tvp-editor--naive .tvp-content .ProseMirror .tvp-file-attachment.ProseMirror-selectednode,
-.tvp-editor--naive .tvp-content .ProseMirror .tvp-file-attachment.tvp-range-selected-node {
+/* 选中态描边:只读/预览态不显示(文件卡片的 hover 是链接交互,不受此限) */
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-file-attachment.ProseMirror-selectednode,
+.tvp-editor--naive:not(.tvp-editor--readonly):not(.is-preview) .tvp-content .ProseMirror .tvp-file-attachment.tvp-range-selected-node {
   border-color: var(--n-primary-color, #18a058);
   box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.16);
 }

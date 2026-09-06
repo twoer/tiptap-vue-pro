@@ -1,6 +1,6 @@
 {
   "name": "tiptap-vue-pro-element-plus",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Tiptap Vue Pro 的 Element Plus 适配:开箱即用的富文本编辑器组件",
   "author": "twoer",
   "license": "MIT",
@@ -37,7 +37,8 @@
       "import": "./dist/index.js",
       "require": "./dist/index.umd.cjs"
     },
-    "./style.css": "./dist/style.css"
+    "./style.css": "./dist/style.css",
+    "./katex.css": "./dist/katex.css"
   },
   "sideEffects": [
     "**/*.css"
@@ -46,7 +47,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/copy-katex-assets.mjs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -73,6 +74,7 @@
     "@vue/test-utils": "^2.4.11",
     "element-plus": "^2.8.0",
     "happy-dom": "^20.10.6",
+    "katex": "^0.16.11",
     "vite": "^5.4.0",
     "vite-plugin-dts": "^4.0.0",
     "vitest": "^1.6.1",

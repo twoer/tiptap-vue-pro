@@ -42,6 +42,11 @@ function createCtx(findReplace?: Partial<FindReplaceState>, autosave?: Partial<A
       replaceFindReplaceAll: vi.fn(),
       closeFindReplace: vi.fn(),
       openFindReplace: vi.fn(),
+      insertMathInline: vi.fn(),
+      insertMathBlock: vi.fn(),
+      updateMath: vi.fn(),
+      convertMath: vi.fn(),
+      deleteMath: vi.fn(),
     },
     getHTML: vi.fn(() => '<p>hello</p>'),
     getJSON: vi.fn(() => ({})),
@@ -118,6 +123,15 @@ const childStubs = {
     name: 'HorizontalRuleBubbleMenu',
     template: '<div data-testid="hr-bubble-menu" />',
   },
+  MathBubbleMenu: {
+    name: 'MathBubbleMenu',
+    template: '<div data-testid="math-bubble-menu" />',
+  },
+  MathEditDialog: {
+    name: 'MathEditDialog',
+    props: ['modelValue', 'math'],
+    template: '<div data-testid="math-edit-dialog" />',
+  },
   CodeBlockBubbleMenu: {
     name: 'CodeBlockBubbleMenu',
     props: ['toolbarOptions', 'editorBehaviorOptions', 'dark'],
@@ -136,6 +150,38 @@ const childStubs = {
   },
   TableGripHandles: { template: '<div data-testid="table-grip-handles" />' },
   EditorContent: { template: '<div data-testid="editor-content" />' },
+}
+
+/**
+ * 公式弹层联动测试用的 stub:工具栏暴露插入入口,气泡菜单暴露编辑入口,
+ * 弹层暴露 confirm(块级/行内)与取消按钮,验证 ProEditor 的分派逻辑。
+ */
+const mathFlowStubs = {
+  ...childStubs,
+  Toolbar: {
+    name: 'Toolbar',
+    props: ['ctx'],
+    template: '<div data-testid="toolbar"><button data-testid="toolbar-math" @click="ctx.commands.insertMathBlock()">公式</button></div>',
+  },
+  MathBubbleMenu: {
+    name: 'MathBubbleMenu',
+    emits: ['edit'],
+    template: '<button data-testid="math-edit-entry" @click="$emit(\'edit\', { from: 4, to: 5, kind: \'block\', latex: \'old\' })" />',
+  },
+  MathEditDialog: {
+    name: 'MathEditDialog',
+    props: ['modelValue', 'math'],
+    emits: ['update:modelValue', 'confirm'],
+    // 真实弹层 confirm 时同时发出 confirm 与 update:modelValue(false) 自行关闭
+    template: `
+      <div v-if="modelValue" data-testid="math-edit-dialog-live">
+        <span data-testid="math-dialog-kind">{{ math ? math.kind : 'insert' }}</span>
+        <button data-testid="math-confirm-block" @click="$emit('confirm', 'x+1', 'block'); $emit('update:modelValue', false)" />
+        <button data-testid="math-confirm-inline" @click="$emit('confirm', 'x+1', 'inline'); $emit('update:modelValue', false)" />
+        <button data-testid="math-cancel" @click="$emit('update:modelValue', false)" />
+      </div>
+    `,
+  },
 }
 
 function createSlashState(command = vi.fn()): SlashCommandRenderState {
@@ -460,8 +506,9 @@ describe('ProEditorAntDesignVue', () => {
     useProEditorOptions.slashCommand.onOpen(createSlashState())
     await nextTick()
 
-    expect(useProEditorOptions.slashCommand.items).toHaveLength(9)
+    expect(useProEditorOptions.slashCommand.items).toHaveLength(10)
     expect(useProEditorOptions.slashCommand.items[8]?.id).toBe('mermaid')
+    expect(useProEditorOptions.slashCommand.items[9]?.id).toBe('math')
     expect(useProEditorOptions.mermaid.nodeViewRenderer).toEqual(expect.any(Function))
     expect(wrapper.find('[data-testid="slash-menu"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="slash-menu"]').text()).toContain('表格')
@@ -488,6 +535,86 @@ describe('ProEditorAntDesignVue', () => {
     await wrapper.find('[data-testid="slash-menu"]').trigger('click')
 
     expect(command).toHaveBeenCalledWith(expect.objectContaining({ id: 'table' }))
+  })
+
+  it('公式插入:工具栏先打开编辑弹层,确认(块级)才落文档', async () => {
+    mockState.ctx = createCtx()
+    wrapper = mount(ProEditorAntDesignVue, {
+      attachTo: document.body,
+      global: { stubs: mathFlowStubs },
+    })
+
+    await wrapper.find('[data-testid="toolbar-math"]').trigger('click')
+    await nextTick()
+
+    // 弹层已打开(插入模式,math 为 null),但文档命令尚未发生
+    expect(wrapper.find('[data-testid="math-edit-dialog-live"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="math-dialog-kind"]').text()).toBe('insert')
+    expect(mockState.ctx!.commands.insertMathBlock).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="math-confirm-block"]').trigger('click')
+    await nextTick()
+
+    expect(mockState.ctx!.commands.insertMathBlock).toHaveBeenCalledWith('x+1')
+    expect(wrapper.find('[data-testid="math-edit-dialog-live"]').exists()).toBe(false)
+  })
+
+  it('公式插入:弹层勾选行内后确认走 insertMathInline', async () => {
+    mockState.ctx = createCtx()
+    wrapper = mount(ProEditorAntDesignVue, {
+      attachTo: document.body,
+      global: { stubs: mathFlowStubs },
+    })
+
+    await wrapper.find('[data-testid="toolbar-math"]').trigger('click')
+    await nextTick()
+    await wrapper.find('[data-testid="math-confirm-inline"]').trigger('click')
+    await nextTick()
+
+    expect(mockState.ctx!.commands.insertMathInline).toHaveBeenCalledWith('x+1')
+    expect(mockState.ctx!.commands.insertMathBlock).not.toHaveBeenCalled()
+  })
+
+  it('公式编辑:同类型确认走 updateMath,类型切换走 convertMath', async () => {
+    mockState.ctx = createCtx()
+    wrapper = mount(ProEditorAntDesignVue, {
+      attachTo: document.body,
+      global: { stubs: mathFlowStubs },
+    })
+
+    // 气泡菜单编辑入口带出选中的公式节点
+    await wrapper.find('[data-testid="math-edit-entry"]').trigger('click')
+    await nextTick()
+    expect(wrapper.find('[data-testid="math-dialog-kind"]').text()).toBe('block')
+
+    await wrapper.find('[data-testid="math-confirm-block"]').trigger('click')
+    await nextTick()
+    expect(mockState.ctx!.commands.updateMath).toHaveBeenCalledWith('x+1', 4)
+    expect(mockState.ctx!.commands.convertMath).not.toHaveBeenCalled()
+
+    // 重新打开,确认时切换为行内 → convertMath 单步转换
+    await wrapper.find('[data-testid="math-edit-entry"]').trigger('click')
+    await nextTick()
+    await wrapper.find('[data-testid="math-confirm-inline"]').trigger('click')
+    await nextTick()
+    expect(mockState.ctx!.commands.convertMath).toHaveBeenCalledWith('inline', 'x+1', 4)
+  })
+
+  it('公式弹层取消不产生任何文档命令', async () => {
+    mockState.ctx = createCtx()
+    wrapper = mount(ProEditorAntDesignVue, {
+      attachTo: document.body,
+      global: { stubs: mathFlowStubs },
+    })
+
+    await wrapper.find('[data-testid="toolbar-math"]').trigger('click')
+    await nextTick()
+    await wrapper.find('[data-testid="math-cancel"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="math-edit-dialog-live"]').exists()).toBe(false)
+    expect(mockState.ctx!.commands.insertMathBlock).not.toHaveBeenCalled()
+    expect(mockState.ctx!.commands.insertMathInline).not.toHaveBeenCalled()
   })
 
   it('Slash 执行回调会复用 core 命令执行表格插入', () => {

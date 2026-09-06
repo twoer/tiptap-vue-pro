@@ -27,12 +27,15 @@ type ToolbarBuiltinKey =
   | 'taskList'
   | 'blockquote'
   | 'codeBlock'
+  | 'mermaid'
+  | 'math'
   | 'hr'
   | 'link'
   | 'image'
   | 'attachment'
   | 'table'
   | 'clearFormat'
+  | 'findReplace'
   | 'markdown'
   | 'print'
   | 'fullscreen'
@@ -53,8 +56,8 @@ const toolbar: ToolbarConfig = [
   ['color', 'highlight', 'clearFormat'],
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
-  ['link', 'image', 'attachment', 'table', 'hr'],
-  ['markdown', 'print'],
+  ['link', 'image', 'attachment', 'table', 'mermaid', 'math', 'hr'],
+  ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
 ```

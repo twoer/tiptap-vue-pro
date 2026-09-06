@@ -2,6 +2,18 @@
 
 中文: [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)
 
+## 0.2.6 - 2026-09-06
+
+### Added
+
+- **Math formulas (KaTeX)**: new `mathInline` / `mathBlock` nodes with `$...$` and `$$...$$` input rules, slash `/公式`, and a toolbar ∑ entry. Selecting a formula opens a bubble menu plus an edit dialog with live preview, block/inline kind switching, and a collapsible syntax cheatsheet; the insert flow opens the dialog first so nothing lands in the document until confirmed. Block formulas round-trip through Markdown as `$$` blocks; inline formulas export as `$latex$` source. Print copies inline formulas as native MathML (self-contained, no KaTeX CSS/fonts needed) and adapters ship a `./katex.css` style entry with fonts.
+- **Print / PDF export pipeline**: the single 打印 (print) button now explicitly serves PDF export too (browsers expose no silent PDF API; the print dialog is the export channel). Mermaid source blocks are rendered to SVG before printing via the new `inlineMermaidSvg()` (`printEditorContent` is now async; failed renders keep the source as fallback). Print styles gained `@page` A4 size and margins, background preservation, keep-together rules for headings/table rows/code blocks/blockquotes, and task-list checkbox layout. The compact "more" menu print button, previously a no-op, now routes to the print handler.
+
+### Fixed
+
+- **Table row/column grips**: grips are positioned with viewport coordinates on `position: fixed`, but an ancestor with `transform` / `filter` / `contain: layout paint` / `will-change: transform` becomes the containing block for fixed descendants per the CSS spec — silently replacing the coordinate origin and shifting all grips by that ancestor's page offset. The overlay engine now detects the nearest fixed containing block (`findFixedContainingBlock`) and converts viewport coordinates accordingly, so grips stay aligned under any host layout. Covered by a new grip-alignment e2e smoke (`pnpm test:table-grip:e2e`) whose second phase re-injects `contain` to guard the conversion.
+- **Print hardening**: the `print.title` option is HTML-escaped before being embedded into the print iframe `srcdoc` (prevents injection from dynamic titles such as document names), and `print()` failures inside the iframe `onload` no longer throw uncaught errors in headless environments.
+
 ## 0.2.5 - 2026-09-06
 
 ### Fixed

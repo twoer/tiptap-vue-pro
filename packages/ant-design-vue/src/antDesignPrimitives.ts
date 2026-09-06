@@ -9,6 +9,7 @@ import {
   MenuItem,
   Modal,
   Slider,
+  Textarea,
   Tooltip,
   message,
 } from 'ant-design-vue'
@@ -247,6 +248,27 @@ export const AntInput = defineComponent({
         },
         slots,
       )
+  },
+})
+
+export const AntTextarea = defineComponent({
+  name: 'AntTextarea',
+  inheritAttrs: false,
+  props: {
+    modelValue: String,
+    placeholder: String,
+    rows: Number,
+  },
+  emits: ['update:modelValue'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h(Textarea, {
+        ...attrs,
+        value: props.modelValue,
+        placeholder: props.placeholder,
+        rows: props.rows,
+        'onUpdate:value': (v: string) => emit('update:modelValue', v),
+      })
   },
 })
 

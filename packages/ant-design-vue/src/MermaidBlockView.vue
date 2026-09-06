@@ -15,7 +15,7 @@ function modeLabel(mode: MermaidViewMode) {
 </script>
 
 <template>
-  <NodeViewWrapper class="tvp-mermaid-block" :class="[`is-${view.viewMode.value}`, { 'is-dark': view.theme.value === 'dark' }]" :data-view-mode="view.viewMode.value" contenteditable="false">
+  <NodeViewWrapper class="tvp-mermaid-block" :class="[`is-${view.viewMode.value}`, { 'is-dark': view.theme.value === 'dark', 'is-editable': view.editable.value }]" :data-view-mode="view.viewMode.value" contenteditable="false">
     <div v-if="view.editable.value" class="tvp-mermaid-toolbar">
       <span class="tvp-mermaid-title"><Workflow :size="15" aria-hidden="true" /><span>Mermaid</span></span>
       <AntButtonGroup class="tvp-mermaid-mode-group" :aria-label="view.t('mermaid.view.label')">
@@ -45,8 +45,16 @@ function modeLabel(mode: MermaidViewMode) {
 <style scoped>
 .tvp-mermaid-block {
   --tvp-mermaid-border: #d9d9d9; --tvp-mermaid-divider: #f0f0f0; --tvp-mermaid-surface: #fff; --tvp-mermaid-subtle: #fafafa; --tvp-mermaid-muted: #8c8c8c; --tvp-mermaid-text: #262626; --tvp-mermaid-code-bg: #fcfcfc; --tvp-mermaid-code-text: #262626; --tvp-mermaid-code-caret: #1677ff; --tvp-mermaid-gutter-bg: #f7f7f7; --tvp-mermaid-gutter-text: #9b9b9b; --tvp-mermaid-active-line: rgb(22 119 255 / 8%); --tvp-mermaid-selection: rgb(22 119 255 / 20%); --tvp-mermaid-error-line: rgb(255 77 79 / 10%); --tvp-mermaid-error: #ff4d4f;
-  position: relative; margin: 16px 0; overflow: hidden; border: 1px solid var(--tvp-mermaid-border); border-radius: 4px; background: var(--tvp-mermaid-surface); color: var(--tvp-mermaid-text);
+  --tvp-mermaid-primary: var(--tvp-ant-color-primary, #1677ff); --tvp-mermaid-primary-soft: var(--tvp-ant-color-primary-light-5, #4096ff); --tvp-mermaid-primary-wash: var(--tvp-ant-color-primary-light-8, #e6f4ff);
+  position: relative; margin: 16px 0; overflow: hidden; border: 1px solid var(--tvp-mermaid-border); border-radius: 4px; background: var(--tvp-mermaid-surface); color: var(--tvp-mermaid-text); transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
+
+/* 选中态(NodeSelection / rangeSelection 装饰):主色边框 + 外圈光晕,与文件附件选中态同款;is-editable 门禁只读/预览 */
+.tvp-mermaid-block.is-editable.ProseMirror-selectednode,
+.tvp-mermaid-block.is-editable.tvp-range-selected-node { border-color: var(--tvp-mermaid-primary); box-shadow: 0 0 0 2px var(--tvp-mermaid-primary-wash); }
+
+/* hover:边框过渡为浅主色,提示块可点选(仅可编辑且未选中时显示) */
+.tvp-mermaid-block.is-editable:not(.ProseMirror-selectednode):not(.tvp-range-selected-node):hover { border-color: var(--tvp-mermaid-primary-soft); }
 .tvp-mermaid-block.is-dark { --tvp-mermaid-border: #424242; --tvp-mermaid-divider: #303030; --tvp-mermaid-surface: #1f1f1f; --tvp-mermaid-subtle: #262626; --tvp-mermaid-muted: #a6a6a6; --tvp-mermaid-text: #f0f0f0; --tvp-mermaid-code-bg: #202020; --tvp-mermaid-code-text: #f0f0f0; --tvp-mermaid-gutter-bg: #262626; --tvp-mermaid-gutter-text: #858585; --tvp-mermaid-active-line: rgb(105 177 255 / 9%); --tvp-mermaid-selection: rgb(105 177 255 / 20%); }
 .tvp-mermaid-toolbar { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--tvp-mermaid-divider); background: var(--tvp-mermaid-subtle); }
 .tvp-mermaid-title, .tvp-mermaid-status, .tvp-mermaid-loading, .tvp-mermaid-error { display: inline-flex; align-items: center; gap: 6px; }

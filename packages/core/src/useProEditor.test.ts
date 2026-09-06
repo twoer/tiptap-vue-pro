@@ -102,6 +102,7 @@ function mountEditor(opts: {
   debugLogger?: ProEditorDebugLogger
   editorProps?: Record<string, unknown>
   mermaid?: ProEditorOptions['mermaid']
+  math?: ProEditorOptions['math']
   autosave?: ProEditorOptions['autosave']
   draft?: ProEditorOptions['draft']
   onModelValue?: (v: string | object) => void
@@ -132,6 +133,7 @@ function mountEditor(opts: {
         debugLogger: opts.debugLogger,
         editorProps: opts.editorProps,
         mermaid: opts.mermaid,
+        math: opts.math,
         get autosave() {
           return autosave.value
         },
@@ -2120,6 +2122,107 @@ describe('useProEditor — getHTML / getJSON / Markdown', () => {
   })
 })
 
+describe('useProEditor — 数学公式命令', () => {
+  type TestEditor = NonNullable<ReturnType<typeof useProEditor>['editor']['value']>
+
+  function findMathPos(ed: TestEditor, name: string): number {
+    let pos = -1
+    ed.state.doc.descendants((node, p) => {
+      if (pos < 0 && node.type.name === name) pos = p
+    })
+    if (pos < 0) throw new Error(`node ${name} not found`)
+    return pos
+  }
+
+  function findLatex(ed: TestEditor, name: string): string {
+    let latex = ''
+    ed.state.doc.descendants((node) => {
+      if (node.type.name === name && !latex) latex = String(node.attrs.latex ?? '')
+    })
+    return latex
+  }
+
+  function hasMathNode(ed: TestEditor, name: string): boolean {
+    let found = false
+    ed.state.doc.descendants((node) => {
+      if (node.type.name === name) found = true
+    })
+    return found
+  }
+
+  it('insertMathInline / insertMathBlock 写入文档并序列化 data-latex', async () => {
+    const { ctx } = mountEditor({ content: '<p>正文</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertMathInline('a+b')
+    ctx.commands.insertMathBlock('E = mc^2')
+    await nextTick()
+
+    const html = ed.getHTML()
+    expect(html).toContain('data-type="math-inline"')
+    expect(html).toContain('data-latex="a+b"')
+    expect(html).toContain('data-type="math-block"')
+    expect(html).toContain('data-latex="E = mc^2"')
+    // Markdown 导出:行内 $...$,块级 $$
+    expect(ctx.getMarkdown()).toContain('$a+b$')
+    expect(ctx.getMarkdown()).toContain('$$')
+  })
+
+  it('updateMath 按保存的 from 位置回写(弹层失焦后 selection 不可靠)', async () => {
+    const { ctx } = mountEditor({ content: '<p>text</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertMathBlock('old')
+    await nextTick()
+    const pos = findMathPos(ed, 'mathBlock')
+    ed.commands.setTextSelection(0)
+
+    ctx.commands.updateMath('new', pos)
+    await nextTick()
+    expect(findLatex(ed, 'mathBlock')).toBe('new')
+  })
+
+  it('convertMath 在行内/块级之间转换并保留源码', async () => {
+    const { ctx } = mountEditor({ content: '<p>text</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertMathInline('x+1')
+    await nextTick()
+    const inlinePos = findMathPos(ed, 'mathInline')
+
+    ctx.commands.convertMath('block', 'x+1', inlinePos)
+    await nextTick()
+    expect(hasMathNode(ed, 'mathInline')).toBe(false)
+    expect(findLatex(ed, 'mathBlock')).toBe('x+1')
+
+    const blockPos = findMathPos(ed, 'mathBlock')
+    ctx.commands.convertMath('inline', 'x+1', blockPos)
+    await nextTick()
+    expect(hasMathNode(ed, 'mathBlock')).toBe(false)
+    expect(findLatex(ed, 'mathInline')).toBe('x+1')
+  })
+
+  it('deleteMath 按保存位置删除公式节点', async () => {
+    const { ctx } = mountEditor({ content: '<p>text</p>' })
+    const ed = await ready(ctx)
+    ctx.commands.insertMathBlock('gone')
+    await nextTick()
+    const pos = findMathPos(ed, 'mathBlock')
+    ed.commands.setTextSelection(0)
+
+    ctx.commands.deleteMath(pos)
+    await nextTick()
+    expect(hasMathNode(ed, 'mathBlock')).toBe(false)
+  })
+
+  it('math 配置注入到 mathBlock storage(供 NodeView 读取)', async () => {
+    const render = vi.fn(async () => '<span>custom</span>')
+    const { ctx } = mountEditor({ content: '<p>x</p>', math: { render, katexOptions: { macros: { '\\RR': '\\mathbb{R}' } } } })
+    const ed = await ready(ctx)
+
+    const storage = (ed.extensionStorage as unknown as Record<string, { getRender?: () => unknown; getKatexOptions?: () => unknown }>).mathBlock
+    expect(storage?.getRender?.()).toBe(render)
+    expect(storage?.getKatexOptions?.()).toEqual({ macros: { '\\RR': '\\mathbb{R}' } })
+  })
+})
+
 describe('useProEditor — 只读切换', () => {
   it('setEditable(false) → 编辑器不可编辑', async () => {
     const { ctx } = mountEditor({ content: '<p>x</p>' })
@@ -2463,6 +2566,26 @@ describe('useProEditor — 媒体与文件命令', () => {
     expect(wrapper.element.querySelector('.tvp-media-node[data-media-kind="audio"].tvp-range-selected-node')).not.toBeNull()
     expect(wrapper.element.querySelector('.tvp-file-attachment.tvp-range-selected-node')).not.toBeNull()
     expect(wrapper.element.querySelector('hr.tvp-range-selected-node')).not.toBeNull()
+  })
+
+  it('全选时代码块、公式和 Mermaid 节点也有范围选中态', async () => {
+    const { ctx, wrapper } = mountEditor({
+      content:
+        '<pre><code>const a = 1</code></pre>' +
+        '<p>前后 <span data-type="math-inline" data-latex="E=mc^2"></span> 行内公式</p>' +
+        '<div data-type="math-block" data-latex="a^2+b^2=c^2"></div>' +
+        '<div data-type="mermaid-block"><code>graph TD</code></div>',
+    })
+    const ed = await ready(ctx)
+    await nextTick()
+
+    ed.view.dispatch(ed.state.tr.setSelection(new AllSelection(ed.state.doc)))
+    await nextTick()
+
+    expect(wrapper.element.querySelector('pre.tvp-range-selected-node')).not.toBeNull()
+    expect(wrapper.element.querySelector('span[data-type="math-inline"].tvp-range-selected-node')).not.toBeNull()
+    expect(wrapper.element.querySelector('div[data-type="math-block"].tvp-range-selected-node')).not.toBeNull()
+    expect(wrapper.element.querySelector('div[data-type="mermaid-block"].tvp-range-selected-node')).not.toBeNull()
   })
 
   it('setMediaSize: medium 设为当前视频容器宽度的 50%', async () => {

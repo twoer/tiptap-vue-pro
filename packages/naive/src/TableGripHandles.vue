@@ -4,7 +4,7 @@
  * 覆盖层引擎在 core 的 useTableGripOverlay,本组件只负责 Naive UI
  * 数据驱动的 NDropdown 菜单(options + renderLabel)与样式。
  */
-import { onMounted, onBeforeUnmount, watch, h, type VNode } from 'vue'
+import { onMounted, onBeforeUnmount, ref, watch, h, type VNode } from 'vue'
 import { NDropdown } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-vue-next'
@@ -22,6 +22,10 @@ const emit = defineEmits<{
   'menu-open-change': [open: boolean]
 }>()
 
+// 抓手容器:引擎据它的 DOM 链探测 fixed 包含块祖先(transform/contain 等),
+// 把视口坐标换算过去;display: contents 使其自身不参与布局
+const layerEl = ref<HTMLElement | null>(null)
+
 const {
   hasEditor, hoverRow, hoverCol, activeGripPos,
   rowMenuShow, colMenuShow, rowMenuIndex, colMenuIndex,
@@ -32,6 +36,7 @@ const {
 } = useTableGripOverlay({
   getEditor: () => props.editor,
   getScrollContainer: () => props.scrollContainer,
+  getOverlayHost: () => layerEl.value,
   getContext: () => props.ctx,
   debugLog: (channel, event, payload, level, error) =>
     props.debugLog?.(channel, event, payload, level, error),
@@ -86,7 +91,7 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
 </script>
 
 <template>
-  <template v-if="hasEditor">
+  <div v-if="hasEditor" ref="layerEl" class="tvp-table-grip-layer">
     <!-- 行抓手(表格左外侧)-->
     <div
       v-for="row in activeGripPos.rows"
@@ -126,10 +131,15 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
         </span>
       </NDropdown>
     </div>
-  </template>
+  </div>
 </template>
 
 <style scoped>
+/* 抓手容器:不生成盒子,只为给引擎提供 fixed 包含块的探测起点 */
+.tvp-table-grip-layer {
+  display: contents;
+}
+
 .tvp-table-grip {
   position: fixed;
   display: flex;

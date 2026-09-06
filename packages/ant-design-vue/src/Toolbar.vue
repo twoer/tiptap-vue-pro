@@ -10,7 +10,7 @@ import {
   IndentDecrease, IndentIncrease,
   List, ListOrdered, ListChecks,
   Quote, Code, Minus,
-  Link, ImagePlus, Link2, Table, Workflow,
+  Link, ImagePlus, Link2, Table, Workflow, Sigma,
   Video, File,
   FileDown, FileUp,
   Eraser, Search, Printer,
@@ -225,7 +225,7 @@ const FALLBACK_TOOLBAR: ToolbarConfig = [
   ['color', 'highlight', 'clearFormat'],
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
-  ['link', 'image', 'attachment', 'table', 'mermaid', 'hr'],
+  ['link', 'image', 'attachment', 'table', 'mermaid', 'math', 'hr'],
   ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
@@ -541,6 +541,7 @@ function compactItemIcon(item: ToolbarBuiltinKey): Component {
     image: ImagePlus,
     attachment: File,
     mermaid: Workflow,
+    math: Sigma,
     hr: Minus,
     findReplace: Search,
     markdown: MarkdownIcon,
@@ -592,7 +593,8 @@ function onCompactMenuCommand(command: string | number | object) {
   if (item === 'attachment') return onAttachmentCommand(payload ?? '')
   if (item === 'hr') return onHorizontalRule(payload ?? 'solid')
   if (item === 'markdown') return onMarkdownCommand(payload as ToolbarMarkdownAction)
-  if (item === 'mermaid') prepareInsert()
+  if (item === 'print') return printContent()
+  if (item === 'mermaid' || item === 'math') prepareInsert()
   runCommand(item)
 }
 
@@ -957,6 +959,10 @@ const {
 
         <AntTooltip v-else-if="item === 'mermaid'" :content="commandLabel('mermaid')" placement="top" :show-after="300">
           <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('mermaid')" @click="ctx.prepareInsert?.(); runCommand('mermaid')"><Workflow :size="16" /></AntButton>
+        </AntTooltip>
+
+        <AntTooltip v-else-if="item === 'math'" :content="commandLabel('math')" placement="top" :show-after="300">
+          <AntButton text class="tvp-icon-btn" :aria-label="commandLabel('math')" @click="ctx.prepareInsert?.(); runCommand('math')"><Sigma :size="16" /></AntButton>
         </AntTooltip>
 
         

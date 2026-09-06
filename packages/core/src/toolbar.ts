@@ -23,6 +23,7 @@ export type ToolbarBuiltinKey =
   | 'blockquote'
   | 'codeBlock'
   | 'mermaid'
+  | 'math'
   | 'hr'
   | 'link'
   | 'image'
@@ -60,7 +61,7 @@ export const DEFAULT_TOOLBAR: ToolbarConfig = [
   ['color', 'highlight', 'clearFormat'],
   ['align', 'decreaseIndent', 'increaseIndent'],
   ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
-  ['link', 'image', 'attachment', 'table', 'mermaid', 'hr'],
+  ['link', 'image', 'attachment', 'table', 'mermaid', 'math', 'hr'],
   ['findReplace', 'markdown', 'print'],
   ['preview', 'fullscreen'],
 ]
@@ -69,7 +70,7 @@ const COMPACT_MENU_ITEMS: Record<ToolbarCompactMenuId, readonly ToolbarBuiltinKe
   format: ['strike', 'code', 'superscript', 'subscript', 'clearFormat'],
   list: ['decreaseIndent', 'increaseIndent', 'bulletList', 'orderedList', 'taskList', 'blockquote'],
   // Code block and table keep their dedicated pickers in compact mode.
-  insert: ['image', 'attachment', 'mermaid', 'hr'],
+  insert: ['image', 'attachment', 'mermaid', 'math', 'hr'],
   more: ['findReplace', 'markdown', 'print'],
 }
 

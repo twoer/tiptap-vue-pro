@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
+// 公式渲染样式(含 KaTeX 字体,按需加载;宿主应用从 katex 包引入,库形态走 adapter 的 ./katex.css)
+import 'katex/dist/katex.min.css'
 import { ProEditorNaive } from 'tiptap-vue-pro-naive'
 import { ProEditorAntDesignVue } from 'tiptap-vue-pro-ant-design-vue'
 import type { AutosaveOptions, EditorBehaviorOptions, LocalDraftOptions, LocaleCode } from 'tiptap-vue-pro-core'
@@ -1009,7 +1011,6 @@ html.dark .reset-btn:hover {
   overflow: hidden;
   border-radius: 4px;
   background: #fff;
-  contain: layout paint;
   isolation: isolate;
 }
 

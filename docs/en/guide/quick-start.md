@@ -18,6 +18,8 @@ Then import the component and styles in your page:
 import { ref } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import 'tiptap-vue-pro-element-plus/style.css'
+// 数学公式渲染样式(含 KaTeX 字体,按需加载;不需要公式可省略)
+import 'tiptap-vue-pro-element-plus/katex.css'
 import 'element-plus/dist/index.css'
 
 const content = ref('<p>hello world</p>')
@@ -74,6 +76,8 @@ If your project must pin an older version (e.g. `3.27.1`), make sure **all** `@t
 import { ref } from 'vue'
 import { ProEditorElementPlus } from 'tiptap-vue-pro-element-plus'
 import 'tiptap-vue-pro-element-plus/style.css'
+// 数学公式渲染样式(含 KaTeX 字体,按需加载;不需要公式可省略)
+import 'tiptap-vue-pro-element-plus/katex.css'
 import 'element-plus/dist/index.css'
 
 const content = ref('<p>hello world</p>')
@@ -92,6 +96,8 @@ Adapter component styles must be imported explicitly:
 
 ```ts
 import 'tiptap-vue-pro-element-plus/style.css'
+// 数学公式渲染样式(含 KaTeX 字体,按需加载;不需要公式可省略)
+import 'tiptap-vue-pro-element-plus/katex.css'
 import 'element-plus/dist/index.css'
 ```
 

@@ -26,6 +26,7 @@ import { RangeSelectionDecorations } from './extensions/rangeSelection'
 import { SlashCommandExtension, type SlashCommandExtensionOptions } from './extensions/slashCommand'
 import { FindReplaceExtension, type FindReplaceExtensionOptions } from './extensions/findReplace'
 import { MermaidBlock, type MermaidBlockOptions } from './extensions/mermaidBlock'
+import { MathBlock, MathInline, type MathNodeOptions } from './extensions/math'
 import type { EditorExtensionConfig } from './extensionRegistry'
 
 export type { Extensions } from '@tiptap/core'
@@ -68,6 +69,7 @@ export function createDefaultExtensions(
     slashCommand?: Partial<SlashCommandExtensionOptions>
     findReplace?: Partial<FindReplaceExtensionOptions>
     mermaid?: Partial<MermaidBlockOptions>
+    math?: Partial<MathNodeOptions>
   } = {},
 ): Extensions {
   const enabled = {
@@ -82,6 +84,7 @@ export function createDefaultExtensions(
     blockIndent: true,
     codeBlock: true,
     mermaid: true,
+    math: true,
     script: true,
     taskList: true,
     media: true,
@@ -176,6 +179,13 @@ export function createDefaultExtensions(
 
   if (enabled.mermaid) {
     extensions.push(options.mermaid ? MermaidBlock.configure(options.mermaid) : MermaidBlock)
+  }
+
+  if (enabled.math) {
+    // 两个节点共享同一份 options:render / katexOptions 存放在 mathBlock storage,
+    // useMathNodeView 渲染时读取;nodeViewRenderer 由 adapter 注入
+    const mathOptions = options.math ?? {}
+    extensions.push(MathInline.configure(mathOptions), MathBlock.configure(mathOptions))
   }
 
   if (enabled.script) {

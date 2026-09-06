@@ -8,6 +8,8 @@ const actionMocks = vi.hoisted(() => ({
   importMarkdownFile: vi.fn(),
   exportMarkdownFile: vi.fn(),
   printEditorContent: vi.fn(),
+  inlineMermaidSvg: vi.fn(async (html: string) => html),
+  inlineMathPrintHtml: vi.fn(async (html: string) => html),
 }))
 
 vi.mock('./toolbarActions', () => actionMocks)
@@ -50,6 +52,8 @@ function setup() {
 describe('useToolbarDocumentActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    actionMocks.inlineMermaidSvg.mockImplementation(async (html: string) => html)
+    actionMocks.inlineMathPrintHtml.mockImplementation(async (html: string) => html)
   })
 
   it('opens the Markdown file input', () => {
@@ -93,16 +97,58 @@ describe('useToolbarDocumentActions', () => {
     expect(options?.filename()).toBe('notes.md')
   })
 
-  it('forwards print title and cleanup options', () => {
+  it('notifies the save-as-pdf hint and forwards print options', async () => {
     const { controller, ctx } = setup()
 
-    controller.printContent()
+    await controller.printContent()
 
+    expect(ctx.notify).toHaveBeenCalledWith('notify.printExportHint', 'info')
     expect(actionMocks.printEditorContent).toHaveBeenCalledWith('<p>document</p>', {
       title: 'Project notes',
       cleanupDelay: 25,
       t: ctx.t,
     })
+  })
+
+  it('falls back to the raw html when mermaid inlining fails', async () => {
+    const { controller } = setup()
+    actionMocks.inlineMermaidSvg.mockRejectedValueOnce(new Error('renderer unavailable'))
+
+    await controller.printContent()
+
+    expect(actionMocks.inlineMermaidSvg).toHaveBeenCalledWith('<p>document</p>')
+    expect(actionMocks.printEditorContent).toHaveBeenCalledWith(
+      '<p>document</p>',
+      expect.objectContaining({ title: 'Project notes' }),
+    )
+  })
+
+  it('prints the html with both mermaid and math inlined', async () => {
+    const { controller } = setup()
+    actionMocks.inlineMermaidSvg.mockImplementation(async () => '<p>mermaid-svg</p>')
+    actionMocks.inlineMathPrintHtml.mockImplementation(async () => '<p>mermaid-svg + mathml</p>')
+
+    await controller.printContent()
+
+    // 两步串行:公式替换拿到的是 Mermaid 内联后的产物
+    expect(actionMocks.inlineMathPrintHtml).toHaveBeenCalledWith('<p>mermaid-svg</p>')
+    expect(actionMocks.printEditorContent).toHaveBeenCalledWith(
+      '<p>mermaid-svg + mathml</p>',
+      expect.objectContaining({ title: 'Project notes' }),
+    )
+  })
+
+  it('keeps the mermaid-inlined html when math inlining fails', async () => {
+    const { controller } = setup()
+    actionMocks.inlineMermaidSvg.mockImplementation(async () => '<p>mermaid-svg</p>')
+    actionMocks.inlineMathPrintHtml.mockRejectedValueOnce(new Error('katex unavailable'))
+
+    await controller.printContent()
+
+    expect(actionMocks.printEditorContent).toHaveBeenCalledWith(
+      '<p>mermaid-svg</p>',
+      expect.objectContaining({ title: 'Project notes' }),
+    )
   })
 
   it('routes import and export command keys', () => {

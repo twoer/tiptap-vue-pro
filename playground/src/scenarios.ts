@@ -39,9 +39,9 @@ export const playgroundScenarios: Record<ScenarioKey, PlaygroundScenario> = {
     key: 'basic',
     zhTitle: '基础编辑器',
     enTitle: 'Basic Editor',
-    zhDescription: '覆盖标题、文字格式、列表、任务、表格、图片和 Mermaid,适合快速扫一遍核心能力。',
+    zhDescription: '覆盖标题、文字格式、列表、任务、表格、图片、Mermaid 和数学公式,适合快速扫一遍核心能力。',
     enDescription:
-      'Covers headings, marks, lists, tasks, tables, images, and Mermaid for a quick capability tour.',
+      'Covers headings, marks, lists, tasks, tables, images, Mermaid, and math formulas for a quick capability tour.',
     docsPath: 'guide/quick-start',
     defaults: {
       readonly: false,
@@ -63,6 +63,12 @@ export const playgroundScenarios: Record<ScenarioKey, PlaygroundScenario> = {
         '<pre><code>const editor = useProEditor({ content })\n// 开箱即用的 Tiptap v3 封装</code></pre>' +
         '<h3>Mermaid 编辑与预览</h3>' +
         '<div data-type="mermaid-block" data-view-mode="split"><pre><code class="language-mermaid">flowchart LR\n  A[编辑代码] --&gt; B[实时预览]\n  B --&gt; C[保存视图]</code></pre></div>' +
+        '<h3>数学公式(KaTeX)</h3>' +
+        '<p>行内公式直接嵌在文字里:<span data-type="math-inline" data-latex="E = mc^2"></span>、<span data-type="math-inline" data-latex="\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}"></span>,点击选中后用气泡菜单编辑。输入 <code>$a+b$</code> 即可就地转行内公式,整段 <code>$$a+b$$</code> 转块级,工具栏 ∑ 与 <code>/公式</code> 打开插入弹层,可切换块级/行内。</p>' +
+        '<div data-type="math-block" data-latex="\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}"></div>' +
+        '<p>多行对齐(Maxwell 方程组)、分段函数与矩阵:</p>' +
+        '<div data-type="math-block" data-latex="\\begin{aligned} \\nabla \\cdot \\mathbf{E} &= \\frac{\\rho}{\\varepsilon_0} & \\nabla \\cdot \\mathbf{B} &= 0 \\\\ \\nabla \\times \\mathbf{E} &= -\\frac{\\partial \\mathbf{B}}{\\partial t} & \\nabla \\times \\mathbf{B} &= \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t} \\end{aligned}"></div>' +
+        '<div data-type="math-block" data-latex="f(x) = \\begin{cases} x^2, & x \\geq 0 \\\\ -x, & x < 0 \\end{cases} \\qquad \\mathbf{A} = \\begin{pmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{pmatrix}"></div>' +
         '<table><tbody>' +
         '<tr><th>模块</th><th>能力</th><th>状态</th><th>备注</th></tr>' +
         '<tr><td>表格</td><td>行列操作</td><td>OK</td><td>结构调整</td></tr>' +

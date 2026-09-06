@@ -17,7 +17,7 @@ function modeLabel(mode: MermaidViewMode) {
 <template>
   <NodeViewWrapper
     class="tvp-mermaid-block"
-    :class="[`is-${view.viewMode.value}`, { 'is-dark': view.theme.value === 'dark' }]"
+    :class="[`is-${view.viewMode.value}`, { 'is-dark': view.theme.value === 'dark', 'is-editable': view.editable.value }]"
     :data-view-mode="view.viewMode.value"
     contenteditable="false"
   >
@@ -80,6 +80,9 @@ function modeLabel(mode: MermaidViewMode) {
   --tvp-mermaid-selection: color-mix(in srgb, var(--el-color-primary, #409eff) 20%, transparent);
   --tvp-mermaid-error-line: color-mix(in srgb, var(--el-color-danger, #f56c6c) 10%, transparent);
   --tvp-mermaid-error: var(--el-color-danger, #f56c6c);
+  --tvp-mermaid-primary: var(--el-color-primary, #409eff);
+  --tvp-mermaid-primary-soft: var(--el-color-primary-light-5, #a0cfff);
+  --tvp-mermaid-primary-wash: var(--el-color-primary-light-8, #d9ecff);
   margin: 16px 0;
   position: relative;
   overflow: hidden;
@@ -87,6 +90,24 @@ function modeLabel(mode: MermaidViewMode) {
   border-radius: 4px;
   background: var(--tvp-mermaid-surface);
   color: var(--tvp-mermaid-text);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+/*
+ * 选中态(NodeSelection 加 ProseMirror-selectednode;范围选中由
+ * rangeSelection 装饰加 tvp-range-selected-node):主色边框 + 外圈光晕,
+ * 与文件附件选中态同款。is-editable 由 editable 注入,
+ * 只读/预览态不带该类,选中效果一并隐藏。
+ */
+.tvp-mermaid-block.is-editable.ProseMirror-selectednode,
+.tvp-mermaid-block.is-editable.tvp-range-selected-node {
+  border-color: var(--tvp-mermaid-primary);
+  box-shadow: 0 0 0 2px var(--tvp-mermaid-primary-wash);
+}
+
+/* hover:边框过渡为浅主色,提示块可点选(仅可编辑且未选中时显示) */
+.tvp-mermaid-block.is-editable:not(.ProseMirror-selectednode):not(.tvp-range-selected-node):hover {
+  border-color: var(--tvp-mermaid-primary-soft);
 }
 .tvp-mermaid-toolbar { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--tvp-mermaid-divider); background: var(--tvp-mermaid-subtle); }
 .tvp-mermaid-title, .tvp-mermaid-status, .tvp-mermaid-loading, .tvp-mermaid-error { display: inline-flex; align-items: center; gap: 6px; }

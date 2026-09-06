@@ -72,6 +72,7 @@ function createCtx(editor?: ReturnType<typeof createEditor>) {
       subscript: vi.fn(),
       codeBlock: vi.fn(),
       insertMermaidBlock: vi.fn(),
+      insertMathBlock: vi.fn(),
       setFontFamily: vi.fn(),
       setFontSize: vi.fn(),
       setLineHeight: vi.fn(),
@@ -130,6 +131,16 @@ describe('Naive Toolbar', () => {
     expect(ctx.commands.insertMermaidBlock).toHaveBeenCalledTimes(1)
   })
 
+  it('公式工具栏入口先准备插入点再插入块级公式', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, { attachTo: document.body, props: { ctx } })
+
+    await wrapper.find('button[aria-label="公式"]').trigger('click')
+
+    expect(ctx.prepareInsert).toHaveBeenCalledTimes(1)
+    expect(ctx.commands.insertMathBlock).toHaveBeenCalledTimes(1)
+  })
+
   it('网络图片:输入合法地址后插入图片并调用 prepareInsert', async () => {
     const ctx = createCtx()
     wrapper = mount(Toolbar, {
@@ -180,6 +191,24 @@ describe('Naive Toolbar', () => {
 
     expect(wrapper.emitted('toggle-preview')).toHaveLength(1)
     expect(wrapper.emitted('toggle-fullscreen')).toHaveLength(1)
+  })
+
+  it('compact 更多菜单里的打印走管线并提示另存为 PDF', async () => {
+    const ctx = createCtx()
+    wrapper = mount(Toolbar, {
+      attachTo: document.body,
+      props: { ctx, toolbarLayout: 'compact' },
+    })
+    const vm = wrapper.vm as unknown as { onCompactMenuSelect: (key: string) => void }
+
+    vm.onCompactMenuSelect('print')
+
+    expect(ctx.notify).toHaveBeenCalledWith(expect.stringContaining('另存为 PDF'), 'info')
+    await vi.waitFor(() => {
+      const printDocs = Array.from(document.querySelectorAll('iframe')).map(iframe => iframe.srcdoc)
+      expect(printDocs.some(srcdoc => srcdoc.includes('<p>hello</p>'))).toBe(true)
+    })
+    expect(ctx.getHTML).toHaveBeenCalled()
   })
 
   it('使用 core 命令注册表的 label 渲染基础按钮', () => {

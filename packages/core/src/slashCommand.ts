@@ -8,6 +8,7 @@ export type SlashCommandId =
   | 'divider'
   | 'codeBlock'
   | 'mermaid'
+  | 'math'
 
 export interface SlashCommandItem {
   id: SlashCommandId
@@ -30,6 +31,7 @@ export interface SlashCommandRunnerContext {
     hr: () => void
     codeBlock: () => void
     insertMermaidBlock: () => void
+    insertMathBlock: () => void
   }
 }
 
@@ -53,6 +55,7 @@ export const SLASH_COMMAND_DEFAULT_ITEM_IDS: SlashCommandId[] = [
   'divider',
   'codeBlock',
   'mermaid',
+  'math',
 ]
 
 export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
@@ -127,6 +130,14 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     icon: 'Workflow',
     aliases: ['mermaid', 'diagram', 'flowchart', 'liuchengtu'],
     keywords: ['流程图', '图表', '架构图', '时序图', 'diagram'],
+  },
+  {
+    id: 'math',
+    label: '公式',
+    hint: '插入数学公式',
+    icon: 'Sigma',
+    aliases: ['math', 'formula', 'latex', 'katex', 'gongshi', 'shuxue'],
+    keywords: ['公式', '数学', '数学公式', 'latex', 'katex', 'equation'],
   },
 ]
 
@@ -240,6 +251,9 @@ export function runSlashCommandItem(
       return true
     case 'mermaid':
       ctx.commands.insertMermaidBlock()
+      return true
+    case 'math':
+      ctx.commands.insertMathBlock()
       return true
     default:
       return false

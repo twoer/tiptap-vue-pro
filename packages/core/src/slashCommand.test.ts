@@ -28,9 +28,10 @@ describe('slash command protocol', () => {
       'divider',
       'codeBlock',
       'mermaid',
+      'math',
     ])
     expect(ids(getDefaultSlashCommandItems())).toEqual(SLASH_COMMAND_DEFAULT_ITEM_IDS)
-    expect(getDefaultSlashCommandItems()).toHaveLength(9)
+    expect(getDefaultSlashCommandItems()).toHaveLength(10)
   })
 
   it('normalizes typed slash queries', () => {
@@ -53,6 +54,9 @@ describe('slash command protocol', () => {
     ['/code', 'codeBlock'],
     ['/mermaid', 'mermaid'],
     ['/流程图', 'mermaid'],
+    ['/公式', 'math'],
+    ['/gongshi', 'math'],
+    ['/latex', 'math'],
   ] as const)('ranks %s as %s', (query, expectedId) => {
     expect(filterSlashCommandItems(SLASH_COMMAND_ITEMS, query)[0]?.id).toBe(expectedId)
   })
@@ -100,6 +104,7 @@ describe('slash command protocol', () => {
       hr: vi.fn(),
       codeBlock: vi.fn(),
       insertMermaidBlock: vi.fn(),
+      insertMathBlock: vi.fn(),
     }
     const ctx = { commands }
 
@@ -114,6 +119,9 @@ describe('slash command protocol', () => {
 
     expect(runSlashCommandItem(ctx, getSlashCommandItem('mermaid')!)).toBe(true)
     expect(commands.insertMermaidBlock).toHaveBeenCalledTimes(1)
+
+    expect(runSlashCommandItem(ctx, getSlashCommandItem('math')!)).toBe(true)
+    expect(commands.insertMathBlock).toHaveBeenCalledTimes(1)
   })
 
   it('delegates image slash commands to the adapter flow', () => {
@@ -127,6 +135,7 @@ describe('slash command protocol', () => {
         hr: vi.fn(),
         codeBlock: vi.fn(),
         insertMermaidBlock: vi.fn(),
+        insertMathBlock: vi.fn(),
       },
     }
     const onImage = vi.fn()

@@ -53,13 +53,14 @@ Tiptap Vue Pro 把这些能力封装成一套 UI 无关 core,再提供三套对�
 - HTML / JSON 输出,支持 `v-model`
 - 完整工具栏:支持 `classic` 全量展开与 `compact` 分层收纳,覆盖标题、格式化、字体、颜色、列表、插入、文档和视图操作
 - 代码块体验:17 种默认语言语法高亮、语言图标、上下文切换语言和一键复制代码
-- Slash Command 快捷插入:输入 `/` 可快速插入标题、待办、列表、表格、图片、分割线、代码块和 Mermaid 图表
+- Slash Command 快捷插入:输入 `/` 可快速插入标题、待办、列表、表格、图片、分割线、代码块、Mermaid 图表和数学公式
 - 编辑器内查找替换:Ctrl/⌘ + F 打开面板,支持高亮、上/下一个、大小写敏感、替换当前和替换全部
 - 图片上传、上传前裁剪、粘贴、拖拽、替换、对齐、尺寸、题注
 - 视频、音频和文件上传,支持播放器/文件卡片展示、多选、类型和大小限制,以及选中后的上下文编辑
 - 表格插入、列宽拖动、行列抓手、Shift 区域选择、Ctrl/⌘ + A 选中整表、合并拆分、表头切换
 - Markdown 导入 / 导出
 - 独立 Mermaid 块:代码、图表、分屏三种持久化视图,CodeMirror 编辑与实时预览
+- 数学公式(KaTeX):`$...$` / `$$...$$` 输入规则,行内/块级编辑弹层与实时预览、常用语法速查,打印以原生 MathML 导出
 - 可选自动保存:防抖、串行请求、latest-content-wins、手动 flush/retry 和状态事件
 - 可选本地草稿恢复:版本化存储、过期校验、显式恢复/删除,不静默覆盖服务端内容
 - 开发者诊断日志,支持按 lifecycle、command、upload、table 等通道排查接入问题
@@ -135,6 +136,7 @@ Naive UI 和 Ant Design Vue 用法保持对等,替换组件名和样式入口即
 | 接入图片上传 | [图片上传](https://twoer.github.io/tiptap-vue-pro/guide/image-upload) |
 | 接入视频、音频和文件上传 | [视频、音频和文件上传](https://twoer.github.io/tiptap-vue-pro/guide/media-upload) |
 | 编辑 Mermaid 图表 | [Mermaid 块](https://twoer.github.io/tiptap-vue-pro/guide/mermaid) |
+| 编辑数学公式 | [数学公式](https://twoer.github.io/tiptap-vue-pro/guide/math) |
 | 接入自动保存 | [自动保存](https://twoer.github.io/tiptap-vue-pro/guide/autosave) |
 | 防止刷新或崩溃丢稿 | [本地草稿恢复](https://twoer.github.io/tiptap-vue-pro/guide/local-drafts) |
 | 使用 Nuxt / SSR | [Nuxt / SSR](https://twoer.github.io/tiptap-vue-pro/guide/ssr) |

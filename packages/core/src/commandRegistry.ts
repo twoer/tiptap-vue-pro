@@ -99,6 +99,7 @@ export const COMMAND_REGISTRY: Record<ToolbarBuiltinKey, CommandMeta> = {
     isActive: (ctx) => ctx.isActive('codeBlock'),
   },
   mermaid: { id: 'mermaid', label: 'Mermaid 图表', icon: 'Workflow', group: 'insert', execute: (ctx) => ctx.commands.insertMermaidBlock() },
+  math: { id: 'math', label: '公式', icon: 'Sigma', group: 'insert', execute: (ctx) => ctx.commands.insertMathBlock() },
   hr: { id: 'hr', label: '分割线', icon: 'Minus', group: 'insert', execute: (ctx, payload) => ctx.commands.hr(payloadHorizontalRuleVariant(payload)) },
   link: { id: 'link', label: '链接', icon: 'Link', group: 'insert' },
   image: { id: 'image', label: '图片', icon: 'ImagePlus', group: 'insert' },
@@ -107,7 +108,7 @@ export const COMMAND_REGISTRY: Record<ToolbarBuiltinKey, CommandMeta> = {
   clearFormat: { id: 'clearFormat', label: '清除格式', icon: 'Eraser', group: 'utility', execute: (ctx) => ctx.commands.clearFormat() },
   findReplace: { id: 'findReplace', label: '查找替换', icon: 'Search', group: 'utility', execute: (ctx) => ctx.commands.openFindReplace() },
   markdown: { id: 'markdown', label: '导入 / 导出 Markdown', icon: 'Markdown', group: 'utility' },
-  print: { id: 'print', label: '打印', icon: 'Printer', group: 'utility' },
+  print: { id: 'print', label: '打印 / 导出 PDF', icon: 'Printer', group: 'utility' },
   fullscreen: { id: 'fullscreen', label: '全屏', icon: 'Maximize2', group: 'utility' },
   preview: { id: 'preview', label: '预览', icon: 'Eye', group: 'utility' },
 }

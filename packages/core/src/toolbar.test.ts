@@ -37,7 +37,7 @@ describe('toolbar config', () => {
       ['color', 'highlight', 'clearFormat'],
       ['align', 'decreaseIndent', 'increaseIndent'],
       ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'],
-      ['link', 'image', 'attachment', 'table', 'mermaid', 'hr'],
+      ['link', 'image', 'attachment', 'table', 'mermaid', 'math', 'hr'],
       ['findReplace', 'markdown', 'print'],
       ['preview', 'fullscreen'],
     ])
@@ -71,7 +71,7 @@ describe('toolbar config', () => {
       menus: [
         { id: 'format', items: ['strike', 'code', 'superscript', 'subscript', 'clearFormat'] },
         { id: 'list', items: ['decreaseIndent', 'increaseIndent', 'bulletList', 'orderedList', 'taskList', 'blockquote'] },
-        { id: 'insert', items: ['image', 'attachment', 'mermaid', 'hr'] },
+        { id: 'insert', items: ['image', 'attachment', 'mermaid', 'math', 'hr'] },
         { id: 'more', items: ['findReplace', 'markdown', 'print'] },
       ],
       trailing: ['preview', 'fullscreen'],

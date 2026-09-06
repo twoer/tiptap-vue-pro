@@ -6,7 +6,7 @@
  * 覆盖层引擎(定位/hover 检测/选区落点/命令转发)在 core 的 useTableGripOverlay,
  * 本组件只负责 Element Plus 菜单渲染与样式。
  */
-import { onMounted, onBeforeUnmount, watch } from 'vue'
+import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-vue-next'
 import type { Editor } from '@tiptap/vue-3'
@@ -24,6 +24,10 @@ const emit = defineEmits<{
   'menu-open-change': [open: boolean]
 }>()
 
+// 抓手容器:引擎据它的 DOM 链探测 fixed 包含块祖先(transform/contain 等),
+// 把视口坐标换算过去;display: contents 使其自身不参与布局
+const layerEl = ref<HTMLElement | null>(null)
+
 const {
   hasEditor, hoverRow, hoverCol, activeGripPos,
   rowMenuShow, colMenuShow, rowMenuIndex, colMenuIndex,
@@ -33,6 +37,7 @@ const {
 } = useTableGripOverlay({
   getEditor: () => props.editor,
   getScrollContainer: () => props.scrollContainer,
+  getOverlayHost: () => layerEl.value,
   getContext: () => props.ctx,
   debugLog: (channel, event, payload, level, error) =>
     props.debugLog?.(channel, event, payload, level, error),
@@ -51,7 +56,7 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
 
 <template>
   <!-- 覆盖层:随鼠标 hover 的表格渲染,不依赖编辑器当前选区 -->
-  <template v-if="hasEditor">
+  <div v-if="hasEditor" ref="layerEl" class="tvp-table-grip-layer">
     <!-- 行抓手(表格左外侧)-->
     <div
       v-for="row in activeGripPos.rows"
@@ -123,11 +128,16 @@ watch(() => props.ctx.tableState.value.tablePos, refresh)
         </template>
       </ElDropdown>
     </div>
-  </template>
+  </div>
 </template>
 
 <style scoped>
-/* 抓手:fixed 浮层(相对视口),不受 content-wrap overflow 裁剪。 */
+/* 抓手容器:不生成盒子,只为给引擎提供 fixed 包含块的探测起点 */
+.tvp-table-grip-layer {
+  display: contents;
+}
+
+/* 抓手:fixed 浮层(坐标已按包含块祖先换算),不受 content-wrap overflow 裁剪。 */
 .tvp-table-grip {
   position: fixed;
   display: flex;

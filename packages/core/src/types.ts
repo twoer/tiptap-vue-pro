@@ -10,6 +10,7 @@ import type { LocaleProp, LocaleTranslate } from './locale'
 import type { ProEditorDebugLogger, ProEditorDebugOptions } from './debug'
 import type { MermaidBlockOptions } from './extensions/mermaidBlock'
 import type { MermaidViewMode } from './mermaid'
+import type { MathNodeOptions } from './extensions/math'
 import type {
   AutosaveOptions,
   AutosaveReason,
@@ -121,6 +122,8 @@ export interface ProEditorOptions {
   slashCommand?: false | Partial<SlashCommandExtensionOptions>
   /** Mermaid 块配置。adapter 用它注入各自的 Vue NodeView。 */
   mermaid?: Partial<MermaidBlockOptions>
+  /** 数学公式(KaTeX)配置。adapter 用 nodeViewRenderer 注入各自的 Vue NodeView。 */
+  math?: Partial<MathNodeOptions>
   /** 自动保存配置。false 或 enabled=false 时关闭。 */
   autosave?: false | AutosaveOptions<string | object>
   /** 本地草稿配置。默认关闭,启用时必须提供稳定文档 key。 */
@@ -265,6 +268,22 @@ export interface ProEditorCommands {
   insertMermaidBlock: (source?: string, viewMode?: MermaidViewMode) => void
   /** 更新当前 Mermaid 块的持久化视图。 */
   setMermaidViewMode: (viewMode: MermaidViewMode) => void
+  /** 插入行内公式 */
+  insertMathInline: (latex?: string) => void
+  /** 插入块级公式 */
+  insertMathBlock: (latex?: string) => void
+  /**
+   * 更新公式源码。传 from 时按保存的节点位置回写——编辑弹层失焦后
+   * DOM selection 不可靠,按打开弹层时保存的 { from } 绝对位置写入最稳妥。
+   */
+  updateMath: (latex: string, from?: number) => void
+  /**
+   * 转换公式类型(行内 ↔ 块级)并写入新源码,单步撤销。
+   * 行内 → 块级:整段独占时整段替换,混排时块级插到段落后;块级 → 行内:替换为含公式的段落。
+   */
+  convertMath: (kind: 'inline' | 'block', latex?: string, from?: number) => void
+  /** 删除公式节点;from 语义同 updateMath */
+  deleteMath: (from?: number) => void
   /** 设置/更新链接;href 为空则移除链接 */
   setLink: (href: string, opts?: { target?: string; range?: { from: number; to: number } }) => void
   /**

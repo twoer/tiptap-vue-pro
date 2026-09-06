@@ -14,6 +14,7 @@ export interface EditorExtensionConfig {
   blockIndent?: boolean
   codeBlock?: boolean
   mermaid?: boolean
+  math?: boolean
   script?: boolean
   taskList?: boolean
   media?: boolean
@@ -37,6 +38,7 @@ export const DEFAULT_EXTENSION_CONFIG: Required<
   blockIndent: true,
   codeBlock: true,
   mermaid: true,
+  math: true,
   script: true,
   taskList: true,
   media: true,
