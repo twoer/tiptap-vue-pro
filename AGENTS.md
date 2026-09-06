@@ -56,6 +56,12 @@ pnpm --filter playground build
   ```
 
   脚本按 core → 适配器顺序发布，自动完成三件事：临时把包内 `workspace:^` 改写为真实区间（发完 git 还原）、伪 TTY 运行 `npx npm@12 publish`、捕获认证链接并自动打开浏览器。registry 已有同版本会自动跳过，可安全重跑。
+- （2026-09-06 实证）**agent / 无终端环境**下 `publish-webauth.mjs` 的 `/usr/bin/script` 会报 `tcgetattr/ioctl: Operation not supported on socket` 全军覆没——这是环境限制（stdin 是 socket 而非 TTY），不是认证问题；不要反复重试 script 或换目录，直接切换到下面的 Python PTY 流程。原则：**一旦确定需要网页认证，立即发起并把浏览器打开让用户完成 Security Key 验证**——用户认证本来就是流程的一步，不要在环境 workaround 上反复消耗用户等待时间。
+- （2026-09-06 实证）npm 12 网页认证的前提是**真 TTY**：无 TTY 时完全不发起挑战（不打印认证链接，publish 直接报 E404/ENEEDAUTH）。macOS `script` 要求自身 stdin 是 TTY，所以在 agent 环境必失败；Python `pty` 模块（`openpty` + `Popen`）不受父进程 stdin 类型影响，是无终端环境的正解。另一个坑：`~/.npmrc` 里有**失效 `_authToken`** 时（`npm whoami` → E401），npm 会带着死 token 跳过登录挑战直接 PUT，publish 报被掩码成 404 的权限错误——先用 `npm whoami` 探测，失效就用 `grep -v _authToken ~/.npmrc > /tmp/tvp-publish.npmrc` 做一份保留 registry/proxy、去掉死 token 的 userconfig。
+- （2026-09-06 实证）agent 环境的标准发布流程（两步走，驱动脚本已固化在 `scripts/npm-webauth-run.py`）：
+  1. 登录：`python3 scripts/npm-webauth-run.py packages/core npx -y npm@12 login --auth-type=web --userconfig /tmp/tvp-publish.npmrc`——驱动在真 PTY 里运行、自动应答「Press ENTER」、抓取认证链接（`www.npmjs.com/auth/cli/...` 或 `www.npmjs.com/login?next=/login/cli/...`）并打开本地 Google Chrome；浏览器弹出后请用户完成验证，token 写入临时 userconfig。
+  2. 逐包发布：core 无需改写直接发；三个适配器先 `sed -i '' 's/"workspace:\^"/"^<版本>"/g' package.json` 再发，发完 `git checkout -- package.json` 还原。命令同为 `python3 scripts/npm-webauth-run.py <pkg-dir> npx -y npm@12 publish --access public --userconfig /tmp/tvp-publish.npmrc`。Security Key 账号**第一个 publish 会再发起一次 WebAuthn 挑战**（需要用户再验证一次），之后会话复用、其余包不再打扰。
+  3. 完成后跑 `node scripts/verify-publish.mjs` 做消费者视角验证（registry 可见 + 全新安装 + 构建 + 三适配器冒烟）。
 - npm 12 对 node 版本有 `^22.22.2 || >=26` 的 engines 要求，在更低的小版本（如 22.19）上会打 EBADENGINE 警告但可正常工作；以实际发布结果为准。
 - 2026 年 8 月起，启用 bypass-2FA 的 granular access token 不能执行部分敏感的账号、包和组织管理操作；不要假设此类 token 可以完成 unpublish。
 - 后续任何 npm 操作涉及网页时，禁止打开或切换到 Codex 内置浏览器；必须优先使用用户本地 Google Chrome。
